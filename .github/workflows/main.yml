@@ -16,7 +16,7 @@ jobs:
         echo ${{ secrets.GITHUB_TOKEN }}
         echo ${{ github.repository }}
         echo $branch_name
-        branch_name=$(jq -r .ref <<< "$GITHUB_EVENT_PATH")
+        branch_name=$(jq -r .ref <<< \"$GITHUB_EVENT_PATH\")
         echo "!"
         merged=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/pulls?state=closed | jq ".[] | select(.base.ref == \"master\" and .head.ref == \"$branch_name\")")
         if [[ -n "$merged" ]]; then

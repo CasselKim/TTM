@@ -3,7 +3,7 @@ name: Auto-delete Branch After Merge
 on:
   push:
     branches:
-      - main
+      - master
 
 jobs:
   delete-merged-branch:
@@ -13,7 +13,7 @@ jobs:
     - name: Check if branch is merged
       run: |
         branch_name=$(jq -r .ref <<< "$GITHUB_EVENT_PATH")
-        merged=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/pulls?state=closed | jq ".[] | select(.base.ref == \"main\" and .head.ref == \"$branch_name\")")
+        merged=$(curl -s -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" https://api.github.com/repos/${{ github.repository }}/pulls?state=closed | jq ".[] | select(.base.ref == \"master\" and .head.ref == \"$branch_name\")")
         if [[ -n "$merged" ]]; then
           echo "Branch is merged. Deleting $branch_name."
           git fetch --all

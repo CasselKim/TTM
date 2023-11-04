@@ -1,0 +1,21 @@
+version: '3'
+services:
+  redis:
+    image: redis
+    container_name: TTM-redis
+    ports:
+      - "6379:6379"
+
+  mysql:
+    image: mysql:8.0
+    container_name: TTM-mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: ttm
+      MYSQL_USER: user
+      MYSQL_PASSWORD: user
+    ports:
+      - "3306:3306"
+
+networks:
+  backend:

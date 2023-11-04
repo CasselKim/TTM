@@ -26,4 +26,4 @@ jobs:
     - name: Build and push Docker image
       run: |
         docker buildx create --use
-        docker buildx build --tag ttm/app:latest --file Dockerfile . --push
+        docker buildx build --tag ttm/app:latest --file docker/Dockerfile . --push

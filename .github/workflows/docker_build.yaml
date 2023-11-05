@@ -39,6 +39,6 @@ jobs:
         key: ${{ secrets.EC2_KEY }}
         script: |
           docker rm -f $(docker ps -qa)
-          docker rmi ${{ secrets.DOCKER_USERNAME }}/ttm
-          docker pull ${{ secrets.DOCKER_USERNAME }}/ttm
+          docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/ttm
+          docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ttm
           docker-compose up -d

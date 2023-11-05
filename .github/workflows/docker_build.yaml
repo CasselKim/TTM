@@ -33,4 +33,4 @@ jobs:
         context: .
         push: true
         file: docker/Dockerfile
-        tags: ${{ secrets.DOCKERHUB_USERNAME }}:latest
+        tags: ${{ secrets.DOCKERHUB_USERNAME }}/ttm:latest

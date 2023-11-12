@@ -34,7 +34,7 @@ jobs:
   replace-and-run:
     runs-on: ubuntu-latest
     environment: master
-    needs: build-and-test
+    needs: build-and-push
 
     steps:
     - name: EC2 Docker Run

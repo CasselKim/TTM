@@ -31,6 +31,12 @@ jobs:
         file: docker/Dockerfile
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/ttm:latest
 
+  replace-and-run:
+    runs-on: ubuntu-latest
+    environment: master
+    needs: build-and-test
+
+    steps:
     - name: EC2 Docker Run
       uses: appleboy/ssh-action@master
       with:

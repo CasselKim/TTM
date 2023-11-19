@@ -1,8 +1,8 @@
 version: '3'
 services:
   app:
-    image: seongr39/ttm
-    platform: linux/amd64
+    image: ttm-image
+    platform: linux/arm64/v8
     container_name: TTM-app
     ports:
       - "80:80"

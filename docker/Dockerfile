@@ -20,3 +20,5 @@ COPY --from=builder /usr/local/bin/alembic /usr/local/bin/alembic
 WORKDIR /ttm
 
 COPY . .
+
+CMD ["python3", "-m", "uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]

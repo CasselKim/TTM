@@ -14,6 +14,7 @@ alembic = "^1.12.1"
 redis = "^5.0.1"
 requests = "^2.31.0"
 uvicorn = "^0.23.2"
+setuptools = "^68.2.2"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -27,6 +28,7 @@ coverage = "^7.3.2"
 sqlalchemy2-stubs = "^0.0.2a36"
 typer = "^0.9.0"
 types-redis = "^4.6.0.9"
+uvicorn = "0.23.2"
 
 
 [tool.poetry.group.pytest-bdd.dependencies]

@@ -7,4 +7,9 @@ cov_report:
 cov_html:
 	coverage html
 
+install:
+	poetry install
+	poetry check
+	pre-commit install
+
 test: unittest cov_report cov_html

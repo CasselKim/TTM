@@ -16,7 +16,7 @@ jobs:
 
     - name: Set up resources
       run: |
-        docker compose -f docker/docker-compose-local.yml up
+        docker compose -f docker/docker-compose-local.yml up -d
 
     - name: Set up Python
       uses: actions/setup-python@v2

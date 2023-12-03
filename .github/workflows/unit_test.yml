@@ -6,6 +6,7 @@ on:
 jobs:
   unit-test:
     runs-on: ubuntu-latest
+    environment: master
 
     steps:
     - name: Checkout code
@@ -20,12 +21,11 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Build and push
+    - name: Build and export to Docker
       uses: docker/build-push-action@v5
       with:
         context: .
-        push: false
-        file: docker/Dockerfile
+        load: true
         tags: ttm-image:latest
 
     - name: Set up resources

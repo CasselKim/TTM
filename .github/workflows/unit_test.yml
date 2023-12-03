@@ -32,7 +32,7 @@ jobs:
         context: .
         push: true
         file: docker/Dockerfile
-        tags: localhost:5000/ttim-image:latest
+        tags: localhost:5000/ttm-image:latest
 
     - name: Set up resources
       run: |

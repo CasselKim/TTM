@@ -2,7 +2,7 @@ version: '3'
 services:
   app:
     image: localhost:5000/ttm-image:latest
-    platform: linux/arm64/v8
+    platform: linux/amd64
     container_name: TTM-app
     ports:
       - "80:80"

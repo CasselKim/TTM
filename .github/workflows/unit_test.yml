@@ -6,7 +6,12 @@ on:
 jobs:
   unit-test:
     runs-on: ubuntu-latest
-    environment: master
+    env:
+      DB_USER: user
+      DB_PASSWORD: user
+      DB_HOST: 127.0.0.1
+      DB_NAME: ttm
+      DB_PORT: 3306
 
     services:
       registry:

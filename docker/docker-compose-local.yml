@@ -1,5 +1,16 @@
 version: '3'
 services:
+  app:
+    image: ttm-image
+    platform: linux/arm64/v8
+    container_name: TTM-app
+    ports:
+      - "80:80"
+    networks:
+      - my-network
+    depends_on:
+      - mysql
+
   redis:
     image: redis
     container_name: TTM-redis
@@ -16,6 +27,12 @@ services:
       MYSQL_PASSWORD: user
     ports:
       - "3306:3306"
+    networks:
+      - my-network
+
 
 networks:
-  backend:
+  my-network:
+
+volumes:
+  db-data:

@@ -26,8 +26,10 @@ repos:
             typer,
             types-redis,
             uvicorn,
+            python-dotenv,
           ]
         args: ["--strict"]
+        exclude: database.py|base_orm.py|alembic/|test/
 
   - repo: https://github.com/pycqa/isort
     rev: 5.12.0

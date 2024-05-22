@@ -6,13 +6,38 @@ on:
 jobs:
   unit-test:
     runs-on: ubuntu-latest
+    env:
+      DB_USER: user
+      DB_PASSWORD: user
+      DB_HOST: 127.0.0.1
+      DB_NAME: ttm
+      DB_PORT: 3306
+
+    services:
+      registry:
+        image: registry:2
+        ports:
+          - 5000:5000
 
     steps:
     - name: Checkout code
       uses: actions/checkout@v2
 
+    - name: Set up QEMU
+      uses: docker/setup-qemu-action@v3
+
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v2
+      uses: docker/setup-buildx-action@v3
+      with:
+        driver-opts: network=host
+
+    - name: Build and push to local registry
+      uses: docker/build-push-action@v5
+      with:
+        context: .
+        push: true
+        file: docker/Dockerfile
+        tags: localhost:5000/ttm-image:latest
 
     - name: Set up resources
       run: |

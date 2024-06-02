@@ -21,7 +21,7 @@ jobs:
         username: ${{ secrets.EC2_USERNAME }}
         key: ${{ secrets.EC2_KEY }}
         script: |
-          CONTAINER_ID=$(docker ps -qf "name=<YOUR_FASTAPI_CONTAINER_NAME>")
+          CONTAINER_ID=$(docker ps -qf "name=TTM-app")
 
           if [ -z "$CONTAINER_ID" ]; then
             echo "Container is not running."

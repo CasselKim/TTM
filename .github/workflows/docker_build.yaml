@@ -45,6 +45,7 @@ jobs:
         key: ${{ secrets.EC2_KEY }}
         script: |
           docker rm -f $(docker ps -qa)
-          docker rmi ${{ secrets.DOCKERHUB_USERNAME }}/ttm
+          docker system prune -a -f --volumes
+
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ttm
           docker-compose up -d

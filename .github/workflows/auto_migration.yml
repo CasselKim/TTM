@@ -1,9 +1,7 @@
 name: EC2 Docker Alembic Migration
 
 on:
-  push:
-    branches:
-      - master
+  workflow_dispatch:
 
 jobs:
   migrate:

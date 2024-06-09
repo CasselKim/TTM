@@ -5,6 +5,13 @@ on:
     branches:
       - master
 
+env:
+  AWS_REGION : ap-northeast-2
+
+permissions:
+  id-token: write
+  contents: read
+
 jobs:
   build-and-push:
     runs-on: ubuntu-latest
@@ -36,7 +43,20 @@ jobs:
     environment: master
     needs: build-and-push
 
+
     steps:
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ap-northeast-2
+        role-to-assume: arn:aws:iam::861536865647:role/GithubAction
+
+    - name: Get Secrets
+      uses: aws-actions/aws-secretsmanager-get-secrets@v2
+      with:
+        secret-ids: |
+          *
+
     - name: EC2 Docker Run
       uses: appleboy/ssh-action@master
       with:

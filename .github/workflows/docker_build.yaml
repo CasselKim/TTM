@@ -30,18 +30,6 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
-    - name: Configure AWS Credentials
-      uses: aws-actions/configure-aws-credentials@v4
-      with:
-        aws-region: ap-northeast-2
-        role-to-assume: arn:aws:iam::861536865647:role/MyRole
-
-    - name: Get Secrets
-      uses: aws-actions/aws-secretsmanager-get-secrets@v2
-      with:
-        secret-ids: |
-          SECRETS,prod/ttm/api
-
     - name: Build and push
       uses: docker/build-push-action@v5
       with:
@@ -49,12 +37,6 @@ jobs:
         push: true
         file: docker/Dockerfile
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/ttm:latest
-        secret-envs: |
-          DB_USER=${{ SECRETS.DB_USER }}
-          DB_PASSWORD=${{ SECRETS.DB_PASSWORD }}
-          DB_HOST=${{ SECRETS.DB_HOST }}
-          DB_NAME=${{ SECRETS.DB_NAME }}
-          DB_PORT=${{ SECRETS.DB_PORT }}
 
   replace-and-run:
     runs-on: ubuntu-latest
@@ -72,7 +54,7 @@ jobs:
       uses: aws-actions/aws-secretsmanager-get-secrets@v2
       with:
         secret-ids: |
-          prod/ttm/api/*
+          SECRETS,prod/ttm/api
 
     - name: EC2 Docker Run
       uses: appleboy/ssh-action@master
@@ -85,4 +67,4 @@ jobs:
           docker system prune -a -f --volumes
 
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ttm
-          docker-compose up -d
+          docker run -d -e DB_USER="${{ SECRETS.DB_USER }}" -p 80:80 --name TTM-app ${{ secrets.DOCKERHUB_USERNAME }}/ttm

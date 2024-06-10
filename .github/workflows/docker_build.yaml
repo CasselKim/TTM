@@ -30,6 +30,18 @@ jobs:
         username: ${{ secrets.DOCKERHUB_USERNAME }}
         password: ${{ secrets.DOCKERHUB_TOKEN }}
 
+    - name: Configure AWS Credentials
+      uses: aws-actions/configure-aws-credentials@v4
+      with:
+        aws-region: ap-northeast-2
+        role-to-assume: arn:aws:iam::861536865647:role/MyRole
+
+    - name: Get Secrets
+      uses: aws-actions/aws-secretsmanager-get-secrets@v2
+      with:
+        secret-ids: |
+          SECRETS prod/ttm/api
+
     - name: Build and push
       uses: docker/build-push-action@v5
       with:
@@ -37,12 +49,17 @@ jobs:
         push: true
         file: docker/Dockerfile
         tags: ${{ secrets.DOCKERHUB_USERNAME }}/ttm:latest
+        secret-envs: |
+          DB_USER=${{ SECRETS.DB_USER }}
+          DB_PASSWORD=${{ SECRETS.DB_PASSWORD }}
+          DB_HOST=${{ SECRETS.DB_HOST }}
+          DB_NAME=${{ SECRETS.DB_NAME }}
+          DB_PORT=${{ SECRETS.DB_PORT }}
 
   replace-and-run:
     runs-on: ubuntu-latest
     environment: master
     needs: build-and-push
-
 
     steps:
     - name: Configure AWS Credentials

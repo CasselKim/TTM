@@ -55,7 +55,7 @@ jobs:
       uses: aws-actions/aws-secretsmanager-get-secrets@v2
       with:
         secret-ids: |
-          *
+          prod/ttm/api
 
     - name: EC2 Docker Run
       uses: appleboy/ssh-action@master

@@ -26,4 +26,4 @@ jobs:
             exit 1
           fi
 
-          echo "docker exec $CONTAINER_ID poetry run alembic upgrade head"
+          echo $(docker exec $CONTAINER_ID poetry run alembic upgrade head)

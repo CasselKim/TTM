@@ -40,7 +40,7 @@ jobs:
       uses: aws-actions/aws-secretsmanager-get-secrets@v2
       with:
         secret-ids: |
-          SECRETS prod/ttm/api
+          SECRETS,prod/ttm/api
 
     - name: Build and push
       uses: docker/build-push-action@v5

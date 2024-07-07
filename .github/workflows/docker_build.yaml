@@ -73,5 +73,6 @@ jobs:
             -e DB_PASSWORD="${{ SECRETS.DB_PASSWORD }}" \
             -e DB_HOST="${{ SECRETS.DB_HOST }}" \
             -e DB_NAME="${{ SECRETS.DB_NAME }}" \
-            -e DB_PORT="${{ SECRETS.DB_PORT }}" \
+            -e DB_PORT="${{ SECRETS.DB_PORT }}"
+            -p 80:80/tcp \
             --name TTM-app ${{ secrets.DOCKERHUB_USERNAME }}/ttm

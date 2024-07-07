@@ -12,4 +12,4 @@ RUN poetry install --no-dev
 
 COPY . /app
 
-CMD ["poetry","run","uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80", "--reload"]
+CMD ["poetry","run","uvicorn", "main:app", "--host", "0.0.0.0", "--port", "80"]

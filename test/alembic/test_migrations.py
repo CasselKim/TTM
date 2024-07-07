@@ -1,4 +1,4 @@
-from app.core.domain.entity.user import User
+from app.domain.models.user import User
 from common.database import session_scope
 
 

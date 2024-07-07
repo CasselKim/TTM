@@ -1,4 +1,4 @@
-name: EC2 Docker Alembic Migration
+name: Auto Migration
 
 on:
   workflow_dispatch:

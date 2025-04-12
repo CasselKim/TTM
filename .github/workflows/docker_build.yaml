@@ -51,12 +51,6 @@ jobs:
         aws-region: ap-northeast-2
         role-to-assume: arn:aws:iam::991625847978:role/TTMpolicy
 
-    - name: Get Secrets
-      uses: aws-actions/aws-secretsmanager-get-secrets@v2
-      with:
-        secret-ids: |
-          SECRETS,prod/ttm/api
-
     - name: EC2 Docker Run
       uses: appleboy/ssh-action@master
       with:
@@ -69,10 +63,10 @@ jobs:
 
           docker pull ${{ secrets.DOCKERHUB_USERNAME }}/ttm
           docker run -d \
-            -e DB_USER="${{ SECRETS.DB_USER }}" \
-            -e DB_PASSWORD="${{ SECRETS.DB_PASSWORD }}" \
-            -e DB_HOST="${{ SECRETS.DB_HOST }}" \
-            -e DB_NAME="${{ SECRETS.DB_NAME }}" \
-            -e DB_PORT="${{ SECRETS.DB_PORT }}"
+            -e DB_USER="${{ secrets.DB_USER }}" \
+            -e DB_PASSWORD="${{ secrets.DB_PASSWORD }}" \
+            -e DB_HOST="${{ secrets.DB_HOST }}" \
+            -e DB_NAME="${{ secrets.DB_NAME }}" \
+            -e DB_PORT="${{ secrets.DB_PORT }}"
             -p 80:80/tcp \
             --name TTM-app ${{ secrets.DOCKERHUB_USERNAME }}/ttm

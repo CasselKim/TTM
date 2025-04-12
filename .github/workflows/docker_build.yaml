@@ -49,7 +49,7 @@ jobs:
       uses: aws-actions/configure-aws-credentials@v4
       with:
         aws-region: ap-northeast-2
-        role-to-assume: arn:aws:iam::861536865647:role/MyRole
+        role-to-assume: arn:aws:iam::991625847978:role/TTMpolicy
 
     - name: Get Secrets
       uses: aws-actions/aws-secretsmanager-get-secrets@v2

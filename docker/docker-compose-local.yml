@@ -1,7 +1,7 @@
 version: '3'
 services:
   app:
-    image: localhost:5000/ttm-image:latest
+    image: localhost:5001/ttm-image
     platform: linux/amd64
     container_name: TTM-app
     ports:

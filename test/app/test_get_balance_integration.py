@@ -5,6 +5,8 @@ from app.infrastructure.external.adapter.upbit_adapter import UpbitAdapter
 from app.application.usecase.get_account_balance_usecase import GetAccountBalanceUseCase
 from app.domain.models.account import Currency
 
+pytestmark = pytest.mark.asyncio
+
 @pytest.fixture
 def mock_upbit_client():
     with patch('app.infrastructure.external.adapter.upbit_adapter.UpbitClient') as mock:

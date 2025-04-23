@@ -18,30 +18,3 @@ class UpbitClient:
     def get_accounts(self) -> list[dict[str, Any]]:
         """계좌 정보 조회"""
         return self._request("GET", "/accounts")
-
-    def get_market_all(self) -> dict[str, Any]:
-        """모든 마켓 정보 조회"""
-        return self._request("GET", "/market/all")
-
-    def get_ticker(self, markets: str) -> dict[str, Any]:
-        """현재가 정보 조회"""
-        return self._request("GET", "/ticker", {"markets": markets})
-
-    def get_orderbook(self, markets: str) -> dict[str, Any]:
-        """호가 정보 조회"""
-        return self._request("GET", "/orderbook", {"markets": markets})
-
-    def create_order(self, market: str, side: str, volume: str, price: str, ord_type: str) -> dict[str, Any]:
-        """주문 생성"""
-        params = {
-            "market": market,
-            "side": side,
-            "volume": volume,
-            "price": price,
-            "ord_type": ord_type
-        }
-        return self._request("POST", "/orders", params)
-
-    def get_order(self, uuid: str) -> dict[str, Any]:
-        """주문 조회"""
-        return self._request("GET", "/order", {"uuid": uuid}) 

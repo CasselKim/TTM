@@ -5,122 +5,24 @@ from app.infrastructure.external.upbit.exceptions import UpbitAPIException
 from decimal import Decimal
 from app.domain.models.account import Account, Balance, Currency
 
-pytestmark = pytest.mark.asyncio(scope="session")
+pytestmark = pytest.mark.asyncio
 
 @pytest.fixture
-def mock_upbit_client():
-    with patch('app.infrastructure.external.adapter.upbit_adapter.UpbitClient') as mock:
-        client = mock.return_value
-        yield client
+def mock_response():
+    mock = Mock()
+    mock.json = Mock()
+    mock.raise_for_status = Mock()
+    return mock
 
 @pytest.fixture
-def upbit_adapter(mock_upbit_client):
+def upbit_adapter():
     return UpbitAdapter(access_key="test_access_key", secret_key="test_secret_key")
 
 @pytest.mark.asyncio
-async def test_get_market_price_success(upbit_adapter):
+@patch('app.infrastructure.external.upbit.client.requests.request')
+async def test_get_account_balance_success(mock_request, upbit_adapter, mock_response):
     # Given
-    market = "KRW-BTC"
-    mock_response = [{
-        "market": market,
-        "trade_price": 50000000,
-        "timestamp": 1234567890123
-    }]
-    
-    with patch.object(upbit_adapter.client, 'get_ticker', return_value=mock_response):
-        # When
-        result = await upbit_adapter.get_market_price(market)
-        
-        # Then
-        assert result == {
-            "market": market,
-            "price": 50000000,
-            "timestamp": 1234567890123
-        }
-        upbit_adapter.client.get_ticker.assert_called_once_with(markets=market)
-
-@pytest.mark.asyncio
-async def test_get_market_price_empty_response(upbit_adapter):
-    # Given
-    market = "KRW-BTC"
-    
-    with patch.object(upbit_adapter.client, 'get_ticker', return_value=[]):
-        # When/Then
-        with pytest.raises(UpbitAPIException) as exc_info:
-            await upbit_adapter.get_market_price(market)
-        
-        assert "No price data available" in str(exc_info.value)
-
-@pytest.mark.asyncio
-async def test_create_market_order_success(upbit_adapter):
-    # Given
-    market = "KRW-BTC"
-    side = "bid"
-    volume = "0.01"
-    
-    mock_response = {
-        "uuid": "test-uuid",
-        "market": market,
-        "state": "wait"
-    }
-    
-    with patch.object(upbit_adapter.client, 'create_order', return_value=mock_response):
-        # When
-        result = await upbit_adapter.create_market_order(market, side, volume)
-        
-        # Then
-        assert result == {
-            "order_id": "test-uuid",
-            "market": market,
-            "status": "wait"
-        }
-        upbit_adapter.client.create_order.assert_called_once_with(
-            market=market,
-            side=side,
-            volume=volume,
-            price=None,
-            ord_type="market"
-        )
-
-@pytest.mark.asyncio
-async def test_get_order_status_success(upbit_adapter):
-    # Given
-    order_id = "test-uuid"
-    mock_response = {
-        "uuid": order_id,
-        "state": "done",
-        "executed_volume": "0.01",
-        "remaining_volume": "0.0"
-    }
-    
-    with patch.object(upbit_adapter.client, 'get_order', return_value=mock_response):
-        # When
-        result = await upbit_adapter.get_order_status(order_id)
-        
-        # Then
-        assert result == {
-            "order_id": order_id,
-            "status": "done",
-            "executed_volume": "0.01",
-            "remaining_volume": "0.0"
-        }
-        upbit_adapter.client.get_order.assert_called_once_with(uuid=order_id)
-
-@pytest.mark.asyncio
-async def test_adapter_error_handling(upbit_adapter):
-    # Given
-    market = "KRW-BTC"
-    
-    with patch.object(upbit_adapter.client, 'get_ticker', side_effect=Exception("API Error")):
-        # When/Then
-        with pytest.raises(UpbitAPIException) as exc_info:
-            await upbit_adapter.get_market_price(market)
-        
-        assert "Failed to get market price" in str(exc_info.value)
-
-async def test_get_account_balance_success(upbit_adapter, mock_upbit_client):
-    # Given
-    mock_response = [
+    mock_data = [
         {
             "currency": "BTC",
             "balance": "1.5",
@@ -136,7 +38,8 @@ async def test_get_account_balance_success(upbit_adapter, mock_upbit_client):
             "unit_currency": "KRW"
         }
     ]
-    mock_upbit_client.get_accounts.return_value = mock_response
+    mock_response.json.return_value = mock_data
+    mock_request.return_value = mock_response
 
     # When
     account = await upbit_adapter.get_account_balance()
@@ -153,11 +56,16 @@ async def test_get_account_balance_success(upbit_adapter, mock_upbit_client):
     assert eth_balance.balance == Decimal('2.0')
     assert eth_balance.avg_buy_price == Decimal('3000000')
 
-async def test_get_account_balance_api_error(upbit_adapter, mock_upbit_client):
-    # Given
-    mock_upbit_client.get_accounts.side_effect = Exception("API Error")
+    # Verify request
+    mock_request.assert_called_once()
+    args, kwargs = mock_request.call_args
+    assert args[0] == "GET"
+    assert "accounts" in args[1]
 
-    # When/Then
+@pytest.mark.asyncio
+@patch('app.infrastructure.external.upbit.client.requests.request', side_effect=Exception("API Error"))
+async def test_get_account_balance_api_error(mock_request, upbit_adapter):
+    # Given/When/Then
     with pytest.raises(UpbitAPIException) as exc_info:
         await upbit_adapter.get_account_balance()
     

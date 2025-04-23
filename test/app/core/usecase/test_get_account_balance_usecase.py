@@ -4,6 +4,8 @@ from unittest.mock import Mock, AsyncMock
 from app.application.usecase.get_account_balance_usecase import GetAccountBalanceUseCase, AccountBalanceDTO
 from app.domain.models.account import Account, Balance, Currency
 
+pytestmark = pytest.mark.asyncio
+
 @pytest.fixture
 def mock_account_repository():
     return AsyncMock()

@@ -3,14 +3,14 @@ import jwt
 import hashlib
 from urllib.parse import urlencode
 from dataclasses import dataclass
-from typing import Optional, Dict, Any
+from typing import Any
 
 @dataclass
 class UpbitAuth:
     access_key: str
     secret_key: str
 
-    def create_jwt_token(self, query_params: Optional[Dict[str, Any]] = None) -> str:
+    def create_jwt_token(self, query_params: dict[str, Any] | None = None) -> str:
         payload = {
             'access_key': self.access_key,
             'nonce': str(uuid.uuid4()),

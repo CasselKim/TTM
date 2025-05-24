@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends
 from dependency_injector.wiring import inject, Provide
-from app.application.usecase.get_account_balance_usecase import AccountBalanceDTO, GetAccountBalanceUseCase
-from app.infrastructure.container import Container
+from app.usecase.usecase.get_account_balance_usecase import AccountBalanceDTO, GetAccountBalanceUseCase
+from app.container import Container
 
 router = APIRouter(prefix="/account", tags=["account"])
 

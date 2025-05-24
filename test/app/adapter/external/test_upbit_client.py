@@ -1,8 +1,8 @@
 import pytest
 import httpx
 from unittest.mock import Mock, patch, ANY
-from app.infrastructure.external.upbit.client import UpbitClient
-from app.infrastructure.external.upbit.exceptions import UpbitAPIException
+from app.adapters.secondary.upbit.client import UpbitClient
+from app.adapters.secondary.upbit.exceptions import UpbitAPIException
 
 @pytest.fixture
 def upbit_client():
@@ -18,7 +18,7 @@ def mock_response():
     return response
 
 @pytest.mark.asyncio
-@patch('app.infrastructure.external.upbit.client.requests.request')
+@patch('app.adapters.secondary.upbit.client.requests.request')
 async def test_get_accounts_success(mock_request, upbit_client, mock_response):
     # Given
     mock_data = [
@@ -49,11 +49,15 @@ async def test_get_accounts_success(mock_request, upbit_client, mock_response):
         "GET",
         "https://api.upbit.com/v1/accounts",
         params=None,
-        headers={"Authorization": ANY}
+        headers={
+            "Authorization": ANY,
+            "Content-Type": "application/json",
+            "Charset": "UTF-8"
+        }
     )
 
 @pytest.mark.asyncio
-@patch('app.infrastructure.external.upbit.client.requests.request', side_effect=Exception("API Error"))
+@patch('app.adapters.secondary.upbit.client.requests.request', side_effect=Exception("API Error"))
 async def test_get_accounts_api_error(mock_request, upbit_client):
     # Given/When/Then
     with pytest.raises(Exception) as exc_info:

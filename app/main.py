@@ -1,9 +1,9 @@
 import os
 from fastapi import FastAPI
 from dotenv import load_dotenv
-from app.infrastructure.container import Container
+from app.container import Container
 from common.logging import setup_logging
-from app.presentation.api.routes import account
+from app.adapters.primary.api.routes import account
 
 # 환경 변수 로드
 load_dotenv()

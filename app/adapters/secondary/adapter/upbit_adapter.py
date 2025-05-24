@@ -2,8 +2,8 @@ from decimal import Decimal
 import logging
 from app.domain.models.account import Account, Balance, Currency
 from app.domain.repositories.account_repository import AccountRepository
-from app.infrastructure.external.upbit.client import UpbitClient
-from app.infrastructure.external.upbit.exceptions import UpbitAPIException
+from app.adapters.secondary.upbit.client import UpbitClient
+from app.adapters.secondary.upbit.exceptions import UpbitAPIException
 
 logger = logging.getLogger(__name__)
 

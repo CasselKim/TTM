@@ -1,6 +1,6 @@
 from typing import Any
 import requests
-from app.infrastructure.external.upbit.auth import UpbitAuth
+from app.adapters.secondary.upbit.auth import UpbitAuth
 import logging
 
 logger = logging.getLogger(__name__)

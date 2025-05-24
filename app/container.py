@@ -1,6 +1,6 @@
 from dependency_injector import containers, providers
-from app.infrastructure.external.adapter.upbit_adapter import UpbitAdapter
-from app.application.usecase.get_account_balance_usecase import GetAccountBalanceUseCase
+from app.adapters.secondary.adapter.upbit_adapter import UpbitAdapter
+from app.usecase.usecase.get_account_balance_usecase import GetAccountBalanceUseCase
 
 class Container(containers.DeclarativeContainer):
     config = providers.Configuration()

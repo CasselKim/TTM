@@ -1,15 +1,15 @@
 import pytest
 from decimal import Decimal
 from unittest.mock import patch
-from app.infrastructure.external.adapter.upbit_adapter import UpbitAdapter
-from app.application.usecase.get_account_balance_usecase import GetAccountBalanceUseCase
+from app.adapters.secondary.adapter.upbit_adapter import UpbitAdapter
+from app.usecase.usecase.get_account_balance_usecase import GetAccountBalanceUseCase
 from app.domain.models.account import Currency
 
 pytestmark = pytest.mark.asyncio
 
 @pytest.fixture
 def mock_upbit_client():
-    with patch('app.infrastructure.external.adapter.upbit_adapter.UpbitClient') as mock:
+    with patch('app.adapters.secondary.adapter.upbit_adapter.UpbitClient') as mock:
         client = mock.return_value
         # Mock the get_accounts response
         client.get_accounts.return_value = [

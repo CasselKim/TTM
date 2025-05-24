@@ -1,9 +1,11 @@
 from decimal import Decimal
-from typing import Dict, Any, List
+import logging
 from app.domain.models.account import Account, Balance, Currency
 from app.domain.repositories.account_repository import AccountRepository
-from ..upbit.client import UpbitClient
-from ..upbit.exceptions import UpbitAPIException
+from app.infrastructure.external.upbit.client import UpbitClient
+from app.infrastructure.external.upbit.exceptions import UpbitAPIException
+
+logger = logging.getLogger(__name__)
 
 class UpbitAdapter(AccountRepository):
     def __init__(self, access_key: str, secret_key: str):
@@ -24,4 +26,5 @@ class UpbitAdapter(AccountRepository):
             ]
             return Account(balances=balances)
         except Exception as e:
+            logger.error(f"Failed to get account balance: {str(e)}")
             raise UpbitAPIException(f"Failed to get account balance: {str(e)}") 

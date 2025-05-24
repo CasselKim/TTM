@@ -2,10 +2,17 @@ import os
 from fastapi import FastAPI
 from dotenv import load_dotenv
 from app.infrastructure.container import Container
+from app.infrastructure.logging import setup_logging
 from app.presentation.api.routes import account
 
 # 환경 변수 로드
 load_dotenv()
+
+# 로깅 초기화
+setup_logging(
+    log_level=os.getenv("LOG_LEVEL", "INFO"),
+    log_file=os.getenv("LOG_FILE", "logs/app.log")
+)
 
 app = FastAPI()
 
@@ -15,15 +22,8 @@ container.config.from_dict({
     "upbit": {
         "access_key": os.getenv("UPBIT_ACCESS_KEY"),
         "secret_key": os.getenv("UPBIT_SECRET_KEY")
-    },
-    "logging": {
-        "level": os.getenv("LOG_LEVEL", "INFO"),
-        "file": os.getenv("LOG_FILE", "logs/app.log")
     }
 })
-
-# 로깅 초기화
-container.logging_setup()
 
 # FastAPI 앱에 컨테이너 연결
 app.container = container  # type: ignore

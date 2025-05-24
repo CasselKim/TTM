@@ -1,9 +1,12 @@
+import logging
 import uuid
 import jwt
 import hashlib
 from urllib.parse import urlencode
 from dataclasses import dataclass
 from typing import Any
+
+logger = logging.getLogger(__name__)
 
 @dataclass
 class UpbitAuth:
@@ -17,13 +20,12 @@ class UpbitAuth:
         }
 
         if query_params:
-            query_string = urlencode(query_params)
             m = hashlib.sha512()
-            m.update(query_string.encode())
+            m.update(urlencode(query_params).encode())
             query_hash = m.hexdigest()
             
             payload['query_hash'] = query_hash
             payload['query_hash_alg'] = 'SHA512'
 
-        jwt_token = jwt.encode(payload, self.secret_key, algorithm='HS256')
+        jwt_token = jwt.encode(payload, self.secret_key)
         return f'Bearer {jwt_token}' 

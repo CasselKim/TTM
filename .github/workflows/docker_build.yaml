@@ -68,5 +68,7 @@ jobs:
             -e DB_HOST="${{ secrets.DB_HOST }}" \
             -e DB_NAME="${{ secrets.DB_NAME }}" \
             -e DB_PORT="${{ secrets.DB_PORT }}" \
+            -e UPBIT_ACCESS_KEY="${{ secrets.UPBIT_ACCESS_KEY }}" \
+            -e UPBIT_SECRET_KEY="${{ secrets.UPBIT_SECRET_KEY }}" \
             -p 80:80/tcp \
             --name TTM-app ${{ secrets.DOCKERHUB_USERNAME }}/ttm

@@ -13,3 +13,6 @@ install:
 	pre-commit install
 
 test: unittest cov_report cov_html
+
+runserver:
+	uvicorn app.main:app --host 0.0.0.0 --port 8080 --reload

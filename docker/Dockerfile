@@ -2,7 +2,7 @@ FROM python:3.12.0 as builder
 
 WORKDIR /app
 
-RUN pip install "poetry==1.6.1"
+RUN pip install "poetry==2.1.2"
 
 COPY pyproject.toml poetry.lock* /app/
 

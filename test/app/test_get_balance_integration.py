@@ -53,4 +53,4 @@ async def test_get_balance_integration(mock_upbit_client):
     assert eth_balance.unit == str(Currency.KRW)
 
     expected_total = str(Decimal('1.5') * Decimal('50000000') + Decimal('2.0') * Decimal('3000000'))
-    assert result.total_balance_krw == expected_total 
+    assert result.total_balance_krw == expected_total

@@ -1,18 +1,22 @@
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
-    rev: v4.5.0
+    rev: v5.0.0
     hooks:
       - id: check-yaml
       - id: end-of-file-fixer
       - id: trailing-whitespace
 
-  - repo: https://github.com/psf/black
-    rev: 23.10.1
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.11.11
     hooks:
-      - id: black
+      # Run the linter and fix issues
+      - id: ruff-check
+        args: [--fix]
+      # Run the formatter
+      - id: ruff-format
 
   - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.6.1
+    rev: v1.15.0
     hooks:
       - id: mypy
         additional_dependencies:
@@ -21,29 +25,19 @@ repos:
             fastapi,
             pydantic,
             redis,
-            "sqlalchemy[mypy]==1.4.37",
+            "sqlalchemy[mypy]==2.0.40",
             sqlalchemy2-stubs,
             typer,
             types-redis,
+            types-requests,
+            types-setuptools,
             uvicorn,
             python-dotenv,
+            dependency-injector,
+            pyjwt,
           ]
         args: ["--strict"]
         exclude: database.py|base_orm.py|alembic/|test/
-
-  - repo: https://github.com/pycqa/isort
-    rev: 5.12.0
-    hooks:
-      - id: isort
-        name: isort (python)
-
-  - repo: https://github.com/pycqa/flake8
-    rev: 6.1.0
-    hooks:
-      - id: flake8
-        args: ["--ignore=E203,E501,W503"]
-        additional_dependencies: [setuptools, flake8-commas, flake8-debugger, flake8-print]
-        exclude: bdd
 
 default_language_version:
   python: python3.12

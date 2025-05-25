@@ -48,11 +48,11 @@ async def test_get_account_balance_success(mock_request, upbit_adapter, mock_res
     # Then
     assert isinstance(account, Account)
     assert len(account.balances) == 2
-    
+
     btc_balance = next(b for b in account.balances if b.currency == Currency.BTC)
     assert btc_balance.balance == Decimal('1.5')
     assert btc_balance.avg_buy_price == Decimal('50000000')
-    
+
     eth_balance = next(b for b in account.balances if b.currency == Currency.ETH)
     assert eth_balance.balance == Decimal('2.0')
     assert eth_balance.avg_buy_price == Decimal('3000000')
@@ -69,7 +69,7 @@ async def test_get_account_balance_api_error(mock_request, upbit_adapter):
     # Given/When/Then
     with pytest.raises(UpbitAPIException) as exc_info:
         await upbit_adapter.get_account_balance()
-    
+
     assert str(exc_info.value) == "Failed to get account balance: API Error"
 
 
@@ -110,7 +110,7 @@ async def test_get_ticker_success(upbit_adapter, mock_ticker_response):
     """ticker 조회 성공 테스트"""
     with patch.object(upbit_adapter.client, 'get_ticker', return_value=mock_ticker_response):
         result = await upbit_adapter.get_ticker("KRW-BTC")
-        
+
         assert isinstance(result, Ticker)
         assert result.market == "KRW-BTC"
         assert result.trade_price == Decimal("151133000.0")
@@ -124,7 +124,7 @@ async def test_get_ticker_empty_response(upbit_adapter):
     with patch.object(upbit_adapter.client, 'get_ticker', return_value=[]):
         with pytest.raises(UpbitAPIException) as exc_info:
             await upbit_adapter.get_ticker("KRW-BTC")
-        
+
         assert "No ticker data found for market: KRW-BTC" in str(exc_info.value)
 
 @pytest.mark.asyncio
@@ -134,12 +134,12 @@ async def test_get_tickers_success(upbit_adapter, mock_ticker_response):
     eth_data = mock_ticker_response[0].copy()
     eth_data["market"] = "KRW-ETH"
     eth_data["trade_price"] = 3571000.0
-    
+
     mock_response = mock_ticker_response + [eth_data]
-    
+
     with patch.object(upbit_adapter.client, 'get_ticker', return_value=mock_response):
         result = await upbit_adapter.get_tickers(["KRW-BTC", "KRW-ETH"])
-        
+
         assert len(result) == 2
         assert result[0].market == "KRW-BTC"
         assert result[1].market == "KRW-ETH"
@@ -151,5 +151,5 @@ async def test_get_ticker_api_error(upbit_adapter):
     with patch.object(upbit_adapter.client, 'get_ticker', side_effect=Exception("API Error")):
         with pytest.raises(UpbitAPIException) as exc_info:
             await upbit_adapter.get_ticker("KRW-BTC")
-        
-        assert "Failed to get ticker for KRW-BTC: API Error" in str(exc_info.value) 
+
+        assert "Failed to get ticker for KRW-BTC: API Error" in str(exc_info.value)

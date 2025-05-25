@@ -3,8 +3,8 @@ import pytest
 from unittest.mock import AsyncMock, Mock
 
 from app.usecase.usecase.order_usecase import (
-    OrderUseCase, 
-    BuyWithAmountDTO, 
+    OrderUseCase,
+    BuyWithAmountDTO,
     BuyWithMoneyDTO,
     SellWithAmountDTO,
     SellWithMoneyDTO
@@ -35,7 +35,7 @@ def order_usecase(mock_order_repository, mock_ticker_repository):
 
 
 class TestOrderUseCase:
-    
+
     @pytest.mark.asyncio
     async def test_buy_limit_success(self, order_usecase, mock_order_repository):
         """지정가 매수 성공 테스트"""
@@ -43,7 +43,7 @@ class TestOrderUseCase:
         market = "KRW-BTC"
         volume = Decimal("0.001")
         price = Decimal("50000000")
-        
+
         order = Order(
             uuid="test-uuid-123",
             side=OrderSide.매수,
@@ -61,15 +61,15 @@ class TestOrderUseCase:
             executed_volume=Decimal("0"),
             trades_count=0
         )
-        
+
         mock_order_repository.place_order = AsyncMock(return_value=OrderResult(
             success=True,
             order=order
         ))
-        
+
         # When
         result = await order_usecase.buy_limit(market, volume, price)
-        
+
         # Then
         assert result.success is True
         assert result.order_uuid == "test-uuid-123"
@@ -77,7 +77,7 @@ class TestOrderUseCase:
         assert result.volume == str(volume)
         assert result.price == str(price)
         assert result.error_message is None
-        
+
         # 올바른 주문 요청으로 호출되었는지 확인
         call_args = mock_order_repository.place_order.call_args[0][0]
         assert isinstance(call_args, OrderRequest)
@@ -95,15 +95,15 @@ class TestOrderUseCase:
         volume = Decimal("0.001")
         price = Decimal("50000000")
         error_msg = "Insufficient balance"
-        
+
         mock_order_repository.place_order = AsyncMock(return_value=OrderResult(
             success=False,
             error_message=error_msg
         ))
-        
+
         # When
         result = await order_usecase.buy_limit(market, volume, price)
-        
+
         # Then
         assert result.success is False
         assert result.order_uuid is None
@@ -116,12 +116,12 @@ class TestOrderUseCase:
         market = "KRW-BTC"
         volume = Decimal("0.001")
         price = Decimal("50000000")
-        
+
         mock_order_repository.place_order = AsyncMock(side_effect=Exception("Network error"))
-        
+
         # When
         result = await order_usecase.buy_limit(market, volume, price)
-        
+
         # Then
         assert result.success is False
         assert result.order_uuid is None
@@ -133,7 +133,7 @@ class TestOrderUseCase:
         # Given
         market = "KRW-BTC"
         amount = Decimal("50000")
-        
+
         order = Order(
             uuid="test-uuid-456",
             side=OrderSide.매수,
@@ -151,22 +151,22 @@ class TestOrderUseCase:
             executed_volume=Decimal("0"),
             trades_count=0
         )
-        
+
         mock_order_repository.place_order = AsyncMock(return_value=OrderResult(
             success=True,
             order=order
         ))
-        
+
         # When
         result = await order_usecase.buy_market(market, amount)
-        
+
         # Then
         assert result.success is True
         assert result.order_uuid == "test-uuid-456"
         assert result.market == market
         assert result.amount == str(amount)
         assert result.error_message is None
-        
+
         # 올바른 주문 요청으로 호출되었는지 확인
         call_args = mock_order_repository.place_order.call_args[0][0]
         assert isinstance(call_args, OrderRequest)
@@ -183,15 +183,15 @@ class TestOrderUseCase:
         market = "KRW-BTC"
         amount = Decimal("50000")
         error_msg = "Insufficient balance"
-        
+
         mock_order_repository.place_order = AsyncMock(return_value=OrderResult(
             success=False,
             error_message=error_msg
         ))
-        
+
         # When
         result = await order_usecase.buy_market(market, amount)
-        
+
         # Then
         assert result.success is False
         assert result.order_uuid is None
@@ -203,12 +203,12 @@ class TestOrderUseCase:
         # Given
         market = "KRW-BTC"
         amount = Decimal("50000")
-        
+
         mock_order_repository.place_order = AsyncMock(side_effect=Exception("Network error"))
-        
+
         # When
         result = await order_usecase.buy_market(market, amount)
-        
+
         # Then
         assert result.success is False
         assert result.order_uuid is None
@@ -221,7 +221,7 @@ class TestOrderUseCase:
         market = "KRW-BTC"
         volume = Decimal("0.001")
         price = Decimal("50000000")
-        
+
         order = Order(
             uuid="test-uuid-789",
             side=OrderSide.매도,
@@ -239,15 +239,15 @@ class TestOrderUseCase:
             executed_volume=Decimal("0"),
             trades_count=0
         )
-        
+
         mock_order_repository.place_order = AsyncMock(return_value=OrderResult(
             success=True,
             order=order
         ))
-        
+
         # When
         result = await order_usecase.sell_limit(market, volume, price)
-        
+
         # Then
         assert result.success is True
         assert result.order_uuid == "test-uuid-789"
@@ -255,7 +255,7 @@ class TestOrderUseCase:
         assert result.volume == str(volume)
         assert result.price == str(price)
         assert result.error_message is None
-        
+
         # 올바른 주문 요청으로 호출되었는지 확인
         call_args = mock_order_repository.place_order.call_args[0][0]
         assert isinstance(call_args, OrderRequest)
@@ -273,15 +273,15 @@ class TestOrderUseCase:
         volume = Decimal("0.001")
         price = Decimal("50000000")
         error_msg = "Insufficient balance"
-        
+
         mock_order_repository.place_order = AsyncMock(return_value=OrderResult(
             success=False,
             error_message=error_msg
         ))
-        
+
         # When
         result = await order_usecase.sell_limit(market, volume, price)
-        
+
         # Then
         assert result.success is False
         assert result.order_uuid is None
@@ -294,12 +294,12 @@ class TestOrderUseCase:
         market = "KRW-BTC"
         volume = Decimal("0.001")
         price = Decimal("50000000")
-        
+
         mock_order_repository.place_order = AsyncMock(side_effect=Exception("Network error"))
-        
+
         # When
         result = await order_usecase.sell_limit(market, volume, price)
-        
+
         # Then
         assert result.success is False
         assert result.order_uuid is None
@@ -311,7 +311,7 @@ class TestOrderUseCase:
         # Given
         market = "KRW-BTC"
         volume = Decimal("0.001")
-        
+
         order = Order(
             uuid="test-uuid-abc",
             side=OrderSide.매도,
@@ -329,22 +329,22 @@ class TestOrderUseCase:
             executed_volume=Decimal("0"),
             trades_count=0
         )
-        
+
         mock_order_repository.place_order = AsyncMock(return_value=OrderResult(
             success=True,
             order=order
         ))
-        
+
         # When
         result = await order_usecase.sell_market(market, volume)
-        
+
         # Then
         assert result.success is True
         assert result.order_uuid == "test-uuid-abc"
         assert result.market == market
         assert result.volume == str(volume)
         assert result.error_message is None
-        
+
         # 올바른 주문 요청으로 호출되었는지 확인
         call_args = mock_order_repository.place_order.call_args[0][0]
         assert isinstance(call_args, OrderRequest)
@@ -361,15 +361,15 @@ class TestOrderUseCase:
         market = "KRW-BTC"
         volume = Decimal("0.001")
         error_msg = "Insufficient balance"
-        
+
         mock_order_repository.place_order = AsyncMock(return_value=OrderResult(
             success=False,
             error_message=error_msg
         ))
-        
+
         # When
         result = await order_usecase.sell_market(market, volume)
-        
+
         # Then
         assert result.success is False
         assert result.order_uuid is None
@@ -381,13 +381,13 @@ class TestOrderUseCase:
         # Given
         market = "KRW-BTC"
         volume = Decimal("0.001")
-        
+
         mock_order_repository.place_order = AsyncMock(side_effect=Exception("Network error"))
-        
+
         # When
         result = await order_usecase.sell_market(market, volume)
-        
+
         # Then
         assert result.success is False
         assert result.order_uuid is None
-        assert "Network error" in result.error_message 
+        assert "Network error" in result.error_message

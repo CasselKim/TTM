@@ -24,6 +24,7 @@ class OrderState(StrEnum):
 @dataclass
 class Order:
     """주문 정보"""
+
     uuid: str
     side: OrderSide
     ord_type: OrderType
@@ -44,6 +45,7 @@ class Order:
 @dataclass
 class OrderRequest:
     """주문 요청"""
+
     market: str
     side: OrderSide
     ord_type: OrderType
@@ -54,6 +56,7 @@ class OrderRequest:
 @dataclass
 class OrderResult:
     """주문 결과"""
+
     success: bool
     order: Order | None = None
-    error_message: str | None = None 
+    error_message: str | None = None

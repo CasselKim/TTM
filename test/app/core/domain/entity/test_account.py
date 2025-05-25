@@ -54,4 +54,4 @@ def test_account_krw_balances():
     # Then
     assert len(krw_balances) == 1
     assert krw_balances[0].unit == Currency.KRW
-    assert krw_balances[0].currency == Currency.BTC 
+    assert krw_balances[0].currency == Currency.BTC

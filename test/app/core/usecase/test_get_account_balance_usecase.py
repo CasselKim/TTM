@@ -42,14 +42,14 @@ async def test_get_account_balance_usecase_execute(get_account_balance_usecase, 
     # Then
     assert isinstance(result, AccountBalanceDTO)
     assert len(result.balances) == 2
-    
+
     btc_balance = next(b for b in result.balances if b.currency == str(Currency.BTC))
     assert btc_balance.balance == '1.5'
     assert btc_balance.avg_buy_price == '50000000'
-    
+
     eth_balance = next(b for b in result.balances if b.currency == str(Currency.ETH))
     assert eth_balance.balance == '2.0'
     assert eth_balance.avg_buy_price == '3000000'
-    
+
     expected_total = str(Decimal('1.5') * Decimal('50000000') + Decimal('2.0') * Decimal('3000000'))
-    assert result.total_balance_krw == expected_total 
+    assert result.total_balance_krw == expected_total

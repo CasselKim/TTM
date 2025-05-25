@@ -1,7 +1,7 @@
+from collections.abc import Iterator
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
-from collections.abc import Iterator
 
 
 class Currency(StrEnum):
@@ -30,14 +30,8 @@ class Account:
     balances: list[Balance]
 
     def _krw_balances(self) -> Iterator[Balance]:
-        return (
-            balance for balance in self.balances 
-            if balance.unit == Currency.KRW
-        )
+        return (balance for balance in self.balances if balance.unit == Currency.KRW)
 
     @property
     def total_balance_krw(self) -> Decimal:
-        return sum(
-            (b.total_value for b in self._krw_balances()),
-            Decimal('0')
-        )
+        return sum((b.total_value for b in self._krw_balances()), Decimal("0"))

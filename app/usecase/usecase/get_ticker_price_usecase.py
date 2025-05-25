@@ -1,12 +1,12 @@
 from dataclasses import dataclass
-from decimal import Decimal
+
 from app.domain.repositories.ticker_repository import TickerRepository
-from app.domain.models.ticker import ChangeType, MarketState, MarketWarning
 
 
 @dataclass
 class TickerPriceDTO:
     """현재가 정보 응답 DTO"""
+
     market: str
     trade_price: str
     prev_closing_price: str
@@ -40,6 +40,7 @@ class TickerPriceDTO:
 @dataclass
 class TickerPricesDTO:
     """여러 종목 현재가 정보 응답 DTO"""
+
     tickers: list[TickerPriceDTO]
 
 
@@ -50,7 +51,7 @@ class GetTickerPriceUseCase:
     async def execute(self, market: str) -> TickerPriceDTO:
         """특정 종목의 현재가 정보를 조회합니다."""
         ticker = await self.ticker_repository.get_ticker(market)
-        
+
         return TickerPriceDTO(
             market=ticker.market,
             trade_price=str(ticker.trade_price),
@@ -79,13 +80,13 @@ class GetTickerPriceUseCase:
             trade_timestamp=ticker.trade_timestamp,
             market_state=ticker.market_state.value,
             market_warning=ticker.market_warning.value,
-            timestamp=ticker.timestamp
+            timestamp=ticker.timestamp,
         )
 
     async def execute_multiple(self, markets: list[str]) -> TickerPricesDTO:
         """여러 종목의 현재가 정보를 조회합니다."""
         tickers = await self.ticker_repository.get_tickers(markets)
-        
+
         ticker_dtos = [
             TickerPriceDTO(
                 market=ticker.market,
@@ -115,9 +116,9 @@ class GetTickerPriceUseCase:
                 trade_timestamp=ticker.trade_timestamp,
                 market_state=ticker.market_state.value,
                 market_warning=ticker.market_warning.value,
-                timestamp=ticker.timestamp
+                timestamp=ticker.timestamp,
             )
             for ticker in tickers
         ]
-        
-        return TickerPricesDTO(tickers=ticker_dtos) 
+
+        return TickerPricesDTO(tickers=ticker_dtos)

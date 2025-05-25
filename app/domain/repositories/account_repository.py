@@ -1,5 +1,7 @@
 from abc import ABC, abstractmethod
+
 from app.domain.models.account import Account
+
 
 class AccountRepository(ABC):
     @abstractmethod

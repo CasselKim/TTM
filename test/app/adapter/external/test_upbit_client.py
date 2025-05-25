@@ -30,7 +30,7 @@ async def test_get_accounts_success(mock_request, upbit_client, mock_response):
             "unit_currency": "KRW"
         },
         {
-            "currency": "ETH", 
+            "currency": "ETH",
             "balance": "2.0",
             "locked": "0.0",
             "avg_buy_price": "3000000",
@@ -62,5 +62,5 @@ async def test_get_accounts_api_error(mock_request, upbit_client):
     # Given/When/Then
     with pytest.raises(Exception) as exc_info:
         upbit_client.get_accounts()
-    
+
     assert str(exc_info.value) == "API Error"

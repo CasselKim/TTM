@@ -2,14 +2,16 @@ from decimal import Decimal
 import logging
 from app.domain.models.account import Account, Balance, Currency
 from app.domain.models.ticker import Ticker, ChangeType, MarketState, MarketWarning
+from app.domain.models.order import Order, OrderRequest, OrderResult, OrderSide, OrderType, OrderState
 from app.domain.repositories.account_repository import AccountRepository
 from app.domain.repositories.ticker_repository import TickerRepository
+from app.domain.repositories.order_repository import OrderRepository
 from app.adapters.secondary.upbit.client import UpbitClient
 from app.adapters.secondary.upbit.exceptions import UpbitAPIException
 
 logger = logging.getLogger(__name__)
 
-class UpbitAdapter(AccountRepository, TickerRepository):
+class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
     def __init__(self, access_key: str, secret_key: str):
         self.client = UpbitClient(access_key=access_key, secret_key=secret_key)
     
@@ -58,6 +60,47 @@ class UpbitAdapter(AccountRepository, TickerRepository):
             logger.error(f"Failed to get tickers for {markets}: {str(e)}")
             raise UpbitAPIException(f"Failed to get tickers for {markets}: {str(e)}")
     
+    # OrderRepository 구현
+    async def place_order(self, order_request: OrderRequest) -> OrderResult:
+        """주문을 실행합니다."""
+        try:
+            volume_str = str(order_request.volume) if order_request.volume else None
+            price_str = str(order_request.price) if order_request.price else None
+            
+            response = self.client.place_order(
+                market=order_request.market,
+                side=order_request.side.value,
+                ord_type=order_request.ord_type.value,
+                volume=volume_str,
+                price=price_str
+            )
+            
+            order = self._convert_to_order(response)
+            return OrderResult(success=True, order=order)
+            
+        except Exception as e:
+            logger.error(f"Failed to place order: {str(e)}")
+            return OrderResult(success=False, error_message=str(e))
+    
+    async def get_order(self, uuid: str) -> Order:
+        """특정 주문 정보를 조회합니다."""
+        try:
+            response = self.client.get_order(uuid)
+            return self._convert_to_order(response)
+        except Exception as e:
+            logger.error(f"Failed to get order {uuid}: {str(e)}")
+            raise UpbitAPIException(f"Failed to get order {uuid}: {str(e)}")
+    
+    async def cancel_order(self, uuid: str) -> OrderResult:
+        """주문을 취소합니다."""
+        try:
+            response = self.client.cancel_order(uuid)
+            order = self._convert_to_order(response)
+            return OrderResult(success=True, order=order)
+        except Exception as e:
+            logger.error(f"Failed to cancel order {uuid}: {str(e)}")
+            return OrderResult(success=False, error_message=str(e))
+    
     def _convert_to_ticker(self, data: dict) -> Ticker:
         """API 응답을 Ticker 도메인 모델로 변환합니다."""
         return Ticker(
@@ -89,4 +132,43 @@ class UpbitAdapter(AccountRepository, TickerRepository):
             market_state=MarketState(data.get("market_state", "ACTIVE")),  # 기본값 설정
             market_warning=MarketWarning(data.get("market_warning", "NONE")),  # 기본값 설정
             timestamp=data["timestamp"]
+        )
+    
+    def _convert_to_order(self, data: dict) -> Order:
+        """API 응답을 Order 도메인 모델로 변환합니다."""
+        # API 응답 값을 한글 Enum으로 변환
+        side_mapping = {
+            "bid": OrderSide.매수,
+            "ask": OrderSide.매도
+        }
+        
+        ord_type_mapping = {
+            "limit": OrderType.지정가,
+            "price": OrderType.시장가매수,
+            "market": OrderType.시장가매도
+        }
+        
+        state_mapping = {
+            "wait": OrderState.대기,
+            "watch": OrderState.예약대기,
+            "done": OrderState.완료,
+            "cancel": OrderState.취소
+        }
+        
+        return Order(
+            uuid=data["uuid"],
+            side=side_mapping[data["side"]],
+            ord_type=ord_type_mapping[data["ord_type"]],
+            price=Decimal(str(data["price"])) if data["price"] else None,
+            state=state_mapping[data["state"]],
+            market=data["market"],
+            created_at=data["created_at"],
+            volume=Decimal(str(data["volume"])) if data["volume"] else None,
+            remaining_volume=Decimal(str(data["remaining_volume"])),
+            reserved_fee=Decimal(str(data["reserved_fee"])),
+            remaining_fee=Decimal(str(data["remaining_fee"])),
+            paid_fee=Decimal(str(data["paid_fee"])),
+            locked=Decimal(str(data["locked"])),
+            executed_volume=Decimal(str(data["executed_volume"])),
+            trades_count=data["trades_count"]
         ) 

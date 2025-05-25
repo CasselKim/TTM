@@ -4,7 +4,6 @@ import jwt
 import hashlib
 from urllib.parse import urlencode
 from dataclasses import dataclass
-from typing import Any
 
 logger = logging.getLogger(__name__)
 
@@ -13,7 +12,7 @@ class UpbitAuth:
     access_key: str
     secret_key: str
 
-    def create_jwt_token(self, query_params: dict[str, Any] | None = None) -> str:
+    def create_jwt_token(self, query_params: dict[str, str] | None = None) -> str:
         payload = {
             'access_key': self.access_key,
             'nonce': str(uuid.uuid4()),

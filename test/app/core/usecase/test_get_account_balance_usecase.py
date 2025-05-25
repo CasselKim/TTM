@@ -1,7 +1,8 @@
 from decimal import Decimal
 import pytest
 from unittest.mock import Mock, AsyncMock
-from app.usecase.usecase.get_account_balance_usecase import GetAccountBalanceUseCase, AccountBalanceDTO
+from app.application.dto.account_dto import AccountBalanceDTO
+from app.application.usecase.account_usecase import AccountUseCase
 from app.domain.models.account import Account, Balance, Currency
 
 pytestmark = pytest.mark.asyncio
@@ -11,10 +12,10 @@ def mock_account_repository():
     return AsyncMock()
 
 @pytest.fixture
-def get_account_balance_usecase(mock_account_repository):
-    return GetAccountBalanceUseCase(account_repository=mock_account_repository)
+def account_usecase(mock_account_repository):
+    return AccountUseCase(account_repository=mock_account_repository)
 
-async def test_get_account_balance_usecase_execute(get_account_balance_usecase, mock_account_repository):
+async def test_account_usecase_get_balance(account_usecase, mock_account_repository):
     # Given
     mock_account = Account(
         balances=[
@@ -37,7 +38,7 @@ async def test_get_account_balance_usecase_execute(get_account_balance_usecase, 
     mock_account_repository.get_account_balance.return_value = mock_account
 
     # When
-    result = await get_account_balance_usecase.execute()
+    result = await account_usecase.get_balance()
 
     # Then
     assert isinstance(result, AccountBalanceDTO)

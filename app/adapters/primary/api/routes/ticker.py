@@ -1,12 +1,9 @@
 from dependency_injector.wiring import Provide, inject
 from fastapi import APIRouter, Depends, Query
 
+from app.application.dto.ticker_dto import TickerPriceDTO, TickerPricesDTO
+from app.application.usecase.ticker_usecase import TickerUseCase
 from app.container import Container
-from app.usecase.usecase.get_ticker_price_usecase import (
-    GetTickerPriceUseCase,
-    TickerPriceDTO,
-    TickerPricesDTO,
-)
 
 router = APIRouter(prefix="/ticker", tags=["ticker"])
 
@@ -15,9 +12,7 @@ router = APIRouter(prefix="/ticker", tags=["ticker"])
 @inject
 async def get_ticker_price(
     market: str,
-    usecase: GetTickerPriceUseCase = Depends(
-        Provide[Container.get_ticker_price_usecase]
-    ),
+    usecase: TickerUseCase = Depends(Provide[Container.ticker_usecase]),
 ) -> TickerPriceDTO:
     """
     특정 종목의 현재가 정보를 조회합니다.
@@ -28,7 +23,7 @@ async def get_ticker_price(
     Returns:
         TickerPriceDTO: 현재가 정보
     """
-    return await usecase.execute(market)
+    return await usecase.get_ticker_price(market)
 
 
 @router.get("/prices", response_model=TickerPricesDTO)
@@ -37,9 +32,7 @@ async def get_ticker_prices(
     markets: list[str] = Query(
         ..., description="종목 코드 리스트 (ex. KRW-BTC,KRW-ETH)"
     ),
-    usecase: GetTickerPriceUseCase = Depends(
-        Provide[Container.get_ticker_price_usecase]
-    ),
+    usecase: TickerUseCase = Depends(Provide[Container.ticker_usecase]),
 ) -> TickerPricesDTO:
     """
     여러 종목의 현재가 정보를 조회합니다.
@@ -50,4 +43,4 @@ async def get_ticker_prices(
     Returns:
         TickerPricesDTO: 현재가 정보 리스트
     """
-    return await usecase.execute_multiple(markets)
+    return await usecase.get_ticker_prices(markets)

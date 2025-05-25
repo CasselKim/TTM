@@ -1,9 +1,9 @@
 from dependency_injector import containers, providers
 
 from app.adapters.secondary.adapter.upbit_adapter import UpbitAdapter
-from app.usecase.usecase.get_account_balance_usecase import GetAccountBalanceUseCase
-from app.usecase.usecase.get_ticker_price_usecase import GetTickerPriceUseCase
-from app.usecase.usecase.order_usecase import OrderUseCase
+from app.application.usecase.account_usecase import AccountUseCase
+from app.application.usecase.order_usecase import OrderUseCase
+from app.application.usecase.ticker_usecase import TickerUseCase
 
 
 class Container(containers.DeclarativeContainer):
@@ -17,13 +17,13 @@ class Container(containers.DeclarativeContainer):
     )
 
     # Use cases
-    get_account_balance_usecase = providers.Singleton(
-        GetAccountBalanceUseCase,
+    account_usecase = providers.Singleton(
+        AccountUseCase,
         account_repository=upbit_adapter,
     )
 
-    get_ticker_price_usecase = providers.Singleton(
-        GetTickerPriceUseCase,
+    ticker_usecase = providers.Singleton(
+        TickerUseCase,
         ticker_repository=upbit_adapter,
     )
 

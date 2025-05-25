@@ -2,13 +2,14 @@ from decimal import Decimal
 import pytest
 from unittest.mock import AsyncMock, Mock
 
-from app.usecase.usecase.order_usecase import (
-    OrderUseCase,
-    BuyWithAmountDTO,
-    BuyWithMoneyDTO,
-    SellWithAmountDTO,
-    SellWithMoneyDTO
+from app.application.dto.order_dto import (
+    LimitBuyResult,
+    MarketBuyResult,
+    LimitSellResult,
+    MarketSellResult,
+    OrderError,
 )
+from app.application.usecase.order_usecase import OrderUseCase
 from app.domain.models.order import Order, OrderRequest, OrderResult, OrderSide, OrderType, OrderState
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
@@ -71,12 +72,12 @@ class TestOrderUseCase:
         result = await order_usecase.buy_limit(market, volume, price)
 
         # Then
+        assert isinstance(result, LimitBuyResult)
         assert result.success is True
         assert result.order_uuid == "test-uuid-123"
         assert result.market == market
         assert result.volume == str(volume)
         assert result.price == str(price)
-        assert result.error_message is None
 
         # 올바른 주문 요청으로 호출되었는지 확인
         call_args = mock_order_repository.place_order.call_args[0][0]
@@ -105,8 +106,8 @@ class TestOrderUseCase:
         result = await order_usecase.buy_limit(market, volume, price)
 
         # Then
+        assert isinstance(result, OrderError)
         assert result.success is False
-        assert result.order_uuid is None
         assert result.error_message == error_msg
 
     @pytest.mark.asyncio
@@ -123,8 +124,8 @@ class TestOrderUseCase:
         result = await order_usecase.buy_limit(market, volume, price)
 
         # Then
+        assert isinstance(result, OrderError)
         assert result.success is False
-        assert result.order_uuid is None
         assert "Network error" in result.error_message
 
     @pytest.mark.asyncio
@@ -161,11 +162,11 @@ class TestOrderUseCase:
         result = await order_usecase.buy_market(market, amount)
 
         # Then
+        assert isinstance(result, MarketBuyResult)
         assert result.success is True
         assert result.order_uuid == "test-uuid-456"
         assert result.market == market
         assert result.amount == str(amount)
-        assert result.error_message is None
 
         # 올바른 주문 요청으로 호출되었는지 확인
         call_args = mock_order_repository.place_order.call_args[0][0]
@@ -193,8 +194,8 @@ class TestOrderUseCase:
         result = await order_usecase.buy_market(market, amount)
 
         # Then
+        assert isinstance(result, OrderError)
         assert result.success is False
-        assert result.order_uuid is None
         assert result.error_message == error_msg
 
     @pytest.mark.asyncio
@@ -210,8 +211,8 @@ class TestOrderUseCase:
         result = await order_usecase.buy_market(market, amount)
 
         # Then
+        assert isinstance(result, OrderError)
         assert result.success is False
-        assert result.order_uuid is None
         assert "Network error" in result.error_message
 
     @pytest.mark.asyncio
@@ -249,12 +250,12 @@ class TestOrderUseCase:
         result = await order_usecase.sell_limit(market, volume, price)
 
         # Then
+        assert isinstance(result, LimitSellResult)
         assert result.success is True
         assert result.order_uuid == "test-uuid-789"
         assert result.market == market
         assert result.volume == str(volume)
         assert result.price == str(price)
-        assert result.error_message is None
 
         # 올바른 주문 요청으로 호출되었는지 확인
         call_args = mock_order_repository.place_order.call_args[0][0]
@@ -283,8 +284,8 @@ class TestOrderUseCase:
         result = await order_usecase.sell_limit(market, volume, price)
 
         # Then
+        assert isinstance(result, OrderError)
         assert result.success is False
-        assert result.order_uuid is None
         assert result.error_message == error_msg
 
     @pytest.mark.asyncio
@@ -301,8 +302,8 @@ class TestOrderUseCase:
         result = await order_usecase.sell_limit(market, volume, price)
 
         # Then
+        assert isinstance(result, OrderError)
         assert result.success is False
-        assert result.order_uuid is None
         assert "Network error" in result.error_message
 
     @pytest.mark.asyncio
@@ -339,11 +340,11 @@ class TestOrderUseCase:
         result = await order_usecase.sell_market(market, volume)
 
         # Then
+        assert isinstance(result, MarketSellResult)
         assert result.success is True
         assert result.order_uuid == "test-uuid-abc"
         assert result.market == market
         assert result.volume == str(volume)
-        assert result.error_message is None
 
         # 올바른 주문 요청으로 호출되었는지 확인
         call_args = mock_order_repository.place_order.call_args[0][0]
@@ -371,8 +372,8 @@ class TestOrderUseCase:
         result = await order_usecase.sell_market(market, volume)
 
         # Then
+        assert isinstance(result, OrderError)
         assert result.success is False
-        assert result.order_uuid is None
         assert result.error_message == error_msg
 
     @pytest.mark.asyncio
@@ -388,6 +389,6 @@ class TestOrderUseCase:
         result = await order_usecase.sell_market(market, volume)
 
         # Then
+        assert isinstance(result, OrderError)
         assert result.success is False
-        assert result.order_uuid is None
         assert "Network error" in result.error_message

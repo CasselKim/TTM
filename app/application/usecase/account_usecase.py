@@ -1,28 +1,13 @@
-from dataclasses import dataclass
-
+from app.application.dto.account_dto import AccountBalanceDTO, BalanceDTO
 from app.domain.repositories.account_repository import AccountRepository
 
 
-@dataclass
-class BalanceDTO:
-    currency: str
-    balance: str
-    locked: str
-    avg_buy_price: str
-    unit: str
-
-
-@dataclass
-class AccountBalanceDTO:
-    balances: list[BalanceDTO]
-    total_balance_krw: str
-
-
-class GetAccountBalanceUseCase:
+class AccountUseCase:
     def __init__(self, account_repository: AccountRepository):
         self.account_repository = account_repository
 
-    async def execute(self) -> AccountBalanceDTO:
+    async def get_balance(self) -> AccountBalanceDTO:
+        """계좌 잔액 정보를 조회합니다."""
         account = await self.account_repository.get_account_balance()
 
         return AccountBalanceDTO(

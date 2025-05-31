@@ -20,7 +20,7 @@ def upbit_adapter():
     return UpbitAdapter(access_key="test_access_key", secret_key="test_secret_key")
 
 @pytest.mark.asyncio
-@patch('app.adapters.secondary.upbit.client.requests.request')
+@patch('app.adapters.external.upbit.client.requests.request')
 async def test_get_account_balance_success(mock_request, upbit_adapter, mock_response):
     # Given
     mock_data = [
@@ -64,7 +64,7 @@ async def test_get_account_balance_success(mock_request, upbit_adapter, mock_res
     assert "accounts" in args[1]
 
 @pytest.mark.asyncio
-@patch('app.adapters.secondary.upbit.client.requests.request', side_effect=Exception("API Error"))
+@patch('app.adapters.external.upbit.client.requests.request', side_effect=Exception("API Error"))
 async def test_get_account_balance_api_error(mock_request, upbit_adapter):
     # Given/When/Then
     with pytest.raises(UpbitAPIException) as exc_info:

@@ -18,7 +18,7 @@ def mock_response():
     return response
 
 @pytest.mark.asyncio
-@patch('app.adapters.secondary.upbit.client.requests.request')
+@patch('app.adapters.external.upbit.client.requests.request')
 async def test_get_accounts_success(mock_request, upbit_client, mock_response):
     # Given
     mock_data = [
@@ -57,7 +57,7 @@ async def test_get_accounts_success(mock_request, upbit_client, mock_response):
     )
 
 @pytest.mark.asyncio
-@patch('app.adapters.secondary.upbit.client.requests.request', side_effect=Exception("API Error"))
+@patch('app.adapters.external.upbit.client.requests.request', side_effect=Exception("API Error"))
 async def test_get_accounts_api_error(mock_request, upbit_client):
     # Given/When/Then
     with pytest.raises(Exception) as exc_info:

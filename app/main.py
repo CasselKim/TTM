@@ -6,7 +6,6 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from app.adapters.internal.api.routes import account, order, ticker
 from app.container import Container
 from common.logging import setup_logging
 
@@ -87,10 +86,9 @@ app = FastAPI(lifespan=lifespan)
 # FastAPI 앱에 컨테이너 연결
 app.container = container  # type: ignore
 
-# 라우터 등록
-app.include_router(account.router)
-app.include_router(ticker.router)
-app.include_router(order.router)
 
-# 컨테이너 와이어링
-container.wire(modules=[account, ticker, order])
+# Health check endpoint
+@app.get("/health")
+async def health_check() -> dict[str, str]:
+    """서비스 상태 확인을 위한 health check endpoint"""
+    return {"status": "healthy", "service": "TTM Trading Bot"}

@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from app.adapters.internal.background.trading_scheduler import TradingScheduler
 from app.container import Container
 from common.logging import setup_logging
 
@@ -35,6 +36,7 @@ container.config.from_dict(
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """애플리케이션 lifespan 관리"""
     bot_task = None
+    trading_scheduler = None
 
     # Startup
     discord_token = os.getenv("DISCORD_BOT_TOKEN")
@@ -66,9 +68,22 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             ],
         )
 
+    # 거래 스케줄러 시작
+    if os.getenv("ENABLE_TRADING_SCHEDULER", "false").lower() == "true":
+        trading_scheduler = TradingScheduler(
+            trading_usecase=container.trading_usecase(),
+            interval_seconds=float(os.getenv("TRADING_INTERVAL_SECONDS", "10")),
+            enabled=True,
+        )
+        await trading_scheduler.start()
+
     yield
 
     # Shutdown
+    # 거래 스케줄러 종료
+    if trading_scheduler:
+        await trading_scheduler.stop()
+
     if discord_token:
         discord_adapter = container.discord_adapter()
         await discord_adapter.close()

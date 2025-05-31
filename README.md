@@ -57,6 +57,10 @@ DISCORD_CHANNEL_ID=your_discord_channel_id_here
 # Enable Developer Mode in Discord and right-click user to copy ID
 DISCORD_ADMIN_USER_IDS=123456789012345678,987654321098765432
 
+# Trading Scheduler Settings
+ENABLE_TRADING_SCHEDULER=true  # Enable/disable automated trading
+TRADING_INTERVAL_SECONDS=10    # Trading algorithm execution interval
+
 # Logging Settings
 LOG_LEVEL=INFO
 LOG_FILE=logs/app.log
@@ -98,6 +102,12 @@ This project is licensed under the terms of the MIT license.
 - **Account Management**: Check balances and account information
 - **Market Data**: Real-time ticker information
 - **Order Management**: View and cancel orders
+
+### Automated Trading
+- **Background Trading Scheduler**: Runs Simple Trading Algorithm every 10 seconds
+- **Algorithm Support**: Currently supports Simple Trading Algorithm based on 24h price change
+- **Simulation Mode**: Safe testing with simulation mode before live trading
+- **Configurable Intervals**: Adjustable execution intervals via environment variables
 
 ### Discord Bot Commands
 - **Basic Commands** (All users):

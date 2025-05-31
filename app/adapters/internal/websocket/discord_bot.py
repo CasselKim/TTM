@@ -49,7 +49,7 @@ def _create_trade_confirmation_embed(
 
     embed.add_field(
         name=f"{DiscordConstants.EMOJI_WARNING} 주의사항",
-        value=f"{DiscordConstants.EMOJI_CONFIRM} 또는 {DiscordConstants.EMOJI_CANCEL} 이모지로 응답해주세요.\n{DiscordConstants.TRADE_CONFIRMATION_TIMEOUT_SECONDS:.0f}초 내에 응답하지 않으면 취소됩니다.",
+        value=f"{DiscordConstants.EMOJI_CONFIRM} 또는 {DiscordConstants.EMOJI_CANCEL} 이모지로 응답해주세요.\n{int(DiscordConstants.TRADE_CONFIRMATION_TIMEOUT_SECONDS)}초 내에 응답하지 않으면 취소됩니다.",
         inline=False,
     )
 
@@ -467,7 +467,7 @@ def _create_order_commands(order_usecase: OrderUseCase) -> list[Any]:
             )
             embed.add_field(
                 name=f"{DiscordConstants.EMOJI_WARNING} 주의사항",
-                value=f"{DiscordConstants.EMOJI_CONFIRM} 또는 {DiscordConstants.EMOJI_CANCEL} 이모지로 응답해주세요.\n{DiscordConstants.TRADE_CONFIRMATION_TIMEOUT_SECONDS:.0f}초 내에 응답하지 않으면 취소됩니다.",
+                value=f"{DiscordConstants.EMOJI_CONFIRM} 또는 {DiscordConstants.EMOJI_CANCEL} 이모지로 응답해주세요.\n{int(DiscordConstants.TRADE_CONFIRMATION_TIMEOUT_SECONDS)}초 내에 응답하지 않으면 취소됩니다.",
                 inline=False,
             )
 
@@ -546,13 +546,13 @@ def _create_balance_command(account_usecase: AccountUseCase) -> Any:
                     if balance_val > 0 or locked_val > 0:
                         total = balance_val + locked_val
                         message += f"\n**{balance.currency}**\n"
-                        message += f"  • 사용 가능: {balance_val:,.8f}\n"
-                        message += f"  • 거래 중: {locked_val:,.8f}\n"
-                        message += f"  • 총 보유: {total:,.8f}\n"
+                        message += f"  • 사용 가능: {int(balance_val)}\n"
+                        message += f"  • 거래 중: {int(locked_val)}\n"
+                        message += f"  • 총 보유: {int(total)}\n"
 
                         avg_buy_price = float(balance.avg_buy_price)
                         if avg_buy_price > 0:
-                            message += f"  • 평균 매수가: {avg_buy_price:,.2f} KRW\n"
+                            message += f"  • 평균 매수가: {int(avg_buy_price)} KRW\n"
 
                 message += (
                     f"\n💵 **총 평가 금액**: {float(result.total_balance_krw):,.0f} KRW"
@@ -590,10 +590,10 @@ def _create_price_command(ticker_usecase: TickerUseCase) -> Any:
 
                 message = f"{change_emoji} **{market} 시세 정보**\n\n"
                 message += f"**현재가**: {float(ticker.trade_price):,.0f} KRW\n"
-                message += f"**전일 대비**: {change_color} {float(ticker.signed_change_price):+,.0f} ({change_rate:+.2f}%)\n"
+                message += f"**전일 대비**: {change_color} {float(ticker.signed_change_price):+,.0f} ({int(change_rate):+}%)\n"
                 message += f"**고가**: {float(ticker.high_price):,.0f} KRW\n"
                 message += f"**저가**: {float(ticker.low_price):,.0f} KRW\n"
-                message += f"**거래량**: {float(ticker.acc_trade_volume_24h):,.4f}\n"
+                message += f"**거래량**: {int(float(ticker.acc_trade_volume_24h))}\n"
                 message += f"**거래대금**: {float(ticker.acc_trade_price_24h):,.0f} KRW"
 
                 await ctx.send(message)

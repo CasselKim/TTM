@@ -217,6 +217,55 @@ class TestOrderUseCase:
         assert "Network error" in result.error_message
 
     @pytest.mark.asyncio
+    async def test_buy_market_10000_krw_btc(self, order_usecase, mock_order_repository):
+        """KRW-BTC 1만원 시장가 매수 테스트"""
+        # Given
+        market = "KRW-BTC"
+        amount = Decimal("10000")  # 1만원
+
+        order = Order(
+            uuid="test-uuid-10000-krw",
+            side=OrderSide.BID,
+            ord_type=OrderType.PRICE,
+            market=market,
+            volume=None,
+            price=amount,
+            state=OrderState.대기,
+            created_at="2023-01-01T00:00:00+09:00",
+            remaining_volume=Decimal("0"),
+            reserved_fee=Decimal("0"),
+            remaining_fee=Decimal("0"),
+            paid_fee=Decimal("0"),
+            locked=amount,
+            executed_volume=Decimal("0"),
+            trades_count=0
+        )
+
+        mock_order_repository.place_order = AsyncMock(return_value=OrderResult(
+            success=True,
+            order=order
+        ))
+
+        # When
+        result = await order_usecase.buy_market(market, amount)
+
+        # Then
+        assert isinstance(result, MarketBuyResult)
+        assert result.success is True
+        assert result.order_uuid == "test-uuid-10000-krw"
+        assert result.market == market
+        assert result.amount == str(amount)
+
+        # 올바른 주문 요청으로 호출되었는지 확인
+        call_args = mock_order_repository.place_order.call_args[0][0]
+        assert isinstance(call_args, OrderRequest)
+        assert call_args.market == market
+        assert call_args.side == OrderSide.BID
+        assert call_args.ord_type == OrderType.PRICE
+        assert call_args.price == amount
+        assert call_args.volume is None
+
+    @pytest.mark.asyncio
     async def test_sell_limit_success(self, order_usecase, mock_order_repository):
         """지정가 매도 성공 테스트"""
         # Given

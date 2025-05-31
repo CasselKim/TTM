@@ -1,13 +1,18 @@
+"""
+간단한 변동률 기반 매매 알고리즘
+
+24시간 변동률을 기준으로 매수/매도 신호를 생성하는 알고리즘입니다.
+"""
+
+import logging
 from decimal import Decimal
-from typing import Any
 
-from app.application.dto.trading_dto import TradingResult
-from app.domain.models.account import Account
+from app.domain.models.account import Account, Balance, Currency
 from app.domain.models.trading import MarketData, TradingSignal
-from app.domain.services.trading_algorithm_service import TradingAlgorithmService
+from app.domain.trade_algorithms.base import TradingAlgorithm
 
 
-class SimpleTradingAlgorithm(TradingAlgorithmService):
+class SimpleTradingAlgorithm(TradingAlgorithm):
     """
     간단한 변동률 기반 매매 알고리즘
 
@@ -17,12 +22,12 @@ class SimpleTradingAlgorithm(TradingAlgorithmService):
     - 그 외에는 HOLD
     """
 
-    def __init__(self, *args: Any, **kwargs: Any) -> None:
-        super().__init__(*args, **kwargs)
+    def __init__(self) -> None:
         self.buy_threshold = Decimal("-0.05")  # -5%
         self.sell_threshold = Decimal("0.10")  # +10%
+        self.logger = logging.getLogger(self.__class__.__name__)
 
-    async def analyze_trading_signal(
+    async def analyze_signal(
         self, account: Account, market_data: MarketData
     ) -> TradingSignal:
         """
@@ -42,7 +47,9 @@ class SimpleTradingAlgorithm(TradingAlgorithmService):
 
         # 매도 신호: 24시간 변동률이 +10% 이상이고 보유 중인 경우
         elif change_rate >= self.sell_threshold:
-            target_balance = self._get_target_currency_balance(account)
+            target_balance = self._get_target_currency_balance(
+                account, market_data.market
+            )
             if target_balance and target_balance.balance > Decimal("0"):
                 return TradingSignal(
                     action="SELL",
@@ -58,7 +65,12 @@ class SimpleTradingAlgorithm(TradingAlgorithmService):
         )
 
     async def calculate_buy_amount(
-        self, account: Account, market_data: MarketData, signal: TradingSignal
+        self,
+        account: Account,
+        market_data: MarketData,
+        signal: TradingSignal,
+        max_investment_ratio: Decimal,
+        min_order_amount: Decimal,
     ) -> Decimal:
         """
         매수 금액 계산: 사용 가능한 KRW 잔액의 설정된 비율만큼 매수
@@ -66,11 +78,11 @@ class SimpleTradingAlgorithm(TradingAlgorithmService):
         available_krw = self._get_available_krw_balance(account)
 
         # 신뢰도에 따라 투자 비율 조정
-        investment_ratio = self.config.max_investment_ratio * signal.confidence
+        investment_ratio = max_investment_ratio * signal.confidence
         buy_amount = available_krw * investment_ratio
 
         # 최소 주문 금액 확인
-        if buy_amount < self.config.min_order_amount:
+        if buy_amount < min_order_amount:
             return Decimal("0")
 
         self.logger.info(
@@ -86,7 +98,7 @@ class SimpleTradingAlgorithm(TradingAlgorithmService):
         """
         매도 수량 계산: 보유 중인 대상 통화의 전량 매도
         """
-        target_balance = self._get_target_currency_balance(account)
+        target_balance = self._get_target_currency_balance(account, market_data.market)
 
         if not target_balance:
             return Decimal("0")
@@ -106,37 +118,22 @@ class SimpleTradingAlgorithm(TradingAlgorithmService):
 
         return sell_volume
 
-    async def pre_trading_hook(self, account: Account, market_data: MarketData) -> bool:
-        """
-        매매 실행 전 추가 검증
-        """
-        # 시장 상태 확인 (거래 가능한 상태인지)
-        if hasattr(market_data, "market_state"):
-            # Ticker에서 market_state를 가져올 수 있다면
-            pass
+    def _get_available_krw_balance(self, account: Account) -> Decimal:
+        """사용 가능한 KRW 잔액 조회"""
+        for balance in account.balances:
+            if balance.currency == Currency.KRW:
+                return balance.balance - balance.locked
+        return Decimal("0")
 
-        # 급격한 변동 시 거래 중단 (예: 20% 이상 변동)
-        if abs(market_data.change_rate_24h) > Decimal("0.20"):
-            self.logger.warning(
-                f"급격한 변동 감지 ({market_data.change_rate_24h:.2%}), 거래 중단"
-            )
-            return False
+    def _get_target_currency_balance(
+        self, account: Account, market: str
+    ) -> Balance | None:
+        """대상 통화 잔액 조회"""
+        # market 형식: "KRW-BTC" -> target_currency는 "BTC"
+        target_currency_str = market.split("-")[1]
+        target_currency = Currency(target_currency_str)
 
-        return True
-
-    async def post_trading_hook(
-        self, result: TradingResult, account: Account, market_data: MarketData
-    ) -> None:
-        """
-        매매 실행 후 로깅 및 알림
-        """
-        if result.success:
-            self.logger.info(
-                f"매매 성공: {result.message}, "
-                f"실행금액: {result.executed_amount}, "
-                f"실행가격: {result.executed_price}"
-            )
-        else:
-            self.logger.error(f"매매 실패: {result.message}")
-
-        # 여기에 슬랙 알림, 이메일 발송 등 추가 가능
+        for balance in account.balances:
+            if balance.currency == target_currency:
+                return balance
+        return None

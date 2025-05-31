@@ -1,7 +1,5 @@
-from app.domain.services.simple_trading_algorithm import SimpleTradingAlgorithm
-from app.domain.services.trading_algorithm_service import TradingAlgorithmService
+from app.domain.services.trade_service import TradeService
 
 __all__ = [
-    "SimpleTradingAlgorithm",
-    "TradingAlgorithmService",
+    "TradeService",
 ]

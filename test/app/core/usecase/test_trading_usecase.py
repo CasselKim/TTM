@@ -261,31 +261,19 @@ class TestTradingUsecase:
     @pytest.mark.asyncio
     async def test_create_algorithm_simple_type(self, trading_usecase):
         """SIMPLE 알고리즘 타입 생성 테스트"""
-        # Given
-        config = TradingConfig(
-            mode=TradingMode.SIMULATION,
-            target_currency=Currency.BTC
-        )
-
         # When
-        algorithm = trading_usecase._create_algorithm(AlgorithmType.SIMPLE, config)
+        algorithm = trading_usecase._create_algorithm(AlgorithmType.SIMPLE)
 
         # Then
-        from app.domain.services.simple_trading_algorithm import SimpleTradingAlgorithm
+        from app.domain.trade_algorithms.simple import SimpleTradingAlgorithm
         assert isinstance(algorithm, SimpleTradingAlgorithm)
 
     def test_create_algorithm_unsupported_type(self, trading_usecase):
         """지원하지 않는 알고리즘 타입 테스트"""
-        # Given
-        config = TradingConfig(
-            mode=TradingMode.SIMULATION,
-            target_currency=Currency.BTC
-        )
-
         # When & Then
         with pytest.raises(ValueError, match="지원하지 않는 알고리즘 타입"):
             # 존재하지 않는 알고리즘 타입으로 테스트
-            trading_usecase._create_algorithm("INVALID_TYPE", config)  # type: ignore
+            trading_usecase._create_algorithm("INVALID_TYPE")  # type: ignore
 
     def test_get_trading_status(self, trading_usecase):
         """매매 상태 정보 조회 테스트"""

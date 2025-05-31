@@ -16,8 +16,9 @@ from app.domain.models.trading import TradingConfig
 from app.domain.repositories.account_repository import AccountRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
-from app.domain.services.simple_trading_algorithm import SimpleTradingAlgorithm
-from app.domain.services.trading_algorithm_service import TradingAlgorithmService
+from app.domain.services.trade_service import TradeService
+from app.domain.trade_algorithms.base import TradingAlgorithm
+from app.domain.trade_algorithms.simple import SimpleTradingAlgorithm
 
 
 class AlgorithmType(StrEnum):
@@ -36,9 +37,11 @@ class TradingUsecase:
         order_repository: OrderRepository,
         ticker_repository: TickerRepository,
     ) -> None:
-        self.account_repository = account_repository
-        self.order_repository = order_repository
-        self.ticker_repository = ticker_repository
+        self.trade_service = TradeService(
+            account_repository=account_repository,
+            order_repository=order_repository,
+            ticker_repository=ticker_repository,
+        )
         self.logger = logging.getLogger(self.__class__.__name__)
 
     async def execute_trading_algorithm(
@@ -74,11 +77,11 @@ class TradingUsecase:
                 take_profit_ratio=Decimal("0.1"),  # 10% 익절
             )
 
-            # 2. 알고리즘 타입에 따라 매매 알고리즘 생성
-            algorithm = self._create_algorithm(algorithm_type, config)
+            # 2. 알고리즘 생성
+            algorithm = self._create_algorithm(algorithm_type)
 
-            # 3. 매매 사이클 실행
-            result = await algorithm.run_trading_cycle()
+            # 3. 매매 사이클 실행 (TradeService 사용)
+            result = await self.trade_service.execute_trading_cycle(algorithm, config)
 
             # 4. 결과 로깅
             self._log_trading_result(result, target_currency, mode, algorithm_type)
@@ -94,25 +97,18 @@ class TradingUsecase:
 
         return result
 
-    def _create_algorithm(
-        self, algorithm_type: AlgorithmType, config: TradingConfig
-    ) -> TradingAlgorithmService:
+    def _create_algorithm(self, algorithm_type: AlgorithmType) -> TradingAlgorithm:
         """알고리즘 타입에 따라 적절한 알고리즘 인스턴스 생성"""
 
         match algorithm_type:
             case AlgorithmType.SIMPLE:
-                return SimpleTradingAlgorithm(
-                    config=config,
-                    account_repository=self.account_repository,
-                    order_repository=self.order_repository,
-                    ticker_repository=self.ticker_repository,
-                )
+                return SimpleTradingAlgorithm()
 
             # 향후 다른 알고리즘 추가 시
             # case AlgorithmType.RSI:
-            #     return RSITradingAlgorithm(...)
+            #     return RSITradingAlgorithm()
             # case AlgorithmType.MACD:
-            #     return MACDTradingAlgorithm(...)
+            #     return MACDTradingAlgorithm()
 
             case _:
                 raise ValueError(f"지원하지 않는 알고리즘 타입: {algorithm_type}")

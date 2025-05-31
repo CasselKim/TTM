@@ -46,7 +46,8 @@ def _create_trade_confirmation_embed(
         # 마켓에서 통화 추출하여 적절한 포맷 적용
         if "KRW" in amount_or_volume:
             # 시장가 매수인 경우 (금액)
-            amount_formatted = f"{float(amount_or_volume.replace(' KRW', '')):,.0f} KRW"
+            clean_amount = amount_or_volume.replace(" KRW", "").replace(",", "")
+            amount_formatted = f"{float(clean_amount):,.0f} KRW"
         else:
             # 수량인 경우 (암호화폐)
             target_currency = market.split("-")[1] if "-" in market else "BTC"
@@ -60,7 +61,8 @@ def _create_trade_confirmation_embed(
     else:
         # 시장가 주문인 경우
         if "KRW" in amount_or_volume:
-            amount_formatted = f"{float(amount_or_volume.replace(' KRW', '')):,.0f} KRW"
+            clean_amount = amount_or_volume.replace(" KRW", "").replace(",", "")
+            amount_formatted = f"{float(clean_amount):,.0f} KRW"
         else:
             target_currency = market.split("-")[1] if "-" in market else "BTC"
             amount_formatted = _format_currency_amount(

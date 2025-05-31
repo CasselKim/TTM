@@ -40,12 +40,35 @@ def _create_trade_confirmation_embed(
     )
 
     if price:
+        # 지정가 주문인 경우
+        price_formatted = f"{float(price):,.0f} KRW"
+
+        # 마켓에서 통화 추출하여 적절한 포맷 적용
+        if "KRW" in amount_or_volume:
+            # 시장가 매수인 경우 (금액)
+            amount_formatted = f"{float(amount_or_volume.replace(' KRW', '')):,.0f} KRW"
+        else:
+            # 수량인 경우 (암호화폐)
+            target_currency = market.split("-")[1] if "-" in market else "BTC"
+            amount_formatted = _format_currency_amount(
+                float(amount_or_volume), target_currency
+            )
+
         embed.add_field(name="주문 유형", value="지정가", inline=True)
-        embed.add_field(name="가격", value=f"{price} KRW", inline=True)
-        embed.add_field(name="수량/금액", value=amount_or_volume, inline=True)
+        embed.add_field(name="가격", value=price_formatted, inline=True)
+        embed.add_field(name="수량", value=amount_formatted, inline=True)
     else:
+        # 시장가 주문인 경우
+        if "KRW" in amount_or_volume:
+            amount_formatted = f"{float(amount_or_volume.replace(' KRW', '')):,.0f} KRW"
+        else:
+            target_currency = market.split("-")[1] if "-" in market else "BTC"
+            amount_formatted = _format_currency_amount(
+                float(amount_or_volume), target_currency
+            )
+
         embed.add_field(name="주문 유형", value="시장가", inline=True)
-        embed.add_field(name="수량/금액", value=amount_or_volume, inline=True)
+        embed.add_field(name="금액/수량", value=amount_formatted, inline=True)
 
     embed.add_field(
         name=f"{DiscordConstants.EMOJI_WARNING} 주의사항",
@@ -97,7 +120,7 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
 
                 # 확인 단계
                 embed = _create_trade_confirmation_embed(
-                    "매수", market, f"{amount} KRW"
+                    "매수", market, f"{amount_decimal:,.0f} KRW"
                 )
                 message = await ctx.send(embed=embed)
                 await message.add_reaction(DiscordConstants.EMOJI_CONFIRM)
@@ -170,7 +193,7 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
 
                 # 확인 단계
                 embed = _create_trade_confirmation_embed(
-                    "매수", market, f"{amount}", price
+                    "매수", market, str(volume_decimal), str(price_decimal)
                 )
                 message = await ctx.send(embed=embed)
                 await message.add_reaction(DiscordConstants.EMOJI_CONFIRM)
@@ -265,7 +288,9 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
 
             if price is None:
                 # 시장가 매도
-                embed = _create_trade_confirmation_embed("매도", market, f"{volume}")
+                embed = _create_trade_confirmation_embed(
+                    "매도", market, str(volume_decimal)
+                )
                 message = await ctx.send(embed=embed)
                 await message.add_reaction(DiscordConstants.EMOJI_CONFIRM)
                 await message.add_reaction(DiscordConstants.EMOJI_CANCEL)
@@ -318,7 +343,7 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
 
                 # 확인 단계
                 embed = _create_trade_confirmation_embed(
-                    "매도", market, f"{volume}", price
+                    "매도", market, str(volume_decimal), str(price_decimal)
                 )
                 message = await ctx.send(embed=embed)
                 await message.add_reaction(DiscordConstants.EMOJI_CONFIRM)
@@ -525,6 +550,24 @@ def _create_order_commands(order_usecase: OrderUseCase) -> list[Any]:
     return [get_order_command, cancel_order_command]
 
 
+def _format_currency_amount(amount: float, currency: str) -> str:
+    """통화 타입에 따라 적절한 포맷으로 숫자를 표시"""
+    if currency == "KRW":
+        # KRW는 정수로 표시 (소수점 불필요)
+        return f"{int(amount):,}"
+    else:
+        # 암호화폐는 8자리 소수점까지 표시하되, 불필요한 0 제거
+        formatted = f"{amount:.8f}".rstrip("0").rstrip(".")
+        # 천 단위 구분자 추가 (정수 부분에만)
+        parts = formatted.split(".")
+        decimal_parts_count = 2  # integer_part, decimal_part
+        if len(parts) == decimal_parts_count:
+            integer_part = f"{int(parts[0]):,}"
+            return f"{integer_part}.{parts[1]}"
+        else:
+            return f"{int(amount):,}"
+
+
 def _create_balance_command(account_usecase: AccountUseCase) -> Any:
     """잔고 조회 커맨드 생성"""
 
@@ -545,14 +588,18 @@ def _create_balance_command(account_usecase: AccountUseCase) -> Any:
 
                     if balance_val > 0 or locked_val > 0:
                         total = balance_val + locked_val
-                        message += f"\n**{balance.currency}**\n"
-                        message += f"  • 사용 가능: {int(balance_val)}\n"
-                        message += f"  • 거래 중: {int(locked_val)}\n"
-                        message += f"  • 총 보유: {int(total)}\n"
+                        currency = balance.currency
+
+                        message += f"\n**{currency}**\n"
+                        message += f"  • 사용 가능: {_format_currency_amount(balance_val, currency)}\n"
+                        message += f"  • 거래 중: {_format_currency_amount(locked_val, currency)}\n"
+                        message += (
+                            f"  • 총 보유: {_format_currency_amount(total, currency)}\n"
+                        )
 
                         avg_buy_price = float(balance.avg_buy_price)
                         if avg_buy_price > 0:
-                            message += f"  • 평균 매수가: {int(avg_buy_price)} KRW\n"
+                            message += f"  • 평균 매수가: {_format_currency_amount(avg_buy_price, 'KRW')} KRW\n"
 
                 message += (
                     f"\n💵 **총 평가 금액**: {float(result.total_balance_krw):,.0f} KRW"

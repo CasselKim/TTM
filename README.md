@@ -53,6 +53,10 @@ UPBIT_SECRET_KEY=your_upbit_secret_key_here
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
 DISCORD_CHANNEL_ID=your_discord_channel_id_here
 
+# Discord Admin User IDs for trading commands (comma-separated)
+# Enable Developer Mode in Discord and right-click user to copy ID
+DISCORD_ADMIN_USER_IDS=123456789012345678,987654321098765432
+
 # Logging Settings
 LOG_LEVEL=INFO
 LOG_FILE=logs/app.log
@@ -63,9 +67,10 @@ LOG_FILE=logs/app.log
 2. Create a new application and go to the Bot section
 3. Create a bot and copy the bot token
 4. Enable necessary Intents (MESSAGE CONTENT INTENT is required)
-5. Invite the bot to your server with appropriate permissions (Send Messages, Embed Links)
+5. Invite the bot to your server with appropriate permissions (Send Messages, Embed Links, Add Reactions)
 6. Get the channel ID where you want the bot to send messages (Enable Developer Mode in Discord)
-7. Set the `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` in your `.env` file
+7. Get your Discord User ID for admin privileges (Enable Developer Mode and right-click your profile)
+8. Set the `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID`, and `DISCORD_ADMIN_USER_IDS` in your `.env` file
 
 ### 5. Execute docker
 ```
@@ -92,14 +97,35 @@ This project is licensed under the terms of the MIT license.
 - **Upbit Integration**: Support for limit/market buy/sell orders
 - **Account Management**: Check balances and account information
 - **Market Data**: Real-time ticker information
+- **Order Management**: View and cancel orders
+
+### Discord Bot Commands
+- **Basic Commands** (All users):
+  - `!잔고` or `!balance` - Check account balance
+  - `!시세 [MARKET]` or `!price [MARKET]` - Get ticker information
+  - `!도움말` or `!명령어` - Show help message
+
+- **Trading Commands** (Admin only):
+  - `!매수 [MARKET] [AMOUNT]` - Market buy order
+  - `!매수 [MARKET] [VOLUME] [PRICE]` - Limit buy order
+  - `!매도 [MARKET] [VOLUME]` - Market sell order
+  - `!매도 [MARKET] [VOLUME] [PRICE]` - Limit sell order
+  - `!주문조회 [UUID]` - Get order information
+  - `!주문취소 [UUID]` - Cancel order
+
+- **Security Features**:
+  - Admin-only access for trading commands
+  - Interactive confirmation for all trades
+  - Maximum trade amount limits
+  - 30-second timeout for confirmations
 
 ### Notifications
 - **Discord Bot Notifications**: Get real-time alerts via Discord Bot for:
   - Trade executions (buy/sell)
+  - Order cancellations
   - Error notifications
   - System status updates
 - **Rich Embed Messages**: Beautiful formatted messages with colors and fields
-- **Bot Commands**: (Future feature) Execute trades and check status via Discord commands
 
 ## Testing Discord Bot
 Run the Discord bot test script:

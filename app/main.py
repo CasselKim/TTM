@@ -48,6 +48,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             bot_adapter=discord_adapter,
             account_usecase=container.account_usecase(),
             ticker_usecase=container.ticker_usecase(),
+            order_usecase=container.order_usecase(),
         )
 
         # Discord Bot을 백그라운드 태스크로 실행

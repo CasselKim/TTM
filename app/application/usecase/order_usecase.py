@@ -1,6 +1,7 @@
 import logging
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
 
 from app.adapters.external.discord.adapter import DiscordAdapter
 from app.application.dto.order_dto import (
@@ -267,3 +268,92 @@ class OrderUseCase:
         except Exception as e:
             logger.error(f"Failed to execute market sell: {e!s}")
             return OrderError(success=False, error_message=str(e))
+
+    async def get_order(self, uuid: str) -> dict[str, Any] | OrderError:
+        """특정 주문 정보를 조회합니다.
+
+        Args:
+            uuid: 주문 UUID
+
+        Returns:
+            dict[str, Any] | OrderError: 주문 정보 또는 에러
+        """
+        try:
+            logger.info(f"Getting order - uuid: {uuid}")
+
+            order = await self.order_repository.get_order(uuid)
+
+            return {
+                "success": True,
+                "uuid": order.uuid,
+                "market": order.market,
+                "side": order.side.value,
+                "ord_type": order.ord_type.value,
+                "state": order.state.value,
+                "price": str(order.price) if order.price else None,
+                "volume": str(order.volume) if order.volume else None,
+                "remaining_volume": str(order.remaining_volume),
+                "executed_volume": str(order.executed_volume),
+                "created_at": order.created_at,
+            }
+
+        except Exception as e:
+            logger.error(f"Failed to get order {uuid}: {e!s}")
+            return OrderError(success=False, error_message=str(e))
+
+    async def cancel_order(self, uuid: str) -> dict[str, Any] | OrderError:
+        """주문을 취소합니다.
+
+        Args:
+            uuid: 주문 UUID
+
+        Returns:
+            dict[str, Any] | OrderError: 취소 결과 또는 에러
+        """
+        try:
+            logger.info(f"Canceling order - uuid: {uuid}")
+
+            result = await self.order_repository.cancel_order(uuid)
+
+            if result.success and result.order:
+                # Discord 알림 전송
+                await self._send_order_cancel_notification(result.order)
+
+                return {
+                    "success": True,
+                    "uuid": result.order.uuid,
+                    "market": result.order.market,
+                    "side": result.order.side.value,
+                    "state": result.order.state.value,
+                }
+            else:
+                return OrderError(
+                    success=False, error_message=result.error_message or "Unknown error"
+                )
+
+        except Exception as e:
+            logger.error(f"Failed to cancel order {uuid}: {e!s}")
+            return OrderError(success=False, error_message=str(e))
+
+    async def _send_order_cancel_notification(self, order: Any) -> None:
+        """주문 취소 알림을 Discord로 전송합니다."""
+        if not self.discord_adapter:
+            return
+
+        try:
+            await self.discord_adapter.send_info_notification(
+                title="주문 취소",
+                message=f"**{order.market}** 주문이 취소되었습니다.",
+                fields=[
+                    ("주문 UUID", order.uuid, False),
+                    ("마켓", order.market, True),
+                    (
+                        "주문 유형",
+                        "매수" if order.side.value == "bid" else "매도",
+                        True,
+                    ),
+                    ("주문 상태", order.state.value, True),
+                ],
+            )
+        except Exception as e:
+            logger.error(f"Failed to send order cancel notification: {e}")

@@ -2,13 +2,13 @@
 
 from discord.ext import commands
 
-from app.adapters.secondary.discord.discord_bot_adapter import DiscordBotAdapter
+from app.adapters.secondary.discord.adapter import DiscordAdapter
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
 
 
 def setup_bot_commands(
-    bot_adapter: DiscordBotAdapter,
+    bot_adapter: DiscordAdapter,
     account_usecase: AccountUseCase,
     ticker_usecase: TickerUseCase,
 ):
@@ -83,7 +83,7 @@ def setup_bot_commands(
         except Exception as e:
             await ctx.send(f"❌ 오류가 발생했습니다: {e!s}")
 
-    @commands.command(name="도움말", aliases=["help", "명령어"])
+    @commands.command(name="도움말", aliases=["명령어"])
     async def help_command(ctx):
         """사용 가능한 명령어를 표시합니다."""
         message = "📚 **TTM Trading Bot 명령어**\n\n"

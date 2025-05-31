@@ -1,5 +1,6 @@
 import asyncio
 import os
+from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
 from fastapi import FastAPI
@@ -12,12 +13,7 @@ from common.logging import setup_logging
 load_dotenv()
 
 # 로깅 초기화
-setup_logging(
-    log_level=os.getenv("LOG_LEVEL", "INFO"),
-    log_file=os.getenv("LOG_FILE", "logs/app.log"),
-)
-
-app = FastAPI()
+setup_logging(service_name="TTM")
 
 # 컨테이너 초기화
 container = Container()
@@ -34,21 +30,11 @@ container.config.from_dict(
     }
 )
 
-# FastAPI 앱에 컨테이너 연결
-app.container = container  # type: ignore
 
-# 라우터 등록
-app.include_router(account.router)
-app.include_router(ticker.router)
-app.include_router(order.router)
-
-# 컨테이너 와이어링
-container.wire(modules=[account, ticker, order])
-
-
-@app.on_event("startup")
-async def startup_event():
-    """애플리케이션 시작 시 Discord Bot 실행"""
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """애플리케이션 lifespan 관리"""
+    # Startup
     discord_token = os.getenv("DISCORD_BOT_TOKEN")
     if discord_token:
         discord_adapter = container.discord_adapter()
@@ -77,11 +63,23 @@ async def startup_event():
             ],
         )
 
+    yield
 
-@app.on_event("shutdown")
-async def shutdown_event():
-    """애플리케이션 종료 시 Discord Bot 정리"""
-    discord_token = os.getenv("DISCORD_BOT_TOKEN")
+    # Shutdown
     if discord_token:
         discord_adapter = container.discord_adapter()
         await discord_adapter.close()
+
+
+app = FastAPI(lifespan=lifespan)
+
+# FastAPI 앱에 컨테이너 연결
+app.container = container  # type: ignore
+
+# 라우터 등록
+app.include_router(account.router)
+app.include_router(ticker.router)
+app.include_router(order.router)
+
+# 컨테이너 와이어링
+container.wire(modules=[account, ticker, order])

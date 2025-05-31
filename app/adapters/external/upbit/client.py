@@ -38,7 +38,28 @@ class UpbitClient:
             )
 
         logger.info(f"Response: {response.json()}")
-        response.raise_for_status()
+
+        # HTTP 오류 상태 확인
+        if not response.ok:
+            try:
+                error_data = response.json()
+                # Upbit API 오류 응답에서 상세 메시지 추출
+                if "error" in error_data:
+                    error_info = error_data["error"]
+                    error_message = error_info.get("message", "Unknown error")
+                    error_name = error_info.get("name", "unknown_error")
+
+                    # 한국어 메시지와 영어 코드를 모두 포함한 상세 오류 메시지 생성
+                    detailed_message = f"{error_message} ({error_name})"
+                    logger.error(f"Upbit API Error: {detailed_message}")
+                    raise requests.HTTPError(detailed_message, response=response)
+                else:
+                    # error 필드가 없는 경우 기본 HTTP 오류 처리
+                    response.raise_for_status()
+            except ValueError:
+                # JSON 파싱 실패 시 기본 HTTP 오류 처리
+                response.raise_for_status()
+
         return response.json()
 
     def get_accounts(self) -> list[dict[str, Any]]:

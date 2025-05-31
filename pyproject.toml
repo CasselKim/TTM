@@ -130,3 +130,28 @@ known-first-party = ["app", "common"]
 force-single-line = false
 force-sort-within-sections = false
 split-on-trailing-comma = true
+
+# MyPy configuration
+[tool.mypy]
+python_version = "3.12"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false
+disallow_incomplete_defs = false
+check_untyped_defs = true
+disallow_untyped_decorators = false
+no_implicit_optional = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+warn_no_return = true
+warn_unreachable = true
+strict_equality = true
+namespace_packages = true
+
+# Discord 관련 모듈 제외
+[[tool.mypy.overrides]]
+module = [
+    "discord.*",
+    "app.adapters.secondary.discord.*",
+]
+ignore_errors = true

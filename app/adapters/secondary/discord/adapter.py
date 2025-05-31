@@ -35,8 +35,9 @@ class DiscordAdapter:
 
         # 봇 인텐트 설정
         intents = discord.Intents.default()
-        # MESSAGE CONTENT INTENT는 Developer Portal에서 활성화 필요
-        # intents.message_content = True  # Privileged Intent - Developer Portal에서 활성화 후 주석 해제
+        intents.message_content = (
+            True  # Privileged Intent - Developer Portal에서 활성화 필요
+        )
         intents.guilds = True
         intents.guild_messages = True  # 메시지 이벤트 수신 (내용은 제외)
 

@@ -2,16 +2,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 
-
-class OrderSide(StrEnum):
-    매수 = "bid"
-    매도 = "ask"
-
-
-class OrderType(StrEnum):
-    지정가 = "limit"
-    시장가매수 = "price"
-    시장가매도 = "market"
+from app.domain.enums import OrderSide, OrderType
 
 
 class OrderState(StrEnum):

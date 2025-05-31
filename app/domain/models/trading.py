@@ -7,6 +7,8 @@
 from dataclasses import dataclass
 from decimal import Decimal
 
+from app.domain.constants import TradingConstants
+from app.domain.enums import TradingAction
 from app.domain.models.account import Currency
 from app.domain.models.enums import TradingMode
 
@@ -18,10 +20,14 @@ class TradingConfig:
     mode: TradingMode
     target_currency: Currency  # 거래 대상 통화 (예: BTC, ETH)
     base_currency: Currency = Currency.KRW  # 기준 통화
-    max_investment_ratio: Decimal = Decimal("0.1")  # 최대 투자 비율 (10%)
-    min_order_amount: Decimal = Decimal("5000")  # 최소 주문 금액 (KRW)
-    stop_loss_ratio: Decimal = Decimal("0.05")  # 손절 비율 (5%)
-    take_profit_ratio: Decimal = Decimal("0.1")  # 익절 비율 (10%)
+    max_investment_ratio: Decimal = (
+        TradingConstants.DEFAULT_MAX_INVESTMENT_RATIO
+    )  # 최대 투자 비율
+    min_order_amount: Decimal = (
+        TradingConstants.DEFAULT_MIN_ORDER_AMOUNT
+    )  # 최소 주문 금액 (KRW)
+    stop_loss_ratio: Decimal = TradingConstants.DEFAULT_STOP_LOSS_RATIO  # 손절 비율
+    take_profit_ratio: Decimal = TradingConstants.DEFAULT_TAKE_PROFIT_RATIO  # 익절 비율
 
 
 @dataclass
@@ -38,7 +44,7 @@ class MarketData:
 class TradingSignal:
     """거래 신호 (Value Object)"""
 
-    action: str  # "BUY", "SELL", "HOLD"
+    action: TradingAction  # BUY, SELL, HOLD
     confidence: Decimal  # 신뢰도 (0.0 ~ 1.0)
     reason: str  # 신호 발생 이유
     suggested_amount: Decimal | None = None  # 제안 거래량

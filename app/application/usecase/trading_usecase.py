@@ -10,6 +10,7 @@ from enum import StrEnum
 from typing import Any
 
 from app.application.dto.trading_dto import TradingResult
+from app.domain.constants import TradingConstants
 from app.domain.models.account import Currency
 from app.domain.models.enums import TradingMode
 from app.domain.models.trading import TradingConfig
@@ -49,8 +50,8 @@ class TradingUsecase:
         target_currency: Currency = Currency.BTC,
         mode: TradingMode = TradingMode.SIMULATION,
         algorithm_type: AlgorithmType = AlgorithmType.SIMPLE,
-        max_investment_ratio: Decimal = Decimal("0.1"),
-        min_order_amount: Decimal = Decimal("5000"),
+        max_investment_ratio: Decimal = TradingConstants.DEFAULT_MAX_INVESTMENT_RATIO,
+        min_order_amount: Decimal = TradingConstants.DEFAULT_MIN_ORDER_AMOUNT,
     ) -> TradingResult:
         """
         매매 알고리즘 실행
@@ -73,8 +74,8 @@ class TradingUsecase:
                 base_currency=Currency.KRW,
                 max_investment_ratio=max_investment_ratio,
                 min_order_amount=min_order_amount,
-                stop_loss_ratio=Decimal("0.05"),  # 5% 손절
-                take_profit_ratio=Decimal("0.1"),  # 10% 익절
+                stop_loss_ratio=TradingConstants.DEFAULT_STOP_LOSS_RATIO,
+                take_profit_ratio=TradingConstants.DEFAULT_TAKE_PROFIT_RATIO,
             )
 
             # 2. 알고리즘 생성
@@ -153,9 +154,11 @@ class TradingUsecase:
             "available_modes": [mode.value for mode in TradingMode],
             "available_algorithms": [algo.value for algo in AlgorithmType],
             "default_config": {
-                "max_investment_ratio": "0.1",
-                "min_order_amount": "5000",
-                "stop_loss_ratio": "0.05",
-                "take_profit_ratio": "0.1",
+                "max_investment_ratio": str(
+                    TradingConstants.DEFAULT_MAX_INVESTMENT_RATIO
+                ),
+                "min_order_amount": str(TradingConstants.DEFAULT_MIN_ORDER_AMOUNT),
+                "stop_loss_ratio": str(TradingConstants.DEFAULT_STOP_LOSS_RATIO),
+                "take_profit_ratio": str(TradingConstants.DEFAULT_TAKE_PROFIT_RATIO),
             },
         }

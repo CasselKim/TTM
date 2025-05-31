@@ -8,9 +8,10 @@ import logging
 from decimal import Decimal
 
 from app.application.dto.trading_dto import TradingResult
+from app.domain.enums import OrderSide, OrderType, TradingAction
 from app.domain.models.account import Account
 from app.domain.models.enums import TradingMode
-from app.domain.models.order import OrderRequest, OrderSide, OrderType
+from app.domain.models.order import OrderRequest
 from app.domain.models.trading import MarketData, TradingConfig, TradingSignal
 from app.domain.repositories.account_repository import AccountRepository
 from app.domain.repositories.order_repository import OrderRepository
@@ -62,11 +63,11 @@ class TradeService:
             signal = await algorithm.analyze_signal(account, market_data)
 
             # 4. 매매 실행
-            if signal.action == "BUY":
+            if signal.action == TradingAction.BUY:
                 return await self._execute_buy_order(
                     algorithm, account, market_data, signal, config
                 )
-            elif signal.action == "SELL":
+            elif signal.action == TradingAction.SELL:
                 return await self._execute_sell_order(
                     algorithm, account, market_data, signal, config
                 )
@@ -135,8 +136,8 @@ class TradeService:
             # 실제 주문 실행
             order_request = OrderRequest(
                 market=market_data.market,
-                side=OrderSide.매수,
-                ord_type=OrderType.시장가매수,
+                side=OrderSide.BID,
+                ord_type=OrderType.PRICE,
                 price=buy_amount,
             )
 
@@ -191,8 +192,8 @@ class TradeService:
             # 실제 주문 실행
             order_request = OrderRequest(
                 market=market_data.market,
-                side=OrderSide.매도,
-                ord_type=OrderType.시장가매도,
+                side=OrderSide.ASK,
+                ord_type=OrderType.MARKET,
                 volume=sell_volume,
             )
 

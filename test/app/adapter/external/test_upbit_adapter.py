@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import Mock, patch
-from app.adapters.secondary.adapter.upbit_adapter import UpbitAdapter
+from app.adapters.secondary.upbit.adapter import UpbitAdapter
 from app.adapters.secondary.upbit.exceptions import UpbitAPIException
 from decimal import Decimal
 from app.domain.models.account import Account, Balance, Currency

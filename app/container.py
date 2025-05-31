@@ -1,6 +1,7 @@
 from dependency_injector import containers, providers
 
-from app.adapters.secondary.adapter.upbit_adapter import UpbitAdapter
+from app.adapters.secondary.discord.adapter import DiscordAdapter
+from app.adapters.secondary.upbit.adapter import UpbitAdapter
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
@@ -14,6 +15,12 @@ class Container(containers.DeclarativeContainer):
         UpbitAdapter,
         access_key=config.upbit.access_key,
         secret_key=config.upbit.secret_key,
+    )
+
+    discord_adapter = providers.Singleton(
+        DiscordAdapter,
+        bot_token=config.discord.bot_token,
+        channel_id=config.discord.channel_id,
     )
 
     # Use cases
@@ -31,4 +38,5 @@ class Container(containers.DeclarativeContainer):
         OrderUseCase,
         order_repository=upbit_adapter,
         ticker_repository=upbit_adapter,
+        discord_adapter=discord_adapter,
     )

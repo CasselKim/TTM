@@ -41,7 +41,33 @@ https://python-poetry.org/docs/#installing-with-the-official-installer
 ```
 poetry install
 ```
-### 4. Execute docker
+
+### 4. Configuration
+Create `.env` file and set the following environment variables:
+```bash
+# Upbit API Keys
+UPBIT_ACCESS_KEY=your_upbit_access_key_here
+UPBIT_SECRET_KEY=your_upbit_secret_key_here
+
+# Discord Bot Settings (optional)
+DISCORD_BOT_TOKEN=your_discord_bot_token_here
+DISCORD_CHANNEL_ID=your_discord_channel_id_here
+
+# Logging Settings
+LOG_LEVEL=INFO
+LOG_FILE=logs/app.log
+```
+
+#### Discord Bot Setup
+1. Go to [Discord Developer Portal](https://discord.com/developers/applications)
+2. Create a new application and go to the Bot section
+3. Create a bot and copy the bot token
+4. Enable necessary Intents (MESSAGE CONTENT INTENT is required)
+5. Invite the bot to your server with appropriate permissions (Send Messages, Embed Links)
+6. Get the channel ID where you want the bot to send messages (Enable Developer Mode in Discord)
+7. Set the `DISCORD_BOT_TOKEN` and `DISCORD_CHANNEL_ID` in your `.env` file
+
+### 5. Execute docker
 ```
 docker build -f docker/Dockerfile . -t ttm-image
 docker compose -f docker/docker-compose-local.yml -p ttm up -d
@@ -59,3 +85,24 @@ http://0.0.0.0/docs
 
 ## License
 This project is licensed under the terms of the MIT license.
+
+## Features
+
+### Trading
+- **Upbit Integration**: Support for limit/market buy/sell orders
+- **Account Management**: Check balances and account information
+- **Market Data**: Real-time ticker information
+
+### Notifications
+- **Discord Bot Notifications**: Get real-time alerts via Discord Bot for:
+  - Trade executions (buy/sell)
+  - Error notifications
+  - System status updates
+- **Rich Embed Messages**: Beautiful formatted messages with colors and fields
+- **Bot Commands**: (Future feature) Execute trades and check status via Discord commands
+
+## Testing Discord Bot
+Run the Discord bot test script:
+```bash
+python scripts/test_discord_bot.py
+```

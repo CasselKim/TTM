@@ -7,6 +7,8 @@
 import logging
 from decimal import Decimal
 
+from app.domain.constants import AlgorithmConstants
+from app.domain.enums import TradingAction
 from app.domain.models.account import Account, Balance, Currency
 from app.domain.models.trading import MarketData, TradingSignal
 from app.domain.trade_algorithms.base import TradingAlgorithm
@@ -23,8 +25,8 @@ class SimpleTradingAlgorithm(TradingAlgorithm):
     """
 
     def __init__(self) -> None:
-        self.buy_threshold = Decimal("-0.05")  # -5%
-        self.sell_threshold = Decimal("0.10")  # +10%
+        self.buy_threshold = AlgorithmConstants.SIMPLE_BUY_THRESHOLD
+        self.sell_threshold = AlgorithmConstants.SIMPLE_SELL_THRESHOLD
         self.logger = logging.getLogger(self.__class__.__name__)
 
     async def analyze_signal(
@@ -38,9 +40,10 @@ class SimpleTradingAlgorithm(TradingAlgorithm):
         # 매수 신호: 24시간 변동률이 -5% 이하
         if change_rate <= self.buy_threshold:
             return TradingSignal(
-                action="BUY",
+                action=TradingAction.BUY,
                 confidence=min(
-                    abs(change_rate) / abs(self.buy_threshold), Decimal("1.0")
+                    abs(change_rate) / abs(self.buy_threshold),
+                    AlgorithmConstants.MAX_CONFIDENCE,
                 ),
                 reason=f"24시간 변동률 {change_rate:.2%}로 매수 임계값({self.buy_threshold:.2%}) 이하",
             )
@@ -52,15 +55,18 @@ class SimpleTradingAlgorithm(TradingAlgorithm):
             )
             if target_balance and target_balance.balance > Decimal("0"):
                 return TradingSignal(
-                    action="SELL",
-                    confidence=min(change_rate / self.sell_threshold, Decimal("1.0")),
+                    action=TradingAction.SELL,
+                    confidence=min(
+                        change_rate / self.sell_threshold,
+                        AlgorithmConstants.MAX_CONFIDENCE,
+                    ),
                     reason=f"24시간 변동률 {change_rate:.2%}로 매도 임계값({self.sell_threshold:.2%}) 이상",
                 )
 
         # HOLD 신호
         return TradingSignal(
-            action="HOLD",
-            confidence=Decimal("1.0"),
+            action=TradingAction.HOLD,
+            confidence=AlgorithmConstants.MAX_CONFIDENCE,
             reason=f"24시간 변동률 {change_rate:.2%}로 매매 조건 미충족",
         )
 
@@ -107,7 +113,7 @@ class SimpleTradingAlgorithm(TradingAlgorithm):
         available_volume = target_balance.balance - target_balance.locked
 
         # 신뢰도에 따라 매도 비율 조정 (최소 50%)
-        sell_ratio = max(Decimal("0.5"), signal.confidence)
+        sell_ratio = max(AlgorithmConstants.MIN_SELL_RATIO, signal.confidence)
         sell_volume = available_volume * sell_ratio
 
         self.logger.info(

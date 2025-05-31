@@ -10,7 +10,8 @@ from app.application.dto.order_dto import (
     OrderError,
 )
 from app.application.usecase.order_usecase import OrderUseCase
-from app.domain.models.order import Order, OrderRequest, OrderResult, OrderSide, OrderType, OrderState
+from app.domain.enums import OrderSide, OrderType
+from app.domain.models.order import Order, OrderRequest, OrderResult, OrderState
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
 
@@ -47,8 +48,8 @@ class TestOrderUseCase:
 
         order = Order(
             uuid="test-uuid-123",
-            side=OrderSide.매수,
-            ord_type=OrderType.지정가,
+            side=OrderSide.BID,
+            ord_type=OrderType.LIMIT,
             market=market,
             volume=volume,
             price=price,
@@ -83,8 +84,8 @@ class TestOrderUseCase:
         call_args = mock_order_repository.place_order.call_args[0][0]
         assert isinstance(call_args, OrderRequest)
         assert call_args.market == market
-        assert call_args.side == OrderSide.매수
-        assert call_args.ord_type == OrderType.지정가
+        assert call_args.side == OrderSide.BID
+        assert call_args.ord_type == OrderType.LIMIT
         assert call_args.volume == volume
         assert call_args.price == price
 
@@ -137,8 +138,8 @@ class TestOrderUseCase:
 
         order = Order(
             uuid="test-uuid-456",
-            side=OrderSide.매수,
-            ord_type=OrderType.시장가매수,
+            side=OrderSide.BID,
+            ord_type=OrderType.PRICE,
             market=market,
             volume=None,
             price=amount,
@@ -172,8 +173,8 @@ class TestOrderUseCase:
         call_args = mock_order_repository.place_order.call_args[0][0]
         assert isinstance(call_args, OrderRequest)
         assert call_args.market == market
-        assert call_args.side == OrderSide.매수
-        assert call_args.ord_type == OrderType.시장가매수
+        assert call_args.side == OrderSide.BID
+        assert call_args.ord_type == OrderType.PRICE
         assert call_args.price == amount
         assert call_args.volume is None
 
@@ -225,8 +226,8 @@ class TestOrderUseCase:
 
         order = Order(
             uuid="test-uuid-789",
-            side=OrderSide.매도,
-            ord_type=OrderType.지정가,
+            side=OrderSide.ASK,
+            ord_type=OrderType.LIMIT,
             market=market,
             volume=volume,
             price=price,
@@ -261,8 +262,8 @@ class TestOrderUseCase:
         call_args = mock_order_repository.place_order.call_args[0][0]
         assert isinstance(call_args, OrderRequest)
         assert call_args.market == market
-        assert call_args.side == OrderSide.매도
-        assert call_args.ord_type == OrderType.지정가
+        assert call_args.side == OrderSide.ASK
+        assert call_args.ord_type == OrderType.LIMIT
         assert call_args.volume == volume
         assert call_args.price == price
 
@@ -315,8 +316,8 @@ class TestOrderUseCase:
 
         order = Order(
             uuid="test-uuid-abc",
-            side=OrderSide.매도,
-            ord_type=OrderType.시장가매도,
+            side=OrderSide.ASK,
+            ord_type=OrderType.MARKET,
             market=market,
             volume=volume,
             price=None,
@@ -350,8 +351,8 @@ class TestOrderUseCase:
         call_args = mock_order_repository.place_order.call_args[0][0]
         assert isinstance(call_args, OrderRequest)
         assert call_args.market == market
-        assert call_args.side == OrderSide.매도
-        assert call_args.ord_type == OrderType.시장가매도
+        assert call_args.side == OrderSide.ASK
+        assert call_args.ord_type == OrderType.MARKET
         assert call_args.volume == volume
         assert call_args.price is None
 

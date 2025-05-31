@@ -70,5 +70,7 @@ jobs:
             -e DB_PORT="${{ secrets.DB_PORT }}" \
             -e UPBIT_ACCESS_KEY="${{ secrets.UPBIT_ACCESS_KEY }}" \
             -e UPBIT_SECRET_KEY="${{ secrets.UPBIT_SECRET_KEY }}" \
+            -e DISCORD_BOT_TOKEN="${{ secrets.DISCORD_BOT_TOKEN }}" \
+            -e DISCORD_CHANNEL_ID="${{ secrets.DISCORD_CHANNEL_ID }}" \
             -p 80:80/tcp \
             --name TTM-app ${{ secrets.DOCKERHUB_USERNAME }}/ttm

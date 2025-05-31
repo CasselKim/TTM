@@ -4,14 +4,13 @@ from typing import Any
 
 from app.adapters.secondary.upbit.client import UpbitClient
 from app.adapters.secondary.upbit.exceptions import UpbitAPIException
+from app.domain.enums import OrderSide, OrderType
 from app.domain.models.account import Account, Balance, Currency
 from app.domain.models.order import (
     Order,
     OrderRequest,
     OrderResult,
-    OrderSide,
     OrderState,
-    OrderType,
 )
 from app.domain.models.ticker import ChangeType, MarketState, MarketWarning, Ticker
 from app.domain.repositories.account_repository import AccountRepository
@@ -148,13 +147,13 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
 
     def _convert_to_order(self, data: dict[str, Any]) -> Order:
         """API 응답을 Order 도메인 모델로 변환합니다."""
-        # API 응답 값을 한글 Enum으로 변환
-        side_mapping = {"bid": OrderSide.매수, "ask": OrderSide.매도}
+        # API 응답 값을 Enum으로 변환
+        side_mapping = {"bid": OrderSide.BID, "ask": OrderSide.ASK}
 
         ord_type_mapping = {
-            "limit": OrderType.지정가,
-            "price": OrderType.시장가매수,
-            "market": OrderType.시장가매도,
+            "limit": OrderType.LIMIT,
+            "price": OrderType.PRICE,
+            "market": OrderType.MARKET,
         }
 
         state_mapping = {

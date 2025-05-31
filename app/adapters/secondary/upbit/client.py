@@ -4,6 +4,7 @@ from typing import Any, cast
 import requests
 
 from app.adapters.secondary.upbit.auth import UpbitAuth
+from app.domain.constants import NetworkConstants
 
 logger = logging.getLogger(__name__)
 
@@ -11,7 +12,7 @@ logger = logging.getLogger(__name__)
 class UpbitClient:
     def __init__(self, access_key: str, secret_key: str):
         self.auth = UpbitAuth(access_key, secret_key)
-        self.base_url = "https://api.upbit.com/v1"
+        self.base_url = NetworkConstants.UPBIT_API_BASE_URL
 
     def _request(
         self,

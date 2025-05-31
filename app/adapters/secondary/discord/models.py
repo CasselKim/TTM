@@ -1,4 +1,5 @@
 from datetime import datetime
+from typing import Any
 
 from pydantic import BaseModel, Field
 
@@ -38,9 +39,9 @@ class Embed(BaseModel):
     author: EmbedAuthor | None = None
     fields: list[EmbedField] = Field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Discord API 형식으로 변환"""
-        data = {}
+        data: dict[str, Any] = {}
 
         if self.title:
             data["title"] = self.title
@@ -70,9 +71,9 @@ class WebhookMessage(BaseModel):
     avatar_url: str | None = None
     embeds: list[Embed] = Field(default_factory=list)
 
-    def to_dict(self) -> dict:
+    def to_dict(self) -> dict[str, Any]:
         """Discord API 형식으로 변환"""
-        data = {}
+        data: dict[str, Any] = {}
 
         if self.content:
             data["content"] = self.content

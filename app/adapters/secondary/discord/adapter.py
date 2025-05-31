@@ -1,6 +1,7 @@
 import asyncio
 import logging
 from datetime import datetime
+from typing import Any
 
 import discord
 from discord.ext import commands
@@ -47,11 +48,11 @@ class DiscordAdapter:
         # 이벤트 핸들러 등록
         self._setup_events()
 
-    def _setup_events(self):
+    def _setup_events(self) -> None:
         """봇 이벤트 핸들러 설정"""
 
         @self.bot.event
-        async def on_ready():
+        async def on_ready() -> None:
             logger.info(f"Discord 봇이 로그인했습니다: {self.bot.user}")
 
             # 채널 가져오기
@@ -65,14 +66,16 @@ class DiscordAdapter:
             self._ready.set()
 
         @self.bot.event
-        async def on_command_error(ctx, error):
+        async def on_command_error(
+            ctx: commands.Context[Any], error: commands.CommandError
+        ) -> None:
             """명령어 에러 처리"""
             if isinstance(error, commands.CommandNotFound):
                 await ctx.send("알 수 없는 명령어입니다.")
             else:
                 logger.error(f"명령어 처리 중 오류: {error}")
 
-    async def start(self):
+    async def start(self) -> None:
         """봇 시작 (백그라운드에서 실행)"""
         try:
             await self.bot.start(self.bot_token)
@@ -80,11 +83,11 @@ class DiscordAdapter:
             logger.error(f"Discord 봇 시작 실패: {e}")
             raise
 
-    async def close(self):
+    async def close(self) -> None:
         """봇 종료"""
         await self.bot.close()
 
-    async def wait_until_ready(self):
+    async def wait_until_ready(self) -> None:
         """봇이 준비될 때까지 대기"""
         await self._ready.wait()
 
@@ -96,10 +99,11 @@ class DiscordAdapter:
 
         try:
             await self.channel.send(embed=embed)
-            return True
         except Exception as e:
             logger.error(f"Discord 메시지 전송 실패: {e}")
             return False
+        else:
+            return True
 
     async def send_message(self, content: str) -> bool:
         """텍스트 메시지 전송"""
@@ -109,10 +113,11 @@ class DiscordAdapter:
 
         try:
             await self.channel.send(content)
-            return True
         except Exception as e:
             logger.error(f"Discord 메시지 전송 실패: {e}")
             return False
+        else:
+            return True
 
     async def send_trade_notification(
         self,
@@ -222,7 +227,7 @@ class DiscordAdapter:
         """
         # Discord Embed 생성
         embed = discord.Embed(
-            title=f"ℹ️ {title}",
+            title=f"i {title}",
             description=message,
             color=DiscordConstants.COLOR_INFO,
             timestamp=datetime.now(),
@@ -234,6 +239,6 @@ class DiscordAdapter:
 
         return await self.send_embed(embed)
 
-    def add_command(self, func):
+    def add_command(self, func: commands.Command[Any, ..., Any]) -> None:
         """봇에 커맨드 추가"""
         self.bot.add_command(func)

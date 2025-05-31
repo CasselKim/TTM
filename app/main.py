@@ -1,5 +1,6 @@
 import asyncio
 import os
+from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from dotenv import load_dotenv
@@ -32,8 +33,10 @@ container.config.from_dict(
 
 
 @asynccontextmanager
-async def lifespan(app: FastAPI):
+async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """애플리케이션 lifespan 관리"""
+    bot_task = None
+
     # Startup
     discord_token = os.getenv("DISCORD_BOT_TOKEN")
     if discord_token:
@@ -49,7 +52,7 @@ async def lifespan(app: FastAPI):
         )
 
         # Discord Bot을 백그라운드 태스크로 실행
-        asyncio.create_task(discord_adapter.start())
+        bot_task = asyncio.create_task(discord_adapter.start())
         # 봇이 준비될 때까지 대기
         await discord_adapter.wait_until_ready()
 
@@ -69,6 +72,14 @@ async def lifespan(app: FastAPI):
     if discord_token:
         discord_adapter = container.discord_adapter()
         await discord_adapter.close()
+
+        # 백그라운드 태스크 정리
+        if bot_task and not bot_task.done():
+            bot_task.cancel()
+            try:
+                await bot_task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(lifespan=lifespan)

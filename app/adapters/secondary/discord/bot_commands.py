@@ -1,5 +1,7 @@
 """Discord Bot 커맨드 정의"""
 
+from typing import Any
+
 from discord.ext import commands
 
 from app.adapters.secondary.discord.adapter import DiscordAdapter
@@ -7,15 +9,11 @@ from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
 
 
-def setup_bot_commands(
-    bot_adapter: DiscordAdapter,
-    account_usecase: AccountUseCase,
-    ticker_usecase: TickerUseCase,
-):
-    """Discord Bot에 커맨드를 등록합니다."""
+def _create_balance_command(account_usecase: AccountUseCase) -> Any:
+    """잔고 조회 커맨드 생성"""
 
     @commands.command(name="잔고", aliases=["balance", "계좌"])
-    async def check_balance(ctx):
+    async def check_balance(ctx: commands.Context[Any]) -> None:
         """계좌 잔고를 조회합니다.
         사용법: !잔고
         """
@@ -50,8 +48,14 @@ def setup_bot_commands(
         except Exception as e:
             await ctx.send(f"❌ 오류가 발생했습니다: {e!s}")
 
+    return check_balance
+
+
+def _create_price_command(ticker_usecase: TickerUseCase) -> Any:
+    """시세 조회 커맨드 생성"""
+
     @commands.command(name="시세", aliases=["price", "가격"])
-    async def check_price(ctx, market: str = "KRW-BTC"):
+    async def check_price(ctx: commands.Context[Any], market: str = "KRW-BTC") -> None:
         """암호화폐 시세를 조회합니다.
         사용법: !시세 [마켓코드]
         예시: !시세 KRW-BTC
@@ -83,8 +87,14 @@ def setup_bot_commands(
         except Exception as e:
             await ctx.send(f"❌ 오류가 발생했습니다: {e!s}")
 
+    return check_price
+
+
+def _create_help_command() -> Any:
+    """도움말 커맨드 생성"""
+
     @commands.command(name="도움말", aliases=["명령어"])
-    async def help_command(ctx):
+    async def help_command(ctx: commands.Context[Any]) -> None:
         """사용 가능한 명령어를 표시합니다."""
         message = "📚 **TTM Trading Bot 명령어**\n\n"
         message += "**!잔고** - 계좌 잔고를 조회합니다\n"
@@ -94,7 +104,21 @@ def setup_bot_commands(
 
         await ctx.send(message)
 
+    return help_command
+
+
+def setup_bot_commands(
+    bot_adapter: DiscordAdapter,
+    account_usecase: AccountUseCase,
+    ticker_usecase: TickerUseCase,
+) -> None:
+    """Discord Bot에 커맨드를 등록합니다."""
+    # 각 커맨드 생성
+    balance_command = _create_balance_command(account_usecase)
+    price_command = _create_price_command(ticker_usecase)
+    help_command = _create_help_command()
+
     # 봇에 커맨드 등록
-    bot_adapter.add_command(check_balance)
-    bot_adapter.add_command(check_price)
+    bot_adapter.add_command(balance_command)
+    bot_adapter.add_command(price_command)
     bot_adapter.add_command(help_command)

@@ -1,7 +1,5 @@
 """Discord adapter module"""
 
-from typing import Union
-
 from app.adapters.secondary.discord.adapter import DiscordAdapter
 from app.adapters.secondary.discord.models import Embed, EmbedField, WebhookMessage
 

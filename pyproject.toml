@@ -147,11 +147,4 @@ warn_no_return = true
 warn_unreachable = true
 strict_equality = true
 namespace_packages = true
-
-# Discord 관련 모듈 제외
-[[tool.mypy.overrides]]
-module = [
-    "discord.*",
-    "app.adapters.secondary.discord.*",
-]
-ignore_errors = true
+explicit_package_bases = true

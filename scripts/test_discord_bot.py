@@ -7,21 +7,21 @@ import sys
 from datetime import datetime
 from pathlib import Path
 
-# 스크립트 상수
-DEFAULT_ASYNC_SLEEP_SECONDS = 1  # 기본 비동기 대기 시간
+from dotenv import load_dotenv
 
 # 프로젝트 루트 경로를 sys.path에 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from dotenv import load_dotenv
-
 from app.adapters.secondary.discord import DiscordBotAdapter
+
+# 스크립트 상수
+DEFAULT_ASYNC_SLEEP_SECONDS = 1  # 기본 비동기 대기 시간
 
 # 환경 변수 로드
 load_dotenv()
 
 
-async def test_discord_bot():
+async def test_discord_bot() -> None:
     """Discord Bot 테스트"""
     bot_token = os.getenv("DISCORD_BOT_TOKEN")
     channel_id = os.getenv("DISCORD_CHANNEL_ID")

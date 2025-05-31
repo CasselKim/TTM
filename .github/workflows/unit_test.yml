@@ -7,11 +7,29 @@ jobs:
   unit-test:
     runs-on: ubuntu-latest
     env:
+      # Database
       DB_USER: user
       DB_PASSWORD: user
       DB_HOST: 127.0.0.1
       DB_NAME: ttm
       DB_PORT: 3306
+
+      # Upbit (test values)
+      UPBIT_ACCESS_KEY: test_access_key
+      UPBIT_SECRET_KEY: test_secret_key
+
+      # Discord (test values)
+      DISCORD_BOT_TOKEN: test_bot_token
+      DISCORD_CHANNEL_ID: 123456789
+      DISCORD_ADMIN_USER_IDS: 123456789,987654321
+
+      # Trading Scheduler
+      ENABLE_TRADING_SCHEDULER: false
+      TRADING_INTERVAL_SECONDS: 10
+
+      # Logging
+      LOG_LEVEL: INFO
+      ENV: Test
 
     services:
       registry:
@@ -21,7 +39,7 @@ jobs:
 
     steps:
     - name: Checkout code
-      uses: actions/checkout@v2
+      uses: actions/checkout@v4
 
     - name: Set up QEMU
       uses: docker/setup-qemu-action@v3
@@ -44,7 +62,7 @@ jobs:
         docker compose -f docker/docker-compose-local.yml up -d
 
     - name: Set up Python
-      uses: actions/setup-python@v2
+      uses: actions/setup-python@v5
       with:
         python-version: '3.12.0'
 
@@ -60,7 +78,7 @@ jobs:
         poetry run make test
         poetry run coverage json
 
-    - uses: actions/upload-artifact@v3
+    - uses: actions/upload-artifact@v4
       with:
         name: test-result
         path: coverage.json

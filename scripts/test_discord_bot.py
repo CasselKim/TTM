@@ -12,7 +12,7 @@ from dotenv import load_dotenv
 # 프로젝트 루트 경로를 sys.path에 추가
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from app.adapters.secondary.discord import DiscordBotAdapter
+from app.adapters.external.discord import DiscordBotAdapter
 
 # 스크립트 상수
 DEFAULT_ASYNC_SLEEP_SECONDS = 1  # 기본 비동기 대기 시간

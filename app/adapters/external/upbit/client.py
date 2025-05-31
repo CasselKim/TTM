@@ -3,7 +3,7 @@ from typing import Any, cast
 
 import requests
 
-from app.adapters.secondary.upbit.auth import UpbitAuth
+from app.adapters.external.upbit.auth import UpbitAuth
 from app.domain.constants import NetworkConstants
 
 logger = logging.getLogger(__name__)

@@ -1,7 +1,7 @@
 from dependency_injector import containers, providers
 
-from app.adapters.secondary.discord.adapter import DiscordAdapter
-from app.adapters.secondary.upbit.adapter import UpbitAdapter
+from app.adapters.external.discord.adapter import DiscordAdapter
+from app.adapters.external.upbit.adapter import UpbitAdapter
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase

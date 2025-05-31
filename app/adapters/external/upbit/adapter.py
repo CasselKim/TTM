@@ -2,8 +2,8 @@ import logging
 from decimal import Decimal
 from typing import Any
 
-from app.adapters.secondary.upbit.client import UpbitClient
-from app.adapters.secondary.upbit.exceptions import UpbitAPIException
+from app.adapters.external.upbit.client import UpbitClient
+from app.adapters.external.upbit.exceptions import UpbitAPIException
 from app.domain.enums import OrderSide, OrderType
 from app.domain.models.account import Account, Balance, Currency
 from app.domain.models.order import (

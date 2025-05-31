@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from app.adapters.primary.api.routes import account, order, ticker
+from app.adapters.internal.api.routes import account, order, ticker
 from app.container import Container
 from common.logging import setup_logging
 
@@ -43,7 +43,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         discord_adapter = container.discord_adapter()
 
         # Discord Bot 커맨드 등록
-        from app.adapters.secondary.discord.bot_commands import setup_bot_commands
+        from app.adapters.internal.websocket.discord_bot import setup_bot_commands
 
         setup_bot_commands(
             bot_adapter=discord_adapter,

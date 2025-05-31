@@ -2,7 +2,7 @@ import logging
 from datetime import datetime
 from decimal import Decimal
 
-from app.adapters.secondary.discord.adapter import DiscordAdapter
+from app.adapters.external.discord.adapter import DiscordAdapter
 from app.application.dto.order_dto import (
     LimitBuyResult,
     LimitSellResult,

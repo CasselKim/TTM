@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import Mock, patch
-from app.adapters.secondary.upbit.adapter import UpbitAdapter
-from app.adapters.secondary.upbit.exceptions import UpbitAPIException
+from app.adapters.external.upbit.adapter import UpbitAdapter
+from app.adapters.external.upbit.exceptions import UpbitAPIException
 from decimal import Decimal
 from app.domain.models.account import Account, Balance, Currency
 from app.domain.models.ticker import Ticker, ChangeType, MarketState, MarketWarning

@@ -1,8 +1,8 @@
 import pytest
 import httpx
 from unittest.mock import Mock, patch, ANY
-from app.adapters.secondary.upbit.client import UpbitClient
-from app.adapters.secondary.upbit.exceptions import UpbitAPIException
+from app.adapters.external.upbit.client import UpbitClient
+from app.adapters.external.upbit.exceptions import UpbitAPIException
 
 @pytest.fixture
 def upbit_client():

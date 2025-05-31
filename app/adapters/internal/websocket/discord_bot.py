@@ -4,7 +4,7 @@ from typing import Any
 
 from discord.ext import commands
 
-from app.adapters.secondary.discord.adapter import DiscordAdapter
+from app.adapters.external.discord.adapter import DiscordAdapter
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
 

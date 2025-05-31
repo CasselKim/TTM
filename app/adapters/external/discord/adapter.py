@@ -164,11 +164,11 @@ class DiscordAdapter:
         )
 
         embed.add_field(name="체결 가격", value=f"{price:,.0f} KRW", inline=True)
-        embed.add_field(name="체결 수량", value=f"{volume:.8f}", inline=True)
+        embed.add_field(name="체결 수량", value=f"{int(volume)}", inline=True)
         embed.add_field(
             name="총 거래 금액", value=f"{total_price:,.0f} KRW", inline=True
         )
-        embed.add_field(name="수수료", value=f"{fee:,.2f} KRW", inline=True)
+        embed.add_field(name="수수료", value=f"{int(fee)} KRW", inline=True)
         embed.add_field(name="거래 유형", value=action, inline=True)
         embed.add_field(
             name="체결 시간",

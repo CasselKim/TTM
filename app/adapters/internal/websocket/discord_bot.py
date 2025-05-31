@@ -637,10 +637,10 @@ def _create_price_command(ticker_usecase: TickerUseCase) -> Any:
 
                 message = f"{change_emoji} **{market} 시세 정보**\n\n"
                 message += f"**현재가**: {float(ticker.trade_price):,.0f} KRW\n"
-                message += f"**전일 대비**: {change_color} {float(ticker.signed_change_price):+,.0f} ({change_rate:+.2f}%)\n"
+                message += f"**전일 대비**: {change_color} {float(ticker.signed_change_price):+,.0f} ({int(change_rate):+}%)\n"
                 message += f"**고가**: {float(ticker.high_price):,.0f} KRW\n"
                 message += f"**저가**: {float(ticker.low_price):,.0f} KRW\n"
-                message += f"**거래량**: {float(ticker.acc_trade_volume_24h):,.4f}\n"
+                message += f"**거래량**: {int(float(ticker.acc_trade_volume_24h))}\n"
                 message += f"**거래대금**: {float(ticker.acc_trade_price_24h):,.0f} KRW"
 
                 await ctx.send(message)

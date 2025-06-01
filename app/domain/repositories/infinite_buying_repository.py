@@ -33,7 +33,12 @@ class InfiniteBuyingRepository(ABC):
 
     @abstractmethod
     async def get_state(self, market: str) -> InfiniteBuyingState | None:
-        """현재 무한매수법 상태를 조회합니다."""
+        """현재 무한매수법 상태를 조회합니다. buying_rounds는 별도 메서드로 조회 권장."""
+        pass
+
+    @abstractmethod
+    async def get_state_with_rounds(self, market: str) -> InfiniteBuyingState | None:
+        """매수 회차 정보를 포함한 상태를 조회합니다."""
         pass
 
     @abstractmethod

@@ -73,6 +73,8 @@ jobs:
             -e DISCORD_BOT_TOKEN="${{ secrets.DISCORD_BOT_TOKEN }}" \
             -e DISCORD_CHANNEL_ID="${{ secrets.DISCORD_CHANNEL_ID }}" \
             -e DISCORD_ADMIN_USER_IDS="${{ secrets.DISCORD_ADMIN_USER_IDS }}" \
+            -e CACHE_ADDRESS="${{ secrets.CACHE_ADDRESS }}" \
+            -e CACHE_PORT="${{ secrets.CACHE_PORT }}" \
             -e ENABLE_TRADING_SCHEDULER="${{ env.ENABLE_TRADING_SCHEDULER }}" \
             -e TRADING_INTERVAL_SECONDS="${{ env.TRADING_INTERVAL_SECONDS }}" \
             -p 80:80/tcp \

@@ -1,8 +1,11 @@
 from dependency_injector import containers, providers
 
+from app.adapters.external.cache.adapter import ValkeyAdapter
+from app.adapters.external.cache.config import CacheConfig
 from app.adapters.external.discord.adapter import DiscordAdapter
 from app.adapters.external.upbit.adapter import UpbitAdapter
 from app.application.usecase.account_usecase import AccountUseCase
+from app.application.usecase.cache_usecase import CacheUseCase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
 from app.application.usecase.trading_usecase import TradingUsecase
@@ -11,7 +14,17 @@ from app.application.usecase.trading_usecase import TradingUsecase
 class Container(containers.DeclarativeContainer):
     config = providers.Configuration()
 
+    # Cache configuration
+    cache_config = providers.Singleton(
+        CacheConfig.from_env,
+    )
+
     # Adapters
+    cache_adapter = providers.Singleton(
+        ValkeyAdapter,
+        config=cache_config,
+    )
+
     upbit_adapter = providers.Singleton(
         UpbitAdapter,
         access_key=config.upbit.access_key,
@@ -25,6 +38,11 @@ class Container(containers.DeclarativeContainer):
     )
 
     # Use cases
+    cache_usecase = providers.Singleton(
+        CacheUseCase,
+        cache_repository=cache_adapter,
+    )
+
     account_usecase = providers.Singleton(
         AccountUseCase,
         account_repository=upbit_adapter,

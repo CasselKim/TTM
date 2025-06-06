@@ -1,8 +1,7 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class LimitBuyResult:
+class LimitBuyResult(BaseModel):
     """지정가 매수 결과"""
 
     success: bool
@@ -12,8 +11,7 @@ class LimitBuyResult:
     price: str
 
 
-@dataclass
-class MarketBuyResult:
+class MarketBuyResult(BaseModel):
     """시장가 매수 결과"""
 
     success: bool
@@ -22,8 +20,7 @@ class MarketBuyResult:
     amount: str
 
 
-@dataclass
-class LimitSellResult:
+class LimitSellResult(BaseModel):
     """지정가 매도 결과"""
 
     success: bool
@@ -33,8 +30,7 @@ class LimitSellResult:
     price: str
 
 
-@dataclass
-class MarketSellResult:
+class MarketSellResult(BaseModel):
     """시장가 매도 결과"""
 
     success: bool
@@ -43,8 +39,7 @@ class MarketSellResult:
     volume: str
 
 
-@dataclass
-class OrderError:
+class OrderError(BaseModel):
     """주문 실패"""
 
     success: bool

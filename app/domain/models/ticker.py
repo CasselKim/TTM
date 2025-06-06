@@ -1,6 +1,7 @@
-from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
+
+from pydantic import BaseModel
 
 
 class ChangeType(StrEnum):
@@ -20,8 +21,7 @@ class MarketWarning(StrEnum):
     CAUTION = "CAUTION"  # 투자유의
 
 
-@dataclass
-class Ticker:
+class Ticker(BaseModel):
     """종목 현재가 정보"""
 
     market: str  # 종목 구분 코드 (ex. KRW-BTC)

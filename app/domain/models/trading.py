@@ -4,8 +4,9 @@
 매매 설정, 시장 데이터, 매매 신호 등의 불변 값 객체들을 정의합니다.
 """
 
-from dataclasses import dataclass
 from decimal import Decimal
+
+from pydantic import BaseModel
 
 from app.domain.constants import TradingConstants
 from app.domain.enums import TradingAction
@@ -13,8 +14,7 @@ from app.domain.models.account import Currency
 from app.domain.models.enums import TradingMode
 
 
-@dataclass
-class TradingConfig:
+class TradingConfig(BaseModel):
     """거래 설정 (Value Object)"""
 
     mode: TradingMode
@@ -30,8 +30,7 @@ class TradingConfig:
     take_profit_ratio: Decimal = TradingConstants.DEFAULT_TAKE_PROFIT_RATIO  # 익절 비율
 
 
-@dataclass
-class MarketData:
+class MarketData(BaseModel):
     """시장 데이터 (Value Object)"""
 
     market: str  # 예: "KRW-BTC"
@@ -40,8 +39,7 @@ class MarketData:
     change_rate_24h: Decimal
 
 
-@dataclass
-class TradingSignal:
+class TradingSignal(BaseModel):
     """거래 신호 (Value Object)"""
 
     action: TradingAction  # BUY, SELL, HOLD

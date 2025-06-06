@@ -1,8 +1,7 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class BalanceDTO:
+class BalanceDTO(BaseModel):
     currency: str
     balance: str
     locked: str
@@ -10,7 +9,6 @@ class BalanceDTO:
     unit: str
 
 
-@dataclass
-class AccountBalanceDTO:
+class AccountBalanceDTO(BaseModel):
     balances: list[BalanceDTO]
     total_balance_krw: str

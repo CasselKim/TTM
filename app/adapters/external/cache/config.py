@@ -1,9 +1,9 @@
 import os
-from dataclasses import dataclass
+
+from pydantic import BaseModel
 
 
-@dataclass
-class CacheConfig:
+class CacheConfig(BaseModel):
     """캐시 연결 설정"""
 
     host: str

@@ -1,6 +1,7 @@
-from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
+
+from pydantic import BaseModel
 
 from app.domain.enums import OrderSide, OrderType
 
@@ -12,8 +13,7 @@ class OrderState(StrEnum):
     취소 = "cancel"
 
 
-@dataclass
-class Order:
+class Order(BaseModel):
     """주문 정보"""
 
     uuid: str
@@ -33,8 +33,7 @@ class Order:
     trades_count: int
 
 
-@dataclass
-class OrderRequest:
+class OrderRequest(BaseModel):
     """주문 요청"""
 
     market: str
@@ -44,8 +43,7 @@ class OrderRequest:
     price: Decimal | None = None
 
 
-@dataclass
-class OrderResult:
+class OrderResult(BaseModel):
     """주문 결과"""
 
     success: bool

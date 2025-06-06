@@ -2,11 +2,12 @@
 도메인 전체에서 사용되는 공통 타입 정의
 """
 
-from dataclasses import dataclass
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel
 
 if TYPE_CHECKING:
     pass
@@ -49,8 +50,7 @@ MarketName = str
 AlgorithmInstance = "InfiniteBuyingAlgorithm"
 
 
-@dataclass
-class TradeStatistics:
+class TradeStatistics(BaseModel):
     """거래 통계"""
 
     total_cycles: int
@@ -63,8 +63,7 @@ class TradeStatistics:
     last_updated: datetime
 
 
-@dataclass
-class BuyingRoundInfo:
+class BuyingRoundInfo(BaseModel):
     """매수 회차 정보"""
 
     round_number: int
@@ -74,8 +73,7 @@ class BuyingRoundInfo:
     timestamp: datetime
 
 
-@dataclass
-class CycleHistoryItem:
+class CycleHistoryItem(BaseModel):
     """사이클 히스토리 항목"""
 
     cycle_id: str
@@ -92,8 +90,7 @@ class CycleHistoryItem:
     actual_rounds: int
 
 
-@dataclass
-class InfiniteBuyingMarketStatus:
+class InfiniteBuyingMarketStatus(BaseModel):
     """특정 마켓의 무한매수법 상태"""
 
     market: MarketName
@@ -113,8 +110,7 @@ class InfiniteBuyingMarketStatus:
     recent_history: list[CycleHistoryItem]
 
 
-@dataclass
-class InfiniteBuyingOverallStatus:
+class InfiniteBuyingOverallStatus(BaseModel):
     """무한매수법 전체 상태"""
 
     total_active_markets: int

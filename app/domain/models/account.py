@@ -1,7 +1,8 @@
 from collections.abc import Iterator
-from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
+
+from pydantic import BaseModel, computed_field
 
 
 class Currency(StrEnum):
@@ -12,26 +13,24 @@ class Currency(StrEnum):
     DOGE = "DOGE"
 
 
-@dataclass
-class Balance:
+class Balance(BaseModel):
     currency: Currency
     balance: Decimal
     locked: Decimal
     avg_buy_price: Decimal
     unit: Currency
 
-    @property
+    @computed_field
     def total_value(self) -> Decimal:
         return self.balance * self.avg_buy_price
 
 
-@dataclass
-class Account:
+class Account(BaseModel):
     balances: list[Balance]
 
     def _krw_balances(self) -> Iterator[Balance]:
         return (balance for balance in self.balances if balance.unit == Currency.KRW)
 
-    @property
+    @computed_field
     def total_balance_krw(self) -> Decimal:
-        return sum((b.total_value for b in self._krw_balances()), Decimal("0"))
+        return sum((b.total_value() for b in self._krw_balances()), Decimal("0"))

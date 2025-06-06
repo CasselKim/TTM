@@ -5,11 +5,12 @@
 목표 수익률 달성 시 전량 매도하는 투자 전략입니다.
 """
 
-from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING
+
+from pydantic import BaseModel, Field, computed_field
 
 if TYPE_CHECKING:
     from app.domain.types import ActionTaken
@@ -25,8 +26,7 @@ class InfiniteBuyingPhase(StrEnum):
     FORCE_SELLING = "force_selling"  # 강제 손절 단계
 
 
-@dataclass
-class InfiniteBuyingConfig:
+class InfiniteBuyingConfig(BaseModel):
     """무한매수법 설정"""
 
     # 기본 매수 설정
@@ -47,8 +47,7 @@ class InfiniteBuyingConfig:
     max_cycle_days: int = 30  # 최대 사이클 기간 (일)
 
 
-@dataclass
-class BuyingRound:
+class BuyingRound(BaseModel):
     """개별 매수 회차 정보"""
 
     round_number: int  # 회차 번호 (1부터 시작)
@@ -57,7 +56,7 @@ class BuyingRound:
     buy_volume: Decimal  # 매수 수량 (코인)
     timestamp: datetime  # 매수 시점
 
-    @property
+    @computed_field
     def unit_cost(self) -> Decimal:
         """단위당 비용 (수수료 포함)"""
         if self.buy_volume == 0:
@@ -65,8 +64,7 @@ class BuyingRound:
         return self.buy_amount / self.buy_volume
 
 
-@dataclass
-class InfiniteBuyingState:
+class InfiniteBuyingState(BaseModel):
     """무한매수법 현재 상태"""
 
     # 기본 상태
@@ -89,14 +87,14 @@ class InfiniteBuyingState:
     target_sell_price: Decimal = Decimal("0")  # 목표 매도 가격
 
     # 매수 히스토리
-    buying_rounds: list[BuyingRound] = field(default_factory=list)  # 매수 회차별 정보
+    buying_rounds: list[BuyingRound] = Field(default_factory=list)  # 매수 회차별 정보
 
-    @property
+    @computed_field
     def is_active(self) -> bool:
         """활성 상태 여부"""
         return self.phase != InfiniteBuyingPhase.INACTIVE
 
-    @property
+    @computed_field
     def current_profit_rate(self) -> Decimal:
         """현재 수익률 (평균 단가 기준)"""
         if self.average_price == 0:
@@ -104,7 +102,7 @@ class InfiniteBuyingState:
         # 현재 가격은 별도로 전달받아야 함
         return Decimal("0")  # 계산은 알고리즘에서 수행
 
-    @property
+    @computed_field
     def max_loss_rate(self) -> Decimal:
         """최대 손실률 (첫 매수 가격 기준)"""
         if not self.buying_rounds or self.average_price == 0:
@@ -165,8 +163,7 @@ class InfiniteBuyingState:
         return profit_rate
 
 
-@dataclass
-class InfiniteBuyingResult:
+class InfiniteBuyingResult(BaseModel):
     """무한매수법 실행 결과"""
 
     success: bool  # 실행 성공 여부

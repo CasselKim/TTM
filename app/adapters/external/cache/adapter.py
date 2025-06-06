@@ -3,8 +3,6 @@ import logging
 from typing import Any
 
 import valkey
-from valkey.backoff import ExponentialBackoff
-from valkey.retry import Retry
 
 from app.adapters.external.cache.config import CacheConfig
 from app.domain.repositories.cache_repository import CacheRepository
@@ -23,7 +21,8 @@ class ValkeyAdapter(CacheRepository):
     def _get_client(self) -> valkey.Valkey:
         """Redis 클라이언트를 반환합니다. 필요시 연결을 생성합니다."""
         if self._client is None:
-            retry_policy = Retry(ExponentialBackoff(), retries=3)
+            # valkey 타입 이슈 해결을 위해 None을 사용 (retry 없음)
+            retry_policy = None
 
             self._connection_pool = valkey.ConnectionPool(
                 host=self.config.host,
@@ -56,9 +55,13 @@ class ValkeyAdapter(CacheRepository):
             if value is None:
                 return None
 
-            # JSON 역직렬화 시도
+            # JSON 역직렬화 시도 - 타입 안전성을 위해 str로 변환
             try:
-                return json.loads(value)
+                if isinstance(value, bytes):
+                    value_str = value.decode("utf-8")
+                else:
+                    value_str = str(value)
+                return json.loads(value_str)
             except (json.JSONDecodeError, TypeError):
                 return value
 
@@ -142,7 +145,8 @@ class ValkeyAdapter(CacheRepository):
                     key.decode("utf-8") if isinstance(key, bytes) else str(key)
                     for key in keys
                 ]
-            return []
+            else:
+                return []
 
         except Exception as e:
             logger.error(f"키 목록 조회 실패 - pattern: {pattern}, error: {e}")
@@ -151,7 +155,7 @@ class ValkeyAdapter(CacheRepository):
     def close(self) -> None:
         """연결을 종료합니다."""
         if self._client:
-            self._client.close()
+            self._client.close()  # type: ignore[no-untyped-call]
             logger.info("Valkey 클라이언트 연결 종료")
 
         if self._connection_pool:

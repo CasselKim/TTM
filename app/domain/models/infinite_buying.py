@@ -8,10 +8,14 @@
 from dataclasses import dataclass, field
 from datetime import datetime
 from decimal import Decimal
-from enum import Enum
+from enum import StrEnum
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from app.domain.types import ActionTaken
 
 
-class InfiniteBuyingPhase(Enum):
+class InfiniteBuyingPhase(StrEnum):
     """무한매수법 단계"""
 
     INACTIVE = "inactive"  # 비활성 상태
@@ -166,7 +170,7 @@ class InfiniteBuyingResult:
     """무한매수법 실행 결과"""
 
     success: bool  # 실행 성공 여부
-    action_taken: str  # 수행된 액션 ("buy", "sell", "hold", "force_sell")
+    action_taken: "ActionTaken"  # 수행된 액션
     message: str  # 결과 메시지
 
     # 거래 정보 (실제 거래가 발생한 경우)

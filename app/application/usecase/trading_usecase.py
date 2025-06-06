@@ -48,7 +48,7 @@ class TradingUsecase:
     async def execute_trading_algorithm(
         self,
         target_currency: Currency = Currency.BTC,
-        mode: TradingMode = TradingMode.SIMULATION,
+        mode: TradingMode = TradingMode.LIVE,
         algorithm_type: AlgorithmType = AlgorithmType.SIMPLE,
         max_investment_ratio: Decimal = TradingConstants.DEFAULT_MAX_INVESTMENT_RATIO,
         min_order_amount: Decimal = TradingConstants.DEFAULT_MIN_ORDER_AMOUNT,
@@ -58,7 +58,7 @@ class TradingUsecase:
 
         Args:
             target_currency: 거래 대상 통화
-            mode: 거래 모드 (시뮬레이션/실거래)
+            mode: 거래 모드 (실거래)
             algorithm_type: 사용할 알고리즘 타입
             max_investment_ratio: 최대 투자 비율
             min_order_amount: 최소 주문 금액

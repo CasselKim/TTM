@@ -10,7 +10,6 @@ from decimal import Decimal
 from app.application.dto.trading_dto import TradingResult
 from app.domain.enums import OrderSide, OrderType, TradingAction
 from app.domain.models.account import Account
-from app.domain.models.enums import TradingMode
 from app.domain.models.order import OrderRequest
 from app.domain.models.trading import MarketData, TradingConfig, TradingSignal
 from app.domain.repositories.account_repository import AccountRepository
@@ -124,15 +123,6 @@ class TradeService:
                     message=f"매수 금액이 최소 주문 금액({config.min_order_amount})보다 적습니다.",
                 )
 
-            # 시뮬레이션 모드 체크
-            if config.mode == TradingMode.SIMULATION:
-                return TradingResult(
-                    success=True,
-                    message=f"[시뮬레이션] 매수 주문: {buy_amount}원",
-                    executed_amount=buy_amount,
-                    executed_price=market_data.current_price,
-                )
-
             # 실제 주문 실행
             order_request = OrderRequest(
                 market=market_data.market,
@@ -178,16 +168,6 @@ class TradeService:
 
             if sell_volume <= Decimal("0"):
                 return TradingResult(success=False, message="매도할 수량이 없습니다.")
-
-            # 시뮬레이션 모드 체크
-            if config.mode == TradingMode.SIMULATION:
-                sell_amount = sell_volume * market_data.current_price
-                return TradingResult(
-                    success=True,
-                    message=f"[시뮬레이션] 매도 주문: {sell_volume} {config.target_currency.value}",
-                    executed_amount=sell_amount,
-                    executed_price=market_data.current_price,
-                )
 
             # 실제 주문 실행
             order_request = OrderRequest(

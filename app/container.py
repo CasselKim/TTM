@@ -1,14 +1,12 @@
 from dependency_injector import containers, providers
 
-from app.adapters.external.cache.adapter import ValkeyAdapter
 from app.adapters.external.cache.config import CacheConfig
 from app.adapters.external.cache.infinite_buying_adapter import (
-    RedisInfiniteBuyingAdapter,
+    InfiniteBuyingCacheAdapter,
 )
 from app.adapters.external.discord.adapter import DiscordAdapter
 from app.adapters.external.upbit.adapter import UpbitAdapter
 from app.application.usecase.account_usecase import AccountUseCase
-from app.application.usecase.cache_usecase import CacheUseCase
 from app.application.usecase.infinite_buying_usecase import InfiniteBuyingUsecase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
@@ -21,12 +19,6 @@ class Container(containers.DeclarativeContainer):
     # Cache configuration
     cache_config = providers.Singleton(
         CacheConfig.from_env,
-    )
-
-    # Adapters
-    cache_adapter = providers.Singleton(
-        ValkeyAdapter,
-        config=cache_config,
     )
 
     upbit_adapter = providers.Singleton(
@@ -43,16 +35,11 @@ class Container(containers.DeclarativeContainer):
 
     # Repositories
     infinite_buying_repository = providers.Singleton(
-        RedisInfiniteBuyingAdapter,
-        cache_adapter=cache_adapter,
+        InfiniteBuyingCacheAdapter,
+        config=cache_config,
     )
 
     # Use cases
-    cache_usecase = providers.Singleton(
-        CacheUseCase,
-        cache_repository=cache_adapter,
-    )
-
     account_usecase = providers.Singleton(
         AccountUseCase,
         account_repository=upbit_adapter,

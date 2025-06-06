@@ -134,6 +134,11 @@ force-single-line = false
 force-sort-within-sections = false
 split-on-trailing-comma = true
 
+# Pytest configuration
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+
 # MyPy configuration
 [tool.mypy]
 python_version = "3.12"

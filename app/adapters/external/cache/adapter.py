@@ -2,9 +2,9 @@ import json
 import logging
 from typing import Any
 
-import redis
-from redis.backoff import ExponentialBackoff
-from redis.retry import Retry
+import valkey
+from valkey.backoff import ExponentialBackoff
+from valkey.retry import Retry
 
 from app.adapters.external.cache.config import CacheConfig
 from app.domain.repositories.cache_repository import CacheRepository
@@ -17,15 +17,15 @@ class ValkeyAdapter(CacheRepository):
 
     def __init__(self, config: CacheConfig):
         self.config = config
-        self._connection_pool: redis.ConnectionPool | None = None
-        self._client: redis.Redis[bytes] | None = None
+        self._connection_pool: valkey.ConnectionPool | None = None
+        self._client: valkey.Valkey | None = None
 
-    def _get_client(self) -> redis.Redis[bytes]:
+    def _get_client(self) -> valkey.Valkey:
         """Redis 클라이언트를 반환합니다. 필요시 연결을 생성합니다."""
         if self._client is None:
             retry_policy = Retry(ExponentialBackoff(), retries=3)
 
-            self._connection_pool = redis.ConnectionPool(
+            self._connection_pool = valkey.ConnectionPool(
                 host=self.config.host,
                 port=self.config.port,
                 password=self.config.password,
@@ -36,7 +36,7 @@ class ValkeyAdapter(CacheRepository):
                 decode_responses=self.config.decode_responses,
             )
 
-            self._client = redis.Redis(
+            self._client = valkey.Valkey(
                 connection_pool=self._connection_pool,
                 retry_on_timeout=self.config.retry_on_timeout,
                 retry=retry_policy,
@@ -130,6 +130,23 @@ class ValkeyAdapter(CacheRepository):
         except Exception as e:
             logger.error(f"캐시 연결 확인 실패 - error: {e}")
             return False
+
+    def keys(self, pattern: str = "*") -> list[str]:
+        """패턴에 맞는 키 목록을 반환합니다."""
+        try:
+            client = self._get_client()
+            keys = client.keys(pattern)
+            # bytes를 문자열로 변환
+            if isinstance(keys, list):
+                return [
+                    key.decode("utf-8") if isinstance(key, bytes) else str(key)
+                    for key in keys
+                ]
+            return []
+
+        except Exception as e:
+            logger.error(f"키 목록 조회 실패 - pattern: {pattern}, error: {e}")
+            return []
 
     def close(self) -> None:
         """연결을 종료합니다."""

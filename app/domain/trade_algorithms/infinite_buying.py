@@ -28,6 +28,7 @@ from app.domain.models.infinite_buying import (
 )
 from app.domain.models.trading import MarketData, TradingSignal
 from app.domain.trade_algorithms.base import TradingAlgorithm
+from app.domain.types import ActionTaken
 
 
 class InfiniteBuyingAlgorithm(TradingAlgorithm):
@@ -50,7 +51,11 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
 
         현재 상태에 따라 매수/매도/홀드 신호를 생성합니다.
         """
-        # 상태 초기화 확인
+        # 초기 매수 단계 확인
+        if self.state.phase == InfiniteBuyingPhase.INITIAL_BUY:
+            return await self._analyze_initial_buy_signal(account, market_data)
+
+        # 비활성 상태 확인 (이전 로직 유지)
         if not self.state.is_active:
             return await self._analyze_initial_buy_signal(account, market_data)
 
@@ -192,7 +197,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
 
             return InfiniteBuyingResult(
                 success=True,
-                action_taken="buy",
+                action_taken=ActionTaken.BUY,
                 message=f"{new_round.round_number}회차 매수 완료 (평균단가: {self.state.average_price:,.0f}원)",
                 trade_price=current_price,
                 trade_amount=buy_amount,
@@ -204,7 +209,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             self.logger.error(f"무한매수법 매수 실행 중 오류: {e}")
             return InfiniteBuyingResult(
                 success=False,
-                action_taken="buy_failed",
+                action_taken=ActionTaken.BUY_FAILED,
                 message=f"매수 실행 실패: {e!s}",
                 current_state=self.state,
             )
@@ -226,7 +231,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             # 수익률 계산 및 사이클 완료
             profit_rate = self.state.complete_cycle(current_price, sell_volume)
 
-            action_type = "force_sell" if is_force_sell else "sell"
+            action_taken = ActionTaken.FORCE_STOP if is_force_sell else ActionTaken.SELL
             message = (
                 f"무한매수법 사이클 완료 ({'손절' if is_force_sell else '익절'}): "
                 f"수익률 {profit_rate:.2%}, 매도가 {current_price:,.0f}원"
@@ -236,7 +241,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
 
             return InfiniteBuyingResult(
                 success=True,
-                action_taken=action_type,
+                action_taken=action_taken,
                 message=message,
                 trade_price=current_price,
                 trade_amount=sell_amount,
@@ -249,7 +254,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             self.logger.error(f"무한매수법 매도 실행 중 오류: {e}")
             return InfiniteBuyingResult(
                 success=False,
-                action_taken="sell_failed",
+                action_taken=ActionTaken.SELL_FAILED,
                 message=f"매도 실행 실패: {e!s}",
                 current_state=self.state,
             )

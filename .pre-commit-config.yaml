@@ -36,6 +36,7 @@ repos:
             dependency-injector,
             pyjwt,
             discord-py,
+            valkey,
           ]
         args: ["--strict"]
         exclude: database.py|base_orm.py|alembic/|test/

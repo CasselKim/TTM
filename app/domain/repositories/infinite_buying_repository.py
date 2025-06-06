@@ -11,6 +11,7 @@ from app.domain.models.infinite_buying import (
     InfiniteBuyingResult,
     InfiniteBuyingState,
 )
+from app.domain.types import CycleHistoryItem, TradeStatistics
 
 
 class InfiniteBuyingRepository(ABC):
@@ -67,12 +68,12 @@ class InfiniteBuyingRepository(ABC):
     @abstractmethod
     async def get_cycle_history(
         self, market: str, limit: int = 100
-    ) -> list[dict[str, Any]]:
+    ) -> list[CycleHistoryItem]:
         """완료된 사이클 히스토리를 조회합니다."""
         pass
 
     @abstractmethod
-    async def get_trade_statistics(self, market: str) -> dict[str, Any]:
+    async def get_trade_statistics(self, market: str) -> TradeStatistics:
         """거래 통계를 조회합니다."""
         pass
 
@@ -96,4 +97,9 @@ class InfiniteBuyingRepository(ABC):
     @abstractmethod
     async def restore_state(self, market: str, backup_data: dict[str, Any]) -> bool:
         """백업 데이터로부터 상태를 복원합니다."""
+        pass
+
+    @abstractmethod
+    async def get_active_markets(self) -> list[str]:
+        """현재 활성화된 무한매수법 마켓 목록을 반환합니다."""
         pass

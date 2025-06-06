@@ -2,10 +2,14 @@ from dependency_injector import containers, providers
 
 from app.adapters.external.cache.adapter import ValkeyAdapter
 from app.adapters.external.cache.config import CacheConfig
+from app.adapters.external.cache.infinite_buying_adapter import (
+    RedisInfiniteBuyingAdapter,
+)
 from app.adapters.external.discord.adapter import DiscordAdapter
 from app.adapters.external.upbit.adapter import UpbitAdapter
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.cache_usecase import CacheUseCase
+from app.application.usecase.infinite_buying_usecase import InfiniteBuyingUsecase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
 from app.application.usecase.trading_usecase import TradingUsecase
@@ -37,6 +41,12 @@ class Container(containers.DeclarativeContainer):
         channel_id=config.discord.channel_id,
     )
 
+    # Repositories
+    infinite_buying_repository = providers.Singleton(
+        RedisInfiniteBuyingAdapter,
+        cache_adapter=cache_adapter,
+    )
+
     # Use cases
     cache_usecase = providers.Singleton(
         CacheUseCase,
@@ -65,4 +75,12 @@ class Container(containers.DeclarativeContainer):
         account_repository=upbit_adapter,
         order_repository=upbit_adapter,
         ticker_repository=upbit_adapter,
+    )
+
+    infinite_buying_usecase = providers.Singleton(
+        InfiniteBuyingUsecase,
+        account_repository=upbit_adapter,
+        order_repository=upbit_adapter,
+        ticker_repository=upbit_adapter,
+        infinite_buying_repository=infinite_buying_repository,
     )

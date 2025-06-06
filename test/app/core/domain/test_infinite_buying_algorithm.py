@@ -25,6 +25,7 @@ from app.domain.models.infinite_buying import (
 )
 from app.domain.models.trading import MarketData, TradingSignal
 from app.domain.trade_algorithms.infinite_buying import InfiniteBuyingAlgorithm
+from app.domain.types import ActionTaken
 
 
 class TestInfiniteBuyingConfig:
@@ -316,7 +317,7 @@ class TestInfiniteBuyingAlgorithm:
         result = await algorithm.execute_buy(account, market_data, Decimal("100000"))
 
         assert result.success
-        assert result.action_taken == "buy"
+        assert result.action_taken == ActionTaken.BUY
         assert result.trade_price == Decimal("50000000")
         assert result.trade_amount == Decimal("100000")
         assert algorithm.state.current_round == 1
@@ -385,7 +386,7 @@ class TestInfiniteBuyingAlgorithm:
     @pytest.mark.asyncio
     async def test_max_rounds_force_sell(self, algorithm, account, market_data):
         """최대 회차 도달 시 강제 손절 테스트"""
-        # 최대 회차까지 매수 시뮬레이션
+        # 최대 회차까지 매수 진행
         algorithm.state.current_round = algorithm.config.max_buy_rounds
         algorithm.state.phase = InfiniteBuyingPhase.ACCUMULATING
         algorithm.state.average_price = Decimal("45000000")
@@ -423,7 +424,7 @@ class TestInfiniteBuyingAlgorithm:
         )
 
         assert result.success
-        assert result.action_taken == "sell"
+        assert result.action_taken == ActionTaken.SELL
         assert result.profit_rate is not None
         assert algorithm.state.phase == InfiniteBuyingPhase.INACTIVE
 
@@ -483,7 +484,7 @@ class TestInfiniteBuyingAlgorithm:
         available = algorithm._get_available_krw_balance(account)
         assert available == Decimal("1000000")
 
-        # 일부 잠금 상태 시뮬레이션
+        # 일부 잠금 상태 설정
         account.balances[0].locked = Decimal("100000")
         available = algorithm._get_available_krw_balance(account)
         assert available == Decimal("900000")
@@ -503,8 +504,8 @@ class TestInfiniteBuyingIntegration:
     """무한매수법 통합 테스트"""
 
     @pytest.mark.asyncio
-    async def test_complete_cycle_simulation(self):
-        """완전한 사이클 시뮬레이션 테스트"""
+    async def test_complete_cycle_test(self):
+        """완전한 사이클 테스트"""
         # 설정 및 초기화
         config = InfiniteBuyingConfig(
             initial_buy_amount=Decimal("100000"),
@@ -573,7 +574,7 @@ class TestInfiniteBuyingIntegration:
         signal_3 = await algorithm.analyze_signal(account, market_data_3)
         assert signal_3.action == TradingAction.SELL
 
-        # 매도 실행 (BTC 잔고 시뮬레이션)
+        # 매도 실행 (BTC 잔고 설정)
         account.balances[1].balance = algorithm.state.total_volume
 
         sell_volume = await algorithm.calculate_sell_amount(account, market_data_3, signal_3)

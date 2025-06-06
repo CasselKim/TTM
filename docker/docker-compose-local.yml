@@ -6,17 +6,43 @@ services:
     ports:
       - "80:80"
     networks:
-      - my-network
+      - app-network
     depends_on:
       - mysql
+      - valkey-cluster
+    environment:
+      - VALKEY_CLUSTER_ENDPOINT=valkey-cluster:6379
+      - VALKEY_CLUSTER_HOST=valkey-cluster
+      - VALKEY_CLUSTER_PORT=6379
 
-  redis:
-    image: redis
-    container_name: TTM-redis
+  # Valkey 클러스터 (ElastiCache 에뮬레이션)
+  valkey-cluster:
+    image: valkey/valkey:7.2-alpine
+    container_name: TTM-valkey-cluster
     ports:
       - "6379:6379"
     networks:
-      - my-network
+      - app-network
+      - cache-network
+    volumes:
+      - valkey-data:/data
+    command: >
+      valkey-server
+      --appendonly yes
+      --appendfsync everysec
+      --save 900 1
+      --save 300 10
+      --save 60 10000
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --tcp-keepalive 60
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "valkey-cli", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
 
   mysql:
     image: mysql:8.0
@@ -29,10 +55,17 @@ services:
     ports:
       - "3306:3306"
     networks:
-      - my-network
+      - app-network
+    volumes:
+      - mysql-data:/var/lib/mysql
 
 networks:
-  my-network:
+  app-network:
+    driver: bridge
+  cache-network:
+    driver: bridge
+    internal: true  # 캐시 전용 네트워크 (보안)
 
 volumes:
-  db-data:
+  valkey-data:
+  mysql-data:

@@ -6,7 +6,9 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from app.adapters.internal.background.trading_scheduler import TradingScheduler
+from app.adapters.internal.background.infinite_buying_scheduler import (
+    InfiniteBuyingScheduler,
+)
 from app.container import Container
 from common.logging import setup_logging
 
@@ -36,7 +38,7 @@ container.config.from_dict(
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """애플리케이션 lifespan 관리"""
     bot_task = None
-    trading_scheduler = None
+    infinite_buying_scheduler = None
 
     # Startup
     discord_token = os.getenv("DISCORD_BOT_TOKEN")
@@ -51,6 +53,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             account_usecase=container.account_usecase(),
             ticker_usecase=container.ticker_usecase(),
             order_usecase=container.order_usecase(),
+            infinite_buying_usecase=container.infinite_buying_usecase(),
         )
 
         # Discord Bot을 백그라운드 태스크로 실행
@@ -65,24 +68,29 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             fields=[
                 ("환경", os.getenv("ENV", "Production"), True),
                 ("로그 레벨", os.getenv("LOG_LEVEL", "INFO"), True),
+                ("거래 모드", "실거래", True),
+                ("무한매수법", "활성화", True),
             ],
         )
 
-    # 거래 스케줄러 시작
-    if os.getenv("ENABLE_TRADING_SCHEDULER", "false").lower() == "true":
-        trading_scheduler = TradingScheduler(
-            trading_usecase=container.trading_usecase(),
-            interval_seconds=float(os.getenv("TRADING_INTERVAL_SECONDS", "10")),
+    # 무한매수법 스케줄러 시작
+    if os.getenv("ENABLE_INFINITE_BUYING_SCHEDULER", "true").lower() == "true":
+        infinite_buying_usecase = container.infinite_buying_usecase()
+
+        infinite_buying_scheduler = InfiniteBuyingScheduler(
+            infinite_buying_usecase=infinite_buying_usecase,
+            interval_seconds=float(os.getenv("INFINITE_BUYING_INTERVAL_SECONDS", "30")),
             enabled=True,
+            discord_adapter=container.discord_adapter() if discord_token else None,
         )
-        await trading_scheduler.start()
+        await infinite_buying_scheduler.start()
 
     yield
 
     # Shutdown
-    # 거래 스케줄러 종료
-    if trading_scheduler:
-        await trading_scheduler.stop()
+    # 무한매수법 스케줄러 종료
+    if infinite_buying_scheduler:
+        await infinite_buying_scheduler.stop()
 
     if discord_token:
         discord_adapter = container.discord_adapter()

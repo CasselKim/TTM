@@ -57,9 +57,9 @@ DISCORD_CHANNEL_ID=your_discord_channel_id_here
 # Enable Developer Mode in Discord and right-click user to copy ID
 DISCORD_ADMIN_USER_IDS=123456789012345678,987654321098765432
 
-# Trading Scheduler Settings
-ENABLE_TRADING_SCHEDULER=true  # Enable/disable automated trading
-TRADING_INTERVAL_SECONDS=10    # Trading algorithm execution interval
+# Infinite Buying Algorithm Settings
+ENABLE_INFINITE_BUYING_SCHEDULER=true    # Enable/disable infinite buying algorithm
+INFINITE_BUYING_INTERVAL_SECONDS=30      # Execution interval for infinite buying (30s recommended)
 
 # Logging Settings
 LOG_LEVEL=INFO
@@ -104,10 +104,15 @@ This project is licensed under the terms of the MIT license.
 - **Order Management**: View and cancel orders
 
 ### Automated Trading
-- **Background Trading Scheduler**: Runs Simple Trading Algorithm every 10 seconds
-- **Algorithm Support**: Currently supports Simple Trading Algorithm based on 24h price change
-- **Simulation Mode**: Safe testing with simulation mode before live trading
-- **Configurable Intervals**: Adjustable execution intervals via environment variables
+- **Infinite Buying Algorithm**: Implements Lao-Er's infinite buying strategy
+  - Dollar-cost averaging through staged purchases
+  - Automatic buy on price drops (configurable threshold)
+  - Take profit at target return rate
+  - Risk management with maximum rounds and stop-loss
+  - Individual market management with separate cycles
+- **Background Scheduler**: Runs infinite buying algorithm every 30 seconds
+- **Live Trading Mode**: Real trading with actual buy/sell orders
+- **Real-time Notifications**: Discord alerts for all buy/sell executions
 
 ### Discord Bot Commands
 - **Basic Commands** (All users):
@@ -123,19 +128,32 @@ This project is licensed under the terms of the MIT license.
   - `!주문조회 [UUID]` - Get order information
   - `!주문취소 [UUID]` - Cancel order
 
+- **Infinite Buying Commands** (Admin only):
+  - `!무한매수시작 [MARKET] [INITIAL_AMOUNT] [TARGET_PROFIT] [DROP_THRESHOLD] [MAX_ROUNDS]` - Start infinite buying
+    - Example: `!무한매수시작 KRW-BTC 100000 10 5 10` (100k KRW, 10% profit target, 5% drop threshold, max 10 rounds)
+  - `!무한매수조회 [MARKET]` - Check infinite buying status
+  - `!무한매수종료 [MARKET] [FORCE_SELL]` - Stop infinite buying
+    - Example: `!무한매수종료 KRW-BTC true` (force sell all holdings)
+
 - **Security Features**:
   - Admin-only access for trading commands
   - Interactive confirmation for all trades
   - Maximum trade amount limits
-  - 30-second timeout for confirmations
+  - 10-second timeout for confirmations
 
 ### Notifications
 - **Discord Bot Notifications**: Get real-time alerts via Discord Bot for:
-  - Trade executions (buy/sell)
+  - Infinite buying executions (buy/sell with detailed stats)
+  - Manual trade executions
   - Order cancellations
-  - Error notifications
+  - Error notifications and cycle completions
   - System status updates
 - **Rich Embed Messages**: Beautiful formatted messages with colors and fields
+- **Detailed Trading Info**: Shows current round, average price, total investment, target price
+
+## API Endpoints
+- `GET /health` - Health check endpoint
+- `GET /infinite-buying/status` - Get infinite buying status for all markets
 
 ## Testing Discord Bot
 Run the Discord bot test script:

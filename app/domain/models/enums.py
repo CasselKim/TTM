@@ -10,5 +10,4 @@ from enum import StrEnum
 class TradingMode(StrEnum):
     """거래 모드"""
 
-    SIMULATION = "simulation"  # 시뮬레이션
     LIVE = "live"  # 실거래

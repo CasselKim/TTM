@@ -8,7 +8,6 @@ from datetime import datetime
 from decimal import Decimal
 from typing import Any
 
-from app.adapters.external.cache.config import CacheConfig
 from app.domain.models.infinite_buying import (
     BuyingRound,
     InfiniteBuyingConfig,
@@ -17,8 +16,17 @@ from app.domain.models.infinite_buying import (
     InfiniteBuyingState,
 )
 from app.domain.repositories.infinite_buying_repository import InfiniteBuyingRepository
+from app.domain.types import (
+    CycleHistoryItem,
+    CycleStatus,
+    TradeStatistics,
+)
 
 logger = logging.getLogger(__name__)
+
+# 상수 정의
+MAX_CYCLE_HISTORY_COUNT = 1000  # 최대 사이클 히스토리 보관 개수
+REDIS_CONFIG_KEY_PARTS_COUNT = 3  # Redis 설정 키 구조의 예상 파트 수
 
 
 class DecimalEncoder(json.JSONEncoder):
@@ -105,8 +113,12 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
             "total_volume": str(state.total_volume),
             "average_price": str(state.average_price),
             "last_buy_price": str(state.last_buy_price),
-            "last_buy_time": state.last_buy_time.isoformat() if state.last_buy_time else None,
-            "cycle_start_time": state.cycle_start_time.isoformat() if state.cycle_start_time else None,
+            "last_buy_time": state.last_buy_time.isoformat()
+            if state.last_buy_time
+            else None,
+            "cycle_start_time": state.cycle_start_time.isoformat()
+            if state.cycle_start_time
+            else None,
             "target_sell_price": str(state.target_sell_price),
         }
 
@@ -181,7 +193,9 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
             key = self._get_state_key(market)
             data = self._serialize_state(state)
             result = await self.cache.set(key, data, ttl=86400)  # 24시간 TTL
-            logger.debug(f"무한매수법 상태 저장 완료 - market: {market}, phase: {state.phase.value}")
+            logger.debug(
+                f"무한매수법 상태 저장 완료 - market: {market}, phase: {state.phase.value}"
+            )
             return bool(result)
         except Exception as e:
             logger.error(f"무한매수법 상태 저장 실패 - market: {market}, error: {e}")
@@ -199,7 +213,7 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
             # 성능상 이유로 buying_rounds는 빈 리스트로 초기화
             # 필요시 get_buying_rounds() 메서드를 별도 호출
             state.buying_rounds = []
-            
+
             return state
         except Exception as e:
             logger.error(f"무한매수법 상태 조회 실패 - market: {market}, error: {e}")
@@ -211,14 +225,16 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
             state = await self.get_state(market)
             if state is None:
                 return None
-                
+
             # 매수 회차 정보도 함께 로드
             rounds = await self.get_buying_rounds(market)
             state.buying_rounds = rounds
-            
+
             return state
         except Exception as e:
-            logger.error(f"무한매수법 상태(회차 포함) 조회 실패 - market: {market}, error: {e}")
+            logger.error(
+                f"무한매수법 상태(회차 포함) 조회 실패 - market: {market}, error: {e}"
+            )
             return None
 
     async def add_buying_round(self, market: str, buying_round: BuyingRound) -> bool:
@@ -229,17 +245,21 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
 
             # 기존 회차들 조회
             existing_rounds = await self.cache.get(key) or []
-            
+
             # 중복 회차 체크
             for existing_round in existing_rounds:
                 if existing_round.get("round_number") == buying_round.round_number:
-                    logger.warning(f"중복 매수 회차 감지 - market: {market}, round: {buying_round.round_number}")
+                    logger.warning(
+                        f"중복 매수 회차 감지 - market: {market}, round: {buying_round.round_number}"
+                    )
                     return False
-            
+
             existing_rounds.append(round_data)
 
             result = await self.cache.set(key, existing_rounds, ttl=86400)  # 24시간 TTL
-            logger.info(f"매수 회차 추가 완료 - market: {market}, round: {buying_round.round_number}")
+            logger.info(
+                f"매수 회차 추가 완료 - market: {market}, round: {buying_round.round_number}"
+            )
             return bool(result)
         except Exception as e:
             logger.error(f"매수 회차 추가 실패 - market: {market}, error: {e}")
@@ -263,7 +283,9 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
                 key = self._get_rounds_key(market)
                 rounds_data = await self.cache.get(key) or []
 
-            return [self._deserialize_buying_round(round_data) for round_data in rounds_data]
+            return [
+                self._deserialize_buying_round(round_data) for round_data in rounds_data
+            ]
         except Exception as e:
             logger.error(f"매수 회차 조회 실패 - market: {market}, error: {e}")
             return []
@@ -279,9 +301,9 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
         try:
             # 현재 매수 회차들 조회 (삭제 전에)
             rounds = await self.get_buying_rounds(market)
-            
+
             cycle_key = self._get_cycle_key(market, cycle_id)
-            
+
             history_data = {
                 "cycle_id": cycle_id,
                 "market": market,
@@ -290,42 +312,61 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
                     "success": result.success,
                     "action_taken": result.action_taken,
                     "message": result.message,
-                    "trade_price": str(result.trade_price) if result.trade_price else None,
-                    "trade_amount": str(result.trade_amount) if result.trade_amount else None,
-                    "trade_volume": str(result.trade_volume) if result.trade_volume else None,
-                    "profit_rate": str(result.profit_rate) if result.profit_rate else None,
+                    "trade_price": str(result.trade_price)
+                    if result.trade_price
+                    else None,
+                    "trade_amount": str(result.trade_amount)
+                    if result.trade_amount
+                    else None,
+                    "trade_volume": str(result.trade_volume)
+                    if result.trade_volume
+                    else None,
+                    "profit_rate": str(result.profit_rate)
+                    if result.profit_rate
+                    else None,
                 },
                 "buying_rounds": [self._serialize_buying_round(r) for r in rounds],
                 "completed_at": datetime.now().isoformat(),
             }
 
             # 사이클 히스토리 저장
-            cycle_save_result = await self.cache.set(cycle_key, history_data, ttl=2592000)  # 30일 TTL
-            
+            cycle_save_result = await self.cache.set(
+                cycle_key, history_data, ttl=2592000
+            )  # 30일 TTL
+
             # 사이클 인덱스에 추가 (최신 순으로 관리)
             index_key = self._get_cycle_index_key(market)
             cycle_index = await self.cache.get(index_key) or []
-            
+
             # 새 사이클을 맨 앞에 추가 (최신 순)
-            cycle_index.insert(0, {
-                "cycle_id": cycle_id,
-                "completed_at": history_data["completed_at"],
-                "success": result.success,
-                "profit_rate": str(result.profit_rate) if result.profit_rate else None,
-            })
-            
-            # 인덱스 크기 제한 (최대 1000개)
-            if len(cycle_index) > 1000:
-                cycle_index = cycle_index[:1000]
-            
-            index_save_result = await self.cache.set(index_key, cycle_index, ttl=2592000)
-            
+            cycle_index.insert(
+                0,
+                {
+                    "cycle_id": cycle_id,
+                    "completed_at": history_data["completed_at"],
+                    "success": result.success,
+                    "profit_rate": str(result.profit_rate)
+                    if result.profit_rate
+                    else None,
+                },
+            )
+
+            # 인덱스 크기 제한 (최대 보관 개수)
+            if len(cycle_index) > MAX_CYCLE_HISTORY_COUNT:
+                cycle_index = cycle_index[:MAX_CYCLE_HISTORY_COUNT]
+
+            index_save_result = await self.cache.set(
+                index_key, cycle_index, ttl=2592000
+            )
+
             # 사이클 완료 시에만 현재 활성 데이터 정리
             if result.success:
                 await self.cache.delete(self._get_rounds_key(market))
                 logger.info(f"성공한 사이클 완료로 활성 데이터 정리 - market: {market}")
 
-            logger.info(f"사이클 히스토리 저장 완료 - market: {market}, cycle_id: {cycle_id}")
+            logger.info(
+                f"사이클 히스토리 저장 완료 - market: {market}, cycle_id: {cycle_id}"
+            )
             return bool(cycle_save_result and index_save_result)
         except Exception as e:
             logger.error(f"사이클 히스토리 저장 실패 - market: {market}, error: {e}")
@@ -333,54 +374,140 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
 
     async def get_cycle_history(
         self, market: str, limit: int = 100
-    ) -> list[dict[str, Any]]:
+    ) -> list[CycleHistoryItem]:
         """완료된 사이클 히스토리를 조회합니다."""
         try:
             index_key = self._get_cycle_index_key(market)
             cycle_index = await self.cache.get(index_key) or []
-            
+
             # limit 적용
             limited_index = cycle_index[:limit]
-            
+
             # 각 사이클의 상세 정보 조회
             history_list = []
             for cycle_info in limited_index:
                 cycle_id = cycle_info["cycle_id"]
                 cycle_key = self._get_cycle_key(market, cycle_id)
                 cycle_data = await self.cache.get(cycle_key)
-                
+
                 if cycle_data:
-                    history_list.append(cycle_data)
+                    # CycleHistoryItem에 필요한 정보 추출
+                    state = cycle_data.get("state", {})
+                    result = cycle_data.get("result", {})
+                    buying_rounds = cycle_data.get("buying_rounds", [])
+
+                    # 시작 시간은 state의 cycle_start_time 또는 첫 매수 시점
+                    start_time_str = state.get("cycle_start_time", "")
+                    if not start_time_str and buying_rounds:
+                        start_time_str = buying_rounds[0].get("timestamp", "")
+
+                    start_time = (
+                        datetime.fromisoformat(start_time_str)
+                        if start_time_str
+                        else datetime.now()
+                    )
+
+                    # 종료 시간은 completed_at
+                    end_time_str = cycle_data.get("completed_at", "")
+                    end_time = (
+                        datetime.fromisoformat(end_time_str)
+                        if end_time_str
+                        else datetime.now()
+                    )
+
+                    # 총 투자액은 state에서 추출
+                    total_investment = Decimal(state.get("total_investment", "0"))
+
+                    # 수익률 계산
+                    profit_rate = Decimal(result.get("profit_rate", "0"))
+
+                    # 상태 결정
+                    status = (
+                        CycleStatus.COMPLETED
+                        if result.get("success", False)
+                        else CycleStatus.FAILED
+                    )
+
+                    history_item = CycleHistoryItem(
+                        cycle_id=cycle_id,
+                        market=market,
+                        start_time=start_time,
+                        end_time=end_time,
+                        status=status,
+                        total_investment=total_investment,
+                        total_volume=Decimal(state.get("total_volume", "0")),
+                        average_price=Decimal(state.get("average_price", "0")),
+                        sell_price=Decimal(result.get("trade_price", "0"))
+                        if result.get("trade_price")
+                        else None,
+                        profit_rate=profit_rate
+                        if profit_rate != Decimal("0")
+                        else None,
+                        max_rounds=len(buying_rounds),
+                        actual_rounds=len(buying_rounds),
+                    )
+                    history_list.append(history_item)
                 else:
                     # 인덱스에는 있지만 실제 데이터가 없는 경우 (TTL 만료 등)
-                    logger.warning(f"사이클 데이터 불일치 - market: {market}, cycle_id: {cycle_id}")
-            
-            logger.info(f"사이클 히스토리 조회 완료 - market: {market}, count: {len(history_list)}")
+                    logger.warning(
+                        f"사이클 데이터 불일치 - market: {market}, cycle_id: {cycle_id}"
+                    )
+
+            logger.info(
+                f"사이클 히스토리 조회 완료 - market: {market}, count: {len(history_list)}"
+            )
             return history_list
         except Exception as e:
             logger.error(f"사이클 히스토리 조회 실패 - market: {market}, error: {e}")
             return []
 
-    async def get_trade_statistics(self, market: str) -> dict[str, Any]:
+    async def get_trade_statistics(self, market: str) -> TradeStatistics:
         """거래 통계를 조회합니다."""
         try:
             key = self._get_stats_key(market)
             stats = await self.cache.get(key)
+
+            # 기본값 설정
+            default_stats = TradeStatistics(
+                total_cycles=0,
+                success_cycles=0,
+                total_profit=Decimal("0"),
+                total_profit_rate=Decimal("0"),
+                average_profit_rate=Decimal("0"),
+                best_profit_rate=Decimal("0"),
+                worst_profit_rate=Decimal("0"),
+                last_updated=datetime.now(),
+            )
+
             if stats is None:
-                # 기본 통계 구조 반환
-                return {
-                    "total_cycles": 0,
-                    "successful_cycles": 0,
-                    "total_profit_rate": "0",
-                    "average_profit_rate": "0",
-                    "max_profit_rate": "0",
-                    "min_profit_rate": "0",
-                    "last_updated": datetime.now().isoformat(),
-                }
-            return dict(stats)
+                return default_stats
+
+            # 기존 데이터가 있으면 TradeStatistics 객체로 변환
+            return TradeStatistics(
+                total_cycles=stats.get("total_cycles", 0),
+                success_cycles=stats.get("successful_cycles", 0),
+                total_profit=Decimal("0"),  # 현재 구조에서는 사용하지 않음
+                total_profit_rate=Decimal(stats.get("total_profit_rate", "0")),
+                average_profit_rate=Decimal(stats.get("average_profit_rate", "0")),
+                best_profit_rate=Decimal(stats.get("max_profit_rate", "0")),
+                worst_profit_rate=Decimal(stats.get("min_profit_rate", "0")),
+                last_updated=datetime.fromisoformat(
+                    stats.get("last_updated", datetime.now().isoformat())
+                ),
+            )
         except Exception as e:
             logger.error(f"거래 통계 조회 실패 - market: {market}, error: {e}")
-            return {}
+            # 에러가 발생해도 기본 구조를 반환
+            return TradeStatistics(
+                total_cycles=0,
+                success_cycles=0,
+                total_profit=Decimal("0"),
+                total_profit_rate=Decimal("0"),
+                average_profit_rate=Decimal("0"),
+                best_profit_rate=Decimal("0"),
+                worst_profit_rate=Decimal("0"),
+                last_updated=datetime.now(),
+            )
 
     async def update_statistics(
         self, market: str, result: InfiniteBuyingResult
@@ -389,29 +516,39 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
         try:
             stats = await self.get_trade_statistics(market)
 
-            stats["total_cycles"] += 1
+            # 새로운 통계 계산
+            new_total_cycles = stats.total_cycles + 1
+            new_success_cycles = stats.success_cycles
+            new_total_profit_rate = stats.total_profit_rate
+            new_average_profit_rate = stats.average_profit_rate
+            new_best_profit_rate = stats.best_profit_rate
+            new_worst_profit_rate = stats.worst_profit_rate
+
             if result.success and result.profit_rate:
-                stats["successful_cycles"] += 1
-
+                new_success_cycles += 1
                 profit_rate = Decimal(str(result.profit_rate))
-                current_total = Decimal(stats["total_profit_rate"])
-                stats["total_profit_rate"] = str(current_total + profit_rate)
-                stats["average_profit_rate"] = str(
-                    Decimal(stats["total_profit_rate"]) / stats["successful_cycles"]
-                )
+                new_total_profit_rate += profit_rate
+                new_average_profit_rate = new_total_profit_rate / new_success_cycles
 
-                max_profit = Decimal(stats["max_profit_rate"])
-                min_profit = Decimal(stats["min_profit_rate"])
+                new_best_profit_rate = max(new_best_profit_rate, profit_rate)
+                if new_success_cycles == 1 or profit_rate < new_worst_profit_rate:
+                    new_worst_profit_rate = profit_rate
 
-                if profit_rate > max_profit:
-                    stats["max_profit_rate"] = str(profit_rate)
-                if stats["successful_cycles"] == 1 or profit_rate < min_profit:
-                    stats["min_profit_rate"] = str(profit_rate)
-
-            stats["last_updated"] = datetime.now().isoformat()
+            # 딕셔너리 형태로 저장 (Redis 호환성)
+            stats_dict = {
+                "total_cycles": new_total_cycles,
+                "successful_cycles": new_success_cycles,
+                "total_profit_rate": str(new_total_profit_rate),
+                "average_profit_rate": str(new_average_profit_rate),
+                "max_profit_rate": str(new_best_profit_rate),
+                "min_profit_rate": str(new_worst_profit_rate),
+                "last_updated": datetime.now().isoformat(),
+            }
 
             key = self._get_stats_key(market)
-            result_save = await self.cache.set(key, stats, ttl=None)  # 통계는 영구 저장
+            result_save = await self.cache.set(
+                key, stats_dict, ttl=None
+            )  # 통계는 영구 저장
             return bool(result_save)
         except Exception as e:
             logger.error(f"거래 통계 업데이트 실패 - market: {market}, error: {e}")
@@ -433,7 +570,9 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
                 if await self.cache.delete(key):
                     delete_count += 1
 
-            logger.info(f"마켓 데이터 삭제 완료 - market: {market}, deleted: {delete_count}/{len(keys_to_delete)}")
+            logger.info(
+                f"마켓 데이터 삭제 완료 - market: {market}, deleted: {delete_count}/{len(keys_to_delete)}"
+            )
             return delete_count > 0
         except Exception as e:
             logger.error(f"마켓 데이터 삭제 실패 - market: {market}, error: {e}")
@@ -468,8 +607,16 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
 
             # 통계 백업
             stats = await self.get_trade_statistics(market)
-            backup_data["statistics"] = stats
-            
+            backup_data["statistics"] = {
+                "total_cycles": stats.total_cycles,
+                "successful_cycles": stats.success_cycles,
+                "total_profit_rate": str(stats.total_profit_rate),
+                "average_profit_rate": str(stats.average_profit_rate),
+                "max_profit_rate": str(stats.best_profit_rate),
+                "min_profit_rate": str(stats.worst_profit_rate),
+                "last_updated": stats.last_updated.isoformat(),
+            }
+
             # 사이클 인덱스 백업
             index_key = self._get_cycle_index_key(market)
             cycle_index = await self.cache.get(index_key) or []
@@ -523,16 +670,47 @@ class RedisInfiniteBuyingAdapter(InfiniteBuyingRepository):
                     if await self.cache.set(stats_key, stats_data, ttl=None):
                         success_count += 1
                 total_operations += 1
-                        
+
             # 사이클 인덱스 복원
             if backup_data.get("cycle_index"):
                 index_key = self._get_cycle_index_key(market)
-                if await self.cache.set(index_key, backup_data["cycle_index"], ttl=2592000):
+                if await self.cache.set(
+                    index_key, backup_data["cycle_index"], ttl=2592000
+                ):
                     success_count += 1
                 total_operations += 1
 
-            logger.info(f"상태 복원 완료 - market: {market}, success: {success_count}/{total_operations}")
+            logger.info(
+                f"상태 복원 완료 - market: {market}, success: {success_count}/{total_operations}"
+            )
             return success_count == total_operations
         except Exception as e:
             logger.error(f"상태 복원 실패 - market: {market}, error: {e}")
             return False
+
+    async def get_active_markets(self) -> list[str]:
+        """현재 활성화된 무한매수법 마켓 목록을 반환합니다."""
+        try:
+            # Redis 패턴으로 모든 설정 키를 조회
+            config_pattern = "infinite_buying:*:config"
+            config_keys = self.cache.keys(config_pattern)
+
+            active_markets = []
+            for config_key in config_keys:
+                # 키에서 마켓명 추출 (예: "infinite_buying:KRW-BTC:config" -> "KRW-BTC")
+                parts = config_key.split(":")
+                if len(parts) >= REDIS_CONFIG_KEY_PARTS_COUNT:
+                    market = parts[1]
+
+                    # 해당 마켓의 상태가 활성인지 확인
+                    state = await self.get_state(market)
+                    if state and state.is_active:
+                        active_markets.append(market)
+
+            logger.debug(
+                f"활성 마켓 조회 완료 - count: {len(active_markets)}, markets: {active_markets}"
+            )
+            return active_markets
+        except Exception as e:
+            logger.error(f"활성 마켓 조회 실패 - error: {e}")
+            return []

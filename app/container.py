@@ -2,7 +2,7 @@ from dependency_injector import containers, providers
 
 from app.adapters.external.cache.config import CacheConfig
 from app.adapters.external.cache.infinite_buying_adapter import (
-    InfiniteBuyingCacheAdapter,
+    CacheInfiniteBuyingRepository,
 )
 from app.adapters.external.discord.adapter import DiscordAdapter
 from app.adapters.external.upbit.adapter import UpbitAdapter
@@ -34,9 +34,11 @@ class Container(containers.DeclarativeContainer):
     )
 
     # Repositories
-    infinite_buying_repository = providers.Singleton(
-        InfiniteBuyingCacheAdapter,
-        config=cache_config,
+    infinite_buying_repository: providers.Singleton[CacheInfiniteBuyingRepository] = (
+        providers.Singleton(
+            CacheInfiniteBuyingRepository,
+            config=cache_config,
+        )
     )
 
     # Use cases

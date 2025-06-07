@@ -30,11 +30,11 @@ class CacheClient:
 
     def __init__(self, config: CacheConfig):
         self._config = config
-        self._client: GlideClusterClient | None = None
+        self.client: GlideClusterClient | None = None
 
     async def _get_client(self) -> GlideClusterClient:
         """Cache 클라이언트를 가져옵니다."""
-        if self._client is None:
+        if self.client is None:
             try:
                 Logger.set_logger_config(LogLevel.INFO)
 
@@ -45,7 +45,7 @@ class CacheClient:
                     request_timeout=self._config.socket_timeout * 1000,  # milliseconds
                 )
 
-                self._client = await GlideClusterClient.create(cluster_config)
+                self.client = await GlideClusterClient.create(cluster_config)
                 logger.info(
                     f"Cache 서버에 연결되었습니다: "
                     f"{self._config.host}:{self._config.port}"
@@ -59,13 +59,13 @@ class CacheClient:
                 logger.exception("Cache 연결 실패")
                 raise
 
-        return self._client
+        return self.client
 
-    async def get(self, key: str) -> str | None:
-        """캐시에서 값을 조회합니다."""
+    async def hget(self, key: str, field: str) -> str | None:
+        """해시에서 필드 값을 조회합니다."""
         try:
             client = await self._get_client()
-            value = await client.get(key)
+            value = await client.hget(key, field)
             if value is None:
                 return None
             return value.decode("utf-8") if isinstance(value, bytes) else str(value)
@@ -75,84 +75,72 @@ class CacheClient:
             GlideConnectionError,
             ClosingError,
         ) as e:
-            logger.exception(f"캐시 조회 실패 - key: {key}, error: {e}")
+            logger.exception(f"해시 조회 실패 - key: {key}, field: {field}, error: {e}")
             return None
 
-    async def set(
-        self, key: str, value: str, expire_seconds: int | None = None
-    ) -> bool:
-        """캐시에 값을 저장합니다."""
+    async def hset(self, key: str, field: str, value: str) -> bool:
+        """해시에 필드 값을 저장합니다."""
         try:
             client = await self._get_client()
-            await client.set(key, value)
-            if expire_seconds:
-                await client.expire(key, expire_seconds)
+            await client.hset(key, {field: value})
         except (
             GlideTimeoutError,
             RequestError,
             GlideConnectionError,
             ClosingError,
         ) as e:
-            logger.exception(f"캐시 저장 실패 - key: {key}, error: {e}")
+            logger.exception(f"해시 저장 실패 - key: {key}, field: {field}, error: {e}")
             return False
         else:
             return True
 
-    async def delete(self, key: str) -> bool:
-        """캐시에서 키를 삭제합니다."""
+    async def hgetall(self, key: str) -> dict[str, str]:
+        """해시의 모든 필드와 값을 조회합니다."""
         try:
             client = await self._get_client()
-            await client.delete([key])
+            result = await client.hgetall(key)
+            if result is None:
+                return {}
+            # bytes를 str로 변환
+            return {
+                k.decode("utf-8") if isinstance(k, bytes) else str(k): v.decode("utf-8")
+                if isinstance(v, bytes)
+                else str(v)
+                for k, v in result.items()
+            }
         except (
             GlideTimeoutError,
             RequestError,
             GlideConnectionError,
             ClosingError,
         ) as e:
-            logger.exception(f"캐시 삭제 실패 - key: {key}, error: {e}")
+            logger.exception(f"해시 전체 조회 실패 - key: {key}, error: {e}")
+            return {}
+
+    async def hdel(self, key: str, field: str) -> bool:
+        """해시에서 필드를 삭제합니다."""
+        try:
+            client = await self._get_client()
+            await client.hdel(key, [field])
+        except (
+            GlideTimeoutError,
+            RequestError,
+            GlideConnectionError,
+            ClosingError,
+        ) as e:
+            logger.exception(
+                f"해시 필드 삭제 실패 - key: {key}, field: {field}, error: {e}"
+            )
             return False
         else:
             return True
-
-    async def expire(self, key: str, seconds: int) -> bool:
-        """키에 만료 시간을 설정합니다."""
-        try:
-            client = await self._get_client()
-            await client.expire(key, seconds)
-        except (
-            GlideTimeoutError,
-            RequestError,
-            GlideConnectionError,
-            ClosingError,
-        ) as e:
-            logger.exception(f"캐시 만료 설정 실패 - key: {key}, error: {e}")
-            return False
-        else:
-            return True
-
-    async def scan(self, pattern: str) -> list[str]:
-        """패턴에 맞는 키 목록을 조회합니다."""
-        try:
-            # glide scan API는 정확하지 않으므로 임시로 빈 리스트 반환
-            # 실제 구현에서는 적절한 스캔 방법을 사용해야 함
-            keys: list[str] = []
-        except (
-            GlideTimeoutError,
-            RequestError,
-            GlideConnectionError,
-            ClosingError,
-        ) as e:
-            logger.exception(f"캐시 키 스캔 실패 - pattern: {pattern}, error: {e}")
-            return []
-        else:
-            return keys
 
     async def close(self) -> None:
         """캐시 클라이언트 연결을 종료합니다."""
-        if self._client:
+        if self.client:
             try:
-                await self._client.close()
-                self._client = None
+                await self.client.close()
+                self.client = None
                 logger.info("Cache 클라이언트 연결 종료")
             except Exception as e:
                 logger.exception(f"Cache 클라이언트 종료 실패: {e}")

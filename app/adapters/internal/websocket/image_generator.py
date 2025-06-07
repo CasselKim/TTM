@@ -1,10 +1,15 @@
 """Discord 봇용 이미지 생성 모듈"""
 
 import io
+import logging
+import os
+import platform
 from pathlib import Path
 from typing import Any, TypedDict
 
 from PIL import Image, ImageDraw, ImageFont  # type: ignore
+
+logger = logging.getLogger(__name__)
 
 
 class CryptoData(TypedDict):
@@ -20,29 +25,143 @@ class CryptoData(TypedDict):
     profit_loss: float
 
 
+def _get_system_font_paths() -> list[Path]:
+    """운영체제별 시스템 폰트 경로를 반환"""
+    system = platform.system().lower()
+    paths = []
+
+    if system == "linux":
+        paths.extend(
+            [
+                Path("/usr/share/fonts/truetype/noto"),
+                Path("/usr/share/fonts/truetype/nanum"),
+                Path("/usr/share/fonts/truetype/dejavu"),
+                Path("/usr/share/fonts/opentype/noto"),
+                Path("/usr/local/share/fonts"),
+                Path("/usr/share/fonts"),
+            ]
+        )
+    elif system == "darwin":  # macOS
+        paths.extend(
+            [
+                Path("/Library/Fonts"),
+                Path("/System/Library/Fonts"),
+                Path(os.path.expanduser("~/Library/Fonts")),
+            ]
+        )
+    elif system == "windows":
+        paths.extend(
+            [
+                Path("C:/Windows/Fonts"),
+            ]
+        )
+
+    return [p for p in paths if p.exists()]
+
+
+def _get_korean_font_candidates() -> list[str]:
+    """한글을 지원하는 폰트 후보 목록을 반환"""
+    return [
+        # Noto Sans KR (Google Fonts)
+        "NotoSansKR-Regular.ttf",
+        "NotoSansKR-Bold.ttf",
+        "NotoSansCJK-Regular.ttc",
+        "NotoSansCJKkr-Regular.otf",
+        # 나눔고딕
+        "NanumGothic.ttf",
+        "NanumGothicBold.ttf",
+        "NanumBarunGothic.ttf",
+        # 맑은고딕 (Windows)
+        "malgun.ttf",
+        "malgunbd.ttf",
+        # 애플고딕 (macOS)
+        "AppleGothic.ttf",
+        "AppleSDGothicNeo.ttc",
+        # DejaVu (Linux fallback with some Korean support)
+        "DejaVuSans.ttf",
+        "DejaVuSans-Bold.ttf",
+    ]
+
+
+def _test_korean_support(font: Any) -> bool:
+    """폰트가 한글을 지원하는지 테스트"""
+    try:
+        # 간단한 한글 문자로 테스트
+        test_text = "한글"
+        # getbbox 메서드로 텍스트 크기 계산 시도
+        if hasattr(font, "getbbox"):
+            bbox = font.getbbox(test_text)
+            # bbox는 (left, top, right, bottom) 튜플
+            width = bbox[2] - bbox[0]
+            height = bbox[3] - bbox[1]
+            return bool(width > 0 and height > 0)
+        else:
+            # 구버전 Pillow의 경우 textsize 사용
+            size = font.getsize(test_text)
+            return bool(size[0] > 0 and size[1] > 0)
+    except (UnicodeError, OSError):
+        return False
+
+
 def _get_korean_font(size: int) -> Any:
     """한글을 지원하는 폰트를 찾아서 반환"""
-    try:
-        # 프로젝트에 번들된 폰트 경로
-        project_root = Path(__file__).parent.parent.parent.parent
-        bundled_fonts = [
-            project_root / "assets" / "fonts" / "NotoSansKR-Regular.ttf",
-            project_root / "assets" / "fonts" / "NotoSansKR-Bold.ttf",
-        ]
 
-        # 번들된 폰트 우선 시도
-        for font_path in bundled_fonts:
+    # 환경변수로 폰트 경로 오버라이드 가능
+    env_font_path = os.getenv("TTM_KOREAN_FONT_PATH")
+    if env_font_path:
+        env_path = Path(env_font_path)
+        if env_path.exists():
+            try:
+                font = ImageFont.truetype(str(env_path), size)
+                if _test_korean_support(font):
+                    logger.info(f"Using environment font: {env_path}")
+                    return font
+                else:
+                    logger.warning(
+                        f"Environment font {env_path} does not support Korean"
+                    )
+            except (OSError, IOError) as e:
+                logger.warning(f"Failed to load environment font {env_path}: {e}")
+
+    # 프로젝트에 번들된 폰트 경로
+    project_root = Path(__file__).parent.parent.parent.parent
+    bundled_font_dir = project_root / "assets" / "fonts"
+
+    # 모든 폰트 후보 경로 수집
+    font_candidates = _get_korean_font_candidates()
+    search_paths = [bundled_font_dir] + _get_system_font_paths()
+
+    logger.debug(f"Searching for Korean fonts in {len(search_paths)} directories")
+
+    # 번들된 폰트부터 우선 시도
+    for font_name in font_candidates:
+        for search_path in search_paths:
+            font_path = search_path / font_name
             if font_path.exists():
                 try:
-                    return ImageFont.truetype(str(font_path), size)
-                except (OSError, IOError):
+                    font = ImageFont.truetype(str(font_path), size)
+                    if _test_korean_support(font):
+                        logger.info(f"Successfully loaded Korean font: {font_path}")
+                        return font
+                    else:
+                        logger.debug(
+                            f"Font {font_path} exists but doesn't support Korean"
+                        )
+                except (OSError, IOError) as e:
+                    logger.debug(f"Failed to load font {font_path}: {e}")
                     continue
 
-        # 모든 폰트를 찾을 수 없는 경우 기본 폰트 사용
-        return ImageFont.load_default()
+    # 모든 후보를 시도했지만 한글 지원 폰트를 찾지 못한 경우
+    logger.warning(
+        "No Korean-supporting font found. Using default font (Korean text may not display correctly)"
+    )
 
-    except OSError:
-        # 폰트를 찾을 수 없는 경우 기본 폰트 사용
+    # 기본 폰트로 폴백하되, 더 큰 사이즈로 가독성 향상
+    try:
+        return ImageFont.load_default()
+    except Exception as e:
+        logger.error(f"Failed to load default font: {e}")
+        # 최후의 수단: PIL의 기본 내장 폰트
         return ImageFont.load_default()
 
 

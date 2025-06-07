@@ -72,6 +72,31 @@ docker build -f docker/Dockerfile . -t ttm-image
 docker compose -f docker/docker-compose-local.yml -p ttm up -d
 ```
 
+## Configuration
+
+### 환경변수 설정
+
+#### 한글 폰트 설정 (선택사항)
+Discord 봇의 이미지 생성 기능에서 한글 폰트를 사용하려면 다음 환경변수를 설정할 수 있습니다:
+
+```bash
+# 특정 폰트 파일 경로 지정
+export TTM_KOREAN_FONT_PATH="/path/to/your/korean/font.ttf"
+```
+
+**자동 폰트 검색 순서:**
+1. 환경변수 `TTM_KOREAN_FONT_PATH`로 지정된 폰트
+2. 프로젝트 번들 폰트 (`assets/fonts/NotoSansKR-*.ttf`)
+3. 시스템 폰트 경로에서 한글 지원 폰트 자동 탐색
+   - Linux: Noto Sans CJK, 나눔고딕, DejaVu 등
+   - macOS: Apple Gothic, Noto Sans KR 등
+   - Windows: 맑은고딕, Noto Sans KR 등
+
+**Docker 환경에서의 한글 폰트:**
+Dockerfile에 다음 폰트들이 자동으로 설치됩니다:
+- `fonts-noto-cjk`: Noto Sans CJK 폰트 패밀리
+- `fonts-nanum`: 나눔고딕 폰트 패밀리
+
 ## Deployment - Github Action
 1. PR open
 2. Test by github action

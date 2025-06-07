@@ -28,7 +28,7 @@ class UpbitClient:
             "Charset": "UTF-8",
         }
 
-        logger.info(f"Request: {method} {url}, params: {params}, json: {json_data}")
+        # logger.info(f"Request: {method} {url}, params: {params}, json: {json_data}")
 
         if method.upper() == "GET":
             response = requests.request(method, url, params=params, headers=headers)
@@ -37,7 +37,7 @@ class UpbitClient:
                 method, url, params=params, headers=headers, json=json_data
             )
 
-        logger.info(f"Response: {response.json()}")
+        # logger.info(f"Response: {response.json()}")
 
         # HTTP 오류 상태 확인
         if not response.ok:

@@ -88,17 +88,15 @@ class TradingUsecase:
             # 4. 결과 로깅
             self._log_trading_result(result, target_currency, mode, algorithm_type)
 
+            return result
+
         except Exception as e:
             error_msg = f"매매 사이클 실행 실패: {e!s}"
             self.logger.exception(
                 f"[{mode.value}] {target_currency.value} ({algorithm_type.value}) "
                 "거래 실패"
             )
-            result = TradingResult(success=False, message=error_msg)
-        else:
-            return result
-
-        return result
+            return TradingResult(success=False, message=error_msg)
 
     def _create_algorithm(self, algorithm_type: AlgorithmType) -> TradingAlgorithm:
         """알고리즘 타입에 따라 적절한 알고리즘 인스턴스 생성"""
@@ -106,11 +104,14 @@ class TradingUsecase:
         match algorithm_type:
             case AlgorithmType.SIMPLE:
                 return SimpleTradingAlgorithm()
-
-            # 향후 다른 알고리즘 추가 시 여기에 추가
-
             case _:
-                raise UnsupportedAlgorithmError(algorithm_type.value)
+                # algorithm_type이 enum인지 확인해서 value 속성 사용
+                error_value = (
+                    algorithm_type.value
+                    if hasattr(algorithm_type, "value")
+                    else str(algorithm_type)
+                )
+                raise UnsupportedAlgorithmError(error_value)
 
     def _log_trading_result(
         self,

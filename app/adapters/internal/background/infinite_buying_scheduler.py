@@ -99,7 +99,7 @@ class InfiniteBuyingScheduler:
 
                 if not active_markets:
                     # 활성화된 시장이 없으면 대기
-                    logger.debug("No active infinite buying markets")
+                    logger.info("No active infinite buying markets")
                     await asyncio.sleep(self.interval_seconds)
                     continue
 
@@ -132,16 +132,13 @@ class InfiniteBuyingScheduler:
                         await self._send_buy_notification(market, result)
 
                 elif action == ActionTaken.SELL:
-                    # 매도 실행됨
                     logger.info(f"{market} 무한매수법 매도 실행: {result.message}")
 
-                    # Discord 알림
                     if self.discord_adapter and result.trade_amount:
                         await self._send_sell_notification(market, result)
 
                 elif action == ActionTaken.HOLD:
-                    # HOLD 신호는 디버그 레벨로만 로깅
-                    logger.debug(f"{market}: {result.message}")
+                    logger.info(f"{market}: {result.message}")
 
                 else:
                     # 기타 액션

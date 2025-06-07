@@ -51,7 +51,9 @@ UPBIT_SECRET_KEY=your_upbit_secret_key_here
 
 # Discord Bot Settings (optional)
 DISCORD_BOT_TOKEN=your_discord_bot_token_here
-DISCORD_CHANNEL_ID=your_discord_channel_id_here
+DISCORD_HISTORY_CHANNEL_ID=your_DISCORD_HISTORY_CHANNEL_ID_here
+DISCORD_ALERT_CHANNEL_ID=your_DISCORD_ALERT_CHANNEL_ID_here  # For error notifications (optional, defaults to HISTORY_CHANNEL)
+DISCORD_LOG_CHANNEL_ID=your_DISCORD_LOG_CHANNEL_ID_here    # For debug logs (optional, defaults to HISTORY_CHANNEL)
 
 # Discord Admin User IDs for trading commands (comma-separated)
 # Enable Developer Mode in Discord and right-click user to copy ID
@@ -74,7 +76,7 @@ LOG_FILE=logs/app.log
 5. Invite the bot to your server with appropriate permissions (Send Messages, Embed Links, Add Reactions)
 6. Get the channel ID where you want the bot to send messages (Enable Developer Mode in Discord)
 7. Get your Discord User ID for admin privileges (Enable Developer Mode and right-click your profile)
-8. Set the `DISCORD_BOT_TOKEN`, `DISCORD_CHANNEL_ID`, and `DISCORD_ADMIN_USER_IDS` in your `.env` file
+8. Set the `DISCORD_BOT_TOKEN`, `DISCORD_HISTORY_CHANNEL_ID`, and `DISCORD_ADMIN_USER_IDS` in your `.env` file
 
 ### 5. Execute docker
 ```
@@ -148,12 +150,22 @@ This project is licensed under the terms of the MIT license.
   - Order cancellations
   - Error notifications and cycle completions
   - System status updates
+- **Error Monitoring**: Automatic Discord alerts for all application errors:
+  - HTTP exceptions and unhandled errors
+  - Background task failures
+  - Logging errors (ERROR level and above)
+  - Separate alert channel support for critical notifications
+- **Debug Logging**: Complete application logging to Discord:
+  - All log levels (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+  - Detailed stack traces and function information
+  - Separate log channel for development monitoring
 - **Rich Embed Messages**: Beautiful formatted messages with colors and fields
 - **Detailed Trading Info**: Shows current round, average price, total investment, target price
 
 ## API Endpoints
 - `GET /health` - Health check endpoint
 - `GET /infinite-buying/status` - Get infinite buying status for all markets
+- `GET /test-error` - Error notification test endpoint (non-production only)
 
 ## Testing Discord Bot
 Run the Discord bot test script:

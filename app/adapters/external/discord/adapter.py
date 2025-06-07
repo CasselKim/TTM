@@ -18,6 +18,8 @@ class DiscordAdapter:
         self,
         bot_token: str,
         channel_id: int,
+        alert_channel_id: int,
+        log_channel_id: int,
         command_prefix: str = DiscordConstants.DEFAULT_COMMAND_PREFIX,
     ):
         """
@@ -25,13 +27,19 @@ class DiscordAdapter:
 
         Args:
             bot_token: Discord Bot 토큰
-            channel_id: 메시지를 전송할 채널 ID
+            channel_id: 메시지를 전송할 채널 ID (히스토리 채널)
+            alert_channel_id: 알림 전용 채널 ID (에러 알림 등)
+            log_channel_id: 로그 전용 채널 ID (디버그 로그 등)
             command_prefix: 명령어 접두사
         """
         self.bot_token = bot_token
         self.channel_id = channel_id
+        self.alert_channel_id = alert_channel_id
+        self.log_channel_id = log_channel_id
         self.bot: commands.Bot
         self.channel: discord.TextChannel | None = None
+        self.alert_channel: discord.TextChannel | None = None
+        self.log_channel: discord.TextChannel | None = None
         self._ready = asyncio.Event()
 
         # 봇 인텐트 설정
@@ -55,13 +63,31 @@ class DiscordAdapter:
         async def on_ready() -> None:
             logger.info(f"Discord 봇이 로그인했습니다: {self.bot.user}")
 
-            # 채널 가져오기
+            # 히스토리 채널 가져오기
             channel = self.bot.get_channel(self.channel_id)
             if not channel or not isinstance(channel, discord.TextChannel):
-                logger.error(f"채널 ID {self.channel_id}를 찾을 수 없습니다.")
+                logger.error(f"히스토리 채널 ID {self.channel_id}를 찾을 수 없습니다.")
             else:
                 self.channel = channel
-                logger.info(f"채널 연결됨: {self.channel.name}")
+                logger.info(f"히스토리 채널 연결됨: {self.channel.name}")
+
+            # 알림 채널 가져오기
+            alert_channel = self.bot.get_channel(self.alert_channel_id)
+            if not alert_channel or not isinstance(alert_channel, discord.TextChannel):
+                logger.error(
+                    f"알림 채널 ID {self.alert_channel_id}를 찾을 수 없습니다."
+                )
+            else:
+                self.alert_channel = alert_channel
+                logger.info(f"알림 채널 연결됨: {self.alert_channel.name}")
+
+            # 로그 채널 가져오기
+            log_channel = self.bot.get_channel(self.log_channel_id)
+            if not log_channel or not isinstance(log_channel, discord.TextChannel):
+                logger.error(f"로그 채널 ID {self.log_channel_id}를 찾을 수 없습니다.")
+            else:
+                self.log_channel = log_channel
+                logger.info(f"로그 채널 연결됨: {self.log_channel.name}")
 
             self._ready.set()
 
@@ -191,7 +217,7 @@ class DiscordAdapter:
         details: str | None = None,
     ) -> bool:
         """
-        에러 알림 전송
+        에러 알림 전송 (알림 채널로 전송)
 
         Args:
             error_type: 에러 유형
@@ -201,6 +227,7 @@ class DiscordAdapter:
         Returns:
             전송 성공 여부
         """
+
         # Discord Embed 생성
         embed = discord.Embed(
             title=f"⚠️ 에러 발생: {error_type}",
@@ -212,7 +239,17 @@ class DiscordAdapter:
         if details:
             embed.add_field(name="상세 정보", value=details, inline=False)
 
-        return await self.send_embed(embed)
+        if not self.alert_channel:
+            logger.error("알림 채널이 연결되지 않았습니다.")
+            return False
+
+        try:
+            await self.alert_channel.send(embed=embed)
+        except Exception as e:
+            logger.exception(f"Discord 에러 알림 전송 실패: {e}")
+            return False
+        else:
+            return True
 
     async def send_info_notification(
         self,
@@ -244,6 +281,71 @@ class DiscordAdapter:
                 embed.add_field(name=name, value=value, inline=inline)
 
         return await self.send_embed(embed)
+
+    async def send_log_message(
+        self,
+        level: str,
+        message: str,
+        details: str | None = None,
+    ) -> bool:
+        """
+        로그 메시지 전송 (로그 채널로 전송)
+
+        Args:
+            level: 로그 레벨
+            message: 로그 메시지
+            details: 추가 상세 정보
+
+        Returns:
+            전송 성공 여부
+        """
+        if not self.log_channel:
+            logger.error("로그 채널이 연결되지 않았습니다.")
+            return False
+
+        # 로그 레벨에 따른 색상 설정
+        color_map = {
+            "DEBUG": DiscordConstants.COLOR_INFO,
+            "INFO": DiscordConstants.COLOR_SUCCESS,
+            "WARNING": 0xFFAA00,  # 주황색
+            "ERROR": DiscordConstants.COLOR_ERROR,
+            "CRITICAL": 0x8B0000,  # 다크 레드
+        }
+        color = color_map.get(level, DiscordConstants.COLOR_INFO)
+
+        # 로그 레벨에 따른 이모지 설정
+        emoji_map = {
+            "DEBUG": "🐛",
+            "INFO": "ℹ️",
+            "WARNING": "⚠️",
+            "ERROR": "❌",
+            "CRITICAL": "🚨",
+        }
+        emoji = emoji_map.get(level, "📝")
+
+        # Discord Embed 생성
+        embed = discord.Embed(
+            title=f"{emoji} {level}",
+            description=message,
+            color=color,
+            timestamp=datetime.now(),
+        )
+
+        if details:
+            # Discord 필드 길이 제한 고려
+            if len(details) > 1024:
+                details = details[:1020] + "..."
+            embed.add_field(
+                name="상세 정보", value=f"```\n{details}\n```", inline=False
+            )
+
+        try:
+            await self.log_channel.send(embed=embed)
+        except Exception as e:
+            logger.exception(f"Discord 로그 메시지 전송 실패: {e}")
+            return False
+        else:
+            return True
 
     def add_command(self, func: commands.Command[Any, ..., Any]) -> None:
         """봇에 커맨드 추가"""

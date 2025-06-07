@@ -1,4 +1,5 @@
 import asyncio
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -6,8 +7,15 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
+from app.adapters.external.discord.debug_logging_handler import (
+    DiscordDebugLoggingHandler,
+)
+from app.adapters.external.discord.logging_handler import DiscordLoggingHandler
 from app.adapters.internal.background.infinite_buying_scheduler import (
     InfiniteBuyingScheduler,
+)
+from app.adapters.internal.websocket.exception_middleware import (
+    ExceptionHandlingMiddleware,
 )
 from app.container import Container
 from common.logging import setup_logging
@@ -28,7 +36,19 @@ container.config.from_dict(
         },
         "discord": {
             "bot_token": os.getenv("DISCORD_BOT_TOKEN", ""),
-            "channel_id": int(os.getenv("DISCORD_CHANNEL_ID", "0")),
+            "channel_id": int(os.getenv("DISCORD_HISTORY_CHANNEL_ID", "0")),
+            "alert_channel_id": int(
+                os.getenv(
+                    "DISCORD_ALERT_CHANNEL_ID",
+                    os.getenv("DISCORD_HISTORY_CHANNEL_ID", "0"),
+                )
+            ),
+            "log_channel_id": int(
+                os.getenv(
+                    "DISCORD_LOG_CHANNEL_ID",
+                    os.getenv("DISCORD_HISTORY_CHANNEL_ID", "0"),
+                )
+            ),
         },
     }
 )
@@ -61,6 +81,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         # 봇이 준비될 때까지 대기
         await discord_adapter.wait_until_ready()
 
+        # Discord 에러 로깅 핸들러 추가 (ERROR 레벨 이상)
+        discord_error_handler = DiscordLoggingHandler(discord_adapter)
+        logging.getLogger().addHandler(discord_error_handler)
+
+        # Discord 디버그 로깅 핸들러 추가 (DEBUG 레벨 이상)
+        discord_debug_handler = DiscordDebugLoggingHandler(discord_adapter)
+        logging.getLogger().addHandler(discord_debug_handler)
+
         # 시작 알림 전송
         await discord_adapter.send_info_notification(
             title="봇 시작",
@@ -70,6 +98,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
                 ("로그 레벨", os.getenv("LOG_LEVEL", "INFO"), True),
                 ("거래 모드", "실거래", True),
                 ("무한매수법", "활성화", True),
+                ("Discord 에러 알림", "활성화", True),
+                ("Discord 디버그 로그", "활성화", True),
             ],
         )
 
@@ -110,9 +140,32 @@ app = FastAPI(lifespan=lifespan)
 # FastAPI 앱에 컨테이너 연결
 app.container = container  # type: ignore
 
+# Discord 어댑터가 있으면 예외 처리 미들웨어 추가
+discord_token = os.getenv("DISCORD_BOT_TOKEN")
+if discord_token:
+    discord_adapter = container.discord_adapter()
+    app.add_middleware(ExceptionHandlingMiddleware, discord_adapter=discord_adapter)
+
 
 # Health check endpoint
 @app.get("/health")
 async def health_check() -> dict[str, str]:
     """서비스 상태 확인을 위한 health check endpoint"""
     return {"status": "healthy", "service": "TTM Trading Bot"}
+
+
+# 에러 테스트용 엔드포인트 (개발/테스트 환경에서만 사용)
+@app.get("/test-error")
+async def test_error() -> dict[str, str]:
+    """에러 알림 테스트용 엔드포인트"""
+    if os.getenv("ENV", "production").lower() != "production":
+        # 다양한 레벨의 로그 테스트
+        logging.debug("테스트 디버그 로그 메시지입니다.")
+        logging.info("테스트 정보 로그 메시지입니다.")
+        logging.warning("테스트 경고 로그 메시지입니다.")
+        logging.error("테스트 에러 로그 메시지입니다.")
+
+        # 예외 발생 테스트
+        raise ValueError("테스트용 예외가 발생했습니다.")
+
+    return {"message": "Production 환경에서는 사용할 수 없습니다."}

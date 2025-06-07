@@ -31,6 +31,8 @@ class Container(containers.DeclarativeContainer):
         DiscordAdapter,
         bot_token=config.discord.bot_token,
         channel_id=config.discord.channel_id,
+        alert_channel_id=config.discord.alert_channel_id,
+        log_channel_id=config.discord.log_channel_id,
     )
 
     # Repositories

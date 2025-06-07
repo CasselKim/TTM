@@ -39,7 +39,7 @@ repos:
             valkey-glide,
           ]
         args: ["--strict"]
-        exclude: database.py|base_orm.py|alembic/|test/
+        exclude: database.py|base_orm.py|alembic/|test/|scripts/
 
 default_language_version:
   python: python3.12

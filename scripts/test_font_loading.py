@@ -8,7 +8,6 @@ from pathlib import Path
 project_root = Path(__file__).parent.parent
 sys.path.insert(0, str(project_root))
 
-# ruff: noqa: E402
 from app.adapters.internal.websocket.image_generator import (
     _get_korean_font,
     _get_korean_font_candidates,
@@ -45,7 +44,7 @@ def test_font_loading() -> bool:
         print(f"  ✓ 한글 지원: {korean_support}")
 
         # 테스트 이미지 생성
-        from PIL import Image, ImageDraw  # type: ignore
+        from PIL import Image, ImageDraw
 
         test_img = Image.new("RGB", (300, 100), (255, 255, 255))
         draw = ImageDraw.Draw(test_img)

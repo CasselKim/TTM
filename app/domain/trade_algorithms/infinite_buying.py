@@ -12,7 +12,6 @@
 """
 
 import logging
-import uuid
 from datetime import datetime, timedelta
 from decimal import Decimal
 
@@ -177,9 +176,8 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
 
             # 상태 업데이트
             if not self.state.is_active:
-                # 새 사이클 시작
-                cycle_id = str(uuid.uuid4())[:8]
-                self.state.reset_cycle(market_data.market, cycle_id)
+                # 새 사이클 시작 (cycle_id 자동 생성)
+                self.state.reset_cycle(market_data.market)
 
             self.state.add_buying_round(new_round, self.config)
             self.state.phase = InfiniteBuyingPhase.ACCUMULATING

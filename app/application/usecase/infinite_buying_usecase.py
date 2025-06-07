@@ -101,10 +101,8 @@ class InfiniteBuyingUsecase:
         # 알고리즘 인스턴스 생성 (초기 상태 설정용)
         algorithm = InfiniteBuyingAlgorithm(config)
 
-        # 상태를 첫 매수 대기 상태로 설정
-        algorithm.state.market = market
-        algorithm.state.phase = InfiniteBuyingPhase.INITIAL_BUY
-        algorithm.state.cycle_id = ""  # 첫 매수 시 생성될 예정
+        # 상태를 첫 매수 대기 상태로 설정 (cycle_id 자동 생성)
+        algorithm.state.reset_cycle(market)
 
         # Redis에 설정 저장
         config_saved = await self.infinite_buying_repository.save_config(market, config)

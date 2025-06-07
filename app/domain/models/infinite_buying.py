@@ -9,6 +9,7 @@ from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
 from typing import TYPE_CHECKING, Any, Self
+import uuid
 
 from pydantic import (
     BaseModel,
@@ -152,7 +153,7 @@ class InfiniteBuyingState(BaseModel):
     # 기본 상태
     market: str  # 거래 시장 (예: "KRW-BTC")
     phase: InfiniteBuyingPhase = InfiniteBuyingPhase.INACTIVE
-    cycle_id: str = ""  # 사이클 고유 ID
+    cycle_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
 
     # 매수 정보
     current_round: int = 0  # 현재 매수 회차
@@ -269,10 +270,10 @@ class InfiniteBuyingState(BaseModel):
 
         return current_price >= self.target_sell_price
 
-    def reset_cycle(self, market: str, cycle_id: str) -> None:
+    def reset_cycle(self, market: str) -> None:
         """새로운 사이클로 초기화"""
         self.market = market
-        self.cycle_id = cycle_id
+        self.cycle_id = str(uuid.uuid4())[:8]
         self.phase = InfiniteBuyingPhase.INITIAL_BUY
         self.current_round = 0
         self.total_investment = Decimal("0")

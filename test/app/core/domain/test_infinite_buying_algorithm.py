@@ -140,10 +140,10 @@ class TestInfiniteBuyingState:
         state.phase = InfiniteBuyingPhase.ACCUMULATING
 
         # 사이클 초기화
-        state.reset_cycle("KRW-ETH", "test123")
+        state.reset_cycle("KRW-ETH")
 
         assert state.market == "KRW-ETH"
-        assert state.cycle_id == "test123"
+        assert state.cycle_id != ""
         assert state.phase == InfiniteBuyingPhase.INITIAL_BUY
         assert state.current_round == 0
         assert state.total_investment == Decimal("0")

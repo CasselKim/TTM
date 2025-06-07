@@ -213,13 +213,13 @@ def create_balance_image(
 ) -> io.BytesIO:
     """잔고 정보를 이미지로 생성"""
 
-    # 이미지 크기 설정
+    # 이미지 크기 설정 (여백 최소화)
     width = 800
-    base_height = 250  # 기본 높이 증가
-    row_height = 40  # 각 암호화폐 행 높이
+    base_height = 150  # 기본 높이 감소 (250 → 150)
+    row_height = 30  # 각 암호화폐 행 높이 감소 (40 → 30)
     height = (
-        base_height + len(crypto_data) * row_height + 200
-    )  # 요약 섹션 + 하단 여백 증가
+        base_height + len(crypto_data) * row_height + 50
+    )  # 하단 여백 감소 (200 → 50)
 
     # 색상 정의 (색상 최소화)
     bg_color = (54, 57, 63)  # Discord 다크 배경색
@@ -238,30 +238,30 @@ def create_balance_image(
     header_font = _get_korean_font(14)
     normal_font = _get_korean_font(12)
 
-    # 시작 Y 위치
-    y = 20
+    # 시작 Y 위치 (여백 감소)
+    y = 10
 
     # 제목
     _draw_section_header(draw, 20, y, "계좌 잔고", gray_color, text_color, title_font)
-    y += 50
+    y += 25  # 제목 후 간격 감소 (50 → 25)
 
     # KRW 섹션
     _draw_section_header(draw, 20, y, "원화", gray_color, header_color, header_font)
-    y += 30
+    y += 20  # 헤더 후 간격 감소 (30 → 20)
     draw.text(
         (40, y),
         f"보유 금액: {_format_korean_amount(krw_amount)}원",
         fill=text_color,
         font=normal_font,
     )
-    y += 50
+    y += 30  # 섹션 간격 감소 (50 → 30)
 
     # 암호화폐 섹션
     if crypto_data:
         _draw_section_header(
             draw, 20, y, "암호화폐", gray_color, header_color, header_font
         )
-        y += 30
+        y += 20  # 헤더 후 간격 감소 (30 → 20)
 
         # 테이블 헤더
         headers = ["통화", "수량", "현재가", "평가금액", "평균단가", "수익률", "손익"]
@@ -279,7 +279,7 @@ def create_balance_image(
                 fill=gray_color,
                 font=header_font,
             )
-        y += 25
+        y += 15  # 헤더 후 간격 감소 (25 → 15)
 
         # 각 암호화폐 데이터 그리기
         for crypto in crypto_data:
@@ -341,11 +341,11 @@ def create_balance_image(
             y += row_height
 
     # 요약 섹션
-    y += 30
+    y += 20  # 섹션 간격 감소 (30 → 20)
     _draw_section_header(
         draw, 20, y, "포트폴리오 요약", gray_color, header_color, header_font
     )
-    y += 30
+    y += 20  # 헤더 후 간격 감소 (30 → 20)
 
     # 총 평가금액
     draw.text(
@@ -354,7 +354,7 @@ def create_balance_image(
         fill=text_color,
         font=normal_font,
     )
-    y += 25
+    y += 15  # 줄 간격 감소 (25 → 15)
 
     # 총 투자금액
     draw.text(
@@ -363,7 +363,7 @@ def create_balance_image(
         fill=text_color,
         font=normal_font,
     )
-    y += 25
+    y += 15  # 줄 간격 감소 (25 → 15)
 
     # 총 수익률 (오직 수익률에만 색상 적용)
     if total_profit_rate > 0:

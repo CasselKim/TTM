@@ -8,9 +8,15 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any, Self
 
-from pydantic import BaseModel, Field, computed_field
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    field_serializer,
+    model_validator,
+)
 
 if TYPE_CHECKING:
     from app.domain.types import ActionTaken
@@ -29,6 +35,10 @@ class InfiniteBuyingPhase(StrEnum):
 class InfiniteBuyingConfig(BaseModel):
     """무한매수법 설정"""
 
+    model_config = ConfigDict(
+        validate_assignment=True, use_enum_values=True, arbitrary_types_allowed=True
+    )
+
     # 기본 매수 설정
     initial_buy_amount: Decimal  # 초기 매수 금액 (KRW)
     add_buy_multiplier: Decimal = Decimal("1.5")  # 추가 매수 배수
@@ -46,9 +56,51 @@ class InfiniteBuyingConfig(BaseModel):
     min_buy_interval_minutes: int = 30  # 최소 매수 간격 (분)
     max_cycle_days: int = 30  # 최대 사이클 기간 (일)
 
+    @field_serializer(
+        "initial_buy_amount",
+        "add_buy_multiplier",
+        "target_profit_rate",
+        "price_drop_threshold",
+        "force_stop_loss_rate",
+        "max_investment_ratio",
+    )
+    def serialize_decimal(self, value: Decimal) -> float:
+        """Decimal을 float로 직렬화"""
+        return float(value)
+
+    @model_validator(mode="after")
+    def validate_config(self) -> Self:
+        """설정값 검증"""
+        if self.target_profit_rate <= 0:
+            raise ValueError("목표 수익률은 0보다 커야 합니다")
+        if self.price_drop_threshold >= 0:
+            raise ValueError("추가 매수 트리거는 음수여야 합니다")
+        if self.force_stop_loss_rate >= 0:
+            raise ValueError("강제 손절률은 음수여야 합니다")
+        if self.max_investment_ratio <= 0 or self.max_investment_ratio > 1:
+            raise ValueError("최대 투자 비율은 0과 1 사이여야 합니다")
+        return self
+
+    @classmethod
+    def from_cache_json(cls, json_str: str) -> "InfiniteBuyingConfig":
+        """캐시 JSON에서 모델 생성"""
+        return cls.model_validate_json(json_str)
+
+    def to_cache_json(self) -> str:
+        """캐시 저장용 JSON 문자열 반환"""
+        return self.model_dump_json(exclude_none=True)
+
+    def calculate_next_buy_amount(self, current_round: int) -> Decimal:
+        """다음 매수 금액 계산"""
+        if current_round == 0:
+            return self.initial_buy_amount
+        return self.initial_buy_amount * (self.add_buy_multiplier**current_round)
+
 
 class BuyingRound(BaseModel):
     """개별 매수 회차 정보"""
+
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
     round_number: int  # 회차 번호 (1부터 시작)
     buy_price: Decimal  # 매수 가격
@@ -56,16 +108,39 @@ class BuyingRound(BaseModel):
     buy_volume: Decimal  # 매수 수량 (코인)
     timestamp: datetime  # 매수 시점
 
-    @computed_field
+    @field_serializer("buy_price", "buy_amount", "buy_volume")
+    def serialize_decimal(self, value: Decimal) -> float:
+        """Decimal을 float로 직렬화"""
+        return float(value)
+
+    @field_serializer("timestamp")
+    def serialize_datetime(self, dt: datetime) -> str:
+        """datetime을 ISO 형식으로 직렬화"""
+        return dt.isoformat()
+
+    @property
     def unit_cost(self) -> Decimal:
         """단위당 비용 (수수료 포함)"""
         if self.buy_volume == 0:
             return Decimal("0")
         return self.buy_amount / self.buy_volume
 
+    @classmethod
+    def from_cache_json(cls, json_str: str) -> "BuyingRound":
+        """캐시 JSON에서 모델 생성"""
+        return cls.model_validate_json(json_str)
+
+    def to_cache_json(self) -> str:
+        """캐시 저장용 JSON 문자열 반환"""
+        return self.model_dump_json()
+
 
 class InfiniteBuyingState(BaseModel):
     """무한매수법 현재 상태"""
+
+    model_config = ConfigDict(
+        validate_assignment=True, use_enum_values=True, arbitrary_types_allowed=True
+    )
 
     # 기본 상태
     market: str  # 거래 시장 (예: "KRW-BTC")
@@ -89,20 +164,34 @@ class InfiniteBuyingState(BaseModel):
     # 매수 히스토리
     buying_rounds: list[BuyingRound] = Field(default_factory=list)  # 매수 회차별 정보
 
-    @computed_field
+    @field_serializer(
+        "total_investment",
+        "total_volume",
+        "average_price",
+        "last_buy_price",
+        "target_sell_price",
+    )
+    def serialize_decimal(self, value: Decimal) -> float:
+        """Decimal을 float로 직렬화"""
+        return float(value)
+
+    @field_serializer("last_buy_time", "cycle_start_time")
+    def serialize_datetime(self, dt: datetime | None) -> str | None:
+        """datetime을 ISO 형식으로 직렬화"""
+        return dt.isoformat() if dt else None
+
+    @property
     def is_active(self) -> bool:
         """활성 상태 여부"""
         return self.phase != InfiniteBuyingPhase.INACTIVE
 
-    @computed_field
-    def current_profit_rate(self) -> Decimal:
-        """현재 수익률 (평균 단가 기준)"""
+    def calculate_current_profit_rate(self, current_price: Decimal) -> Decimal:
+        """현재 수익률 계산 (평균 단가 기준)"""
         if self.average_price == 0:
             return Decimal("0")
-        # 현재 가격은 별도로 전달받아야 함
-        return Decimal("0")  # 계산은 알고리즘에서 수행
+        return (current_price - self.average_price) / self.average_price
 
-    @computed_field
+    @property
     def max_loss_rate(self) -> Decimal:
         """최대 손실률 (첫 매수 가격 기준)"""
         if not self.buying_rounds or self.average_price == 0:
@@ -111,7 +200,9 @@ class InfiniteBuyingState(BaseModel):
         first_buy_price = self.buying_rounds[0].buy_price
         return (self.average_price - first_buy_price) / first_buy_price
 
-    def add_buying_round(self, buy_round: BuyingRound) -> None:
+    def add_buying_round(
+        self, buy_round: BuyingRound, config: InfiniteBuyingConfig
+    ) -> None:
         """매수 회차 추가 및 상태 업데이트"""
         self.buying_rounds.append(buy_round)
         self.current_round = buy_round.round_number
@@ -126,8 +217,49 @@ class InfiniteBuyingState(BaseModel):
         if self.total_volume > 0:
             self.average_price = self.total_investment / self.total_volume
 
-        # 목표 매도 가격 업데이트 (평균 단가 + 목표 수익률)
-        # 실제 계산은 설정값이 필요하므로 알고리즘에서 수행
+        # 목표 매도 가격 업데이트
+        self.target_sell_price = self.average_price * (1 + config.target_profit_rate)
+
+        # 단계 업데이트
+        if self.phase == InfiniteBuyingPhase.INITIAL_BUY:
+            self.phase = InfiniteBuyingPhase.ACCUMULATING
+
+    def can_buy_more(
+        self, config: InfiniteBuyingConfig, current_time: datetime
+    ) -> tuple[bool, str]:
+        """추가 매수 가능 여부 확인"""
+        if not self.is_active:
+            return False, "비활성 상태입니다"
+
+        if self.current_round >= config.max_buy_rounds:
+            return False, f"최대 매수 회차({config.max_buy_rounds})에 도달했습니다"
+
+        if self.last_buy_time:
+            time_diff = (current_time - self.last_buy_time).total_seconds() / 60
+            if time_diff < config.min_buy_interval_minutes:
+                return (
+                    False,
+                    f"최소 매수 간격({config.min_buy_interval_minutes}분)이 지나지 않았습니다",
+                )
+
+        return True, "추가 매수 가능"
+
+    def should_force_sell(
+        self, current_price: Decimal, config: InfiniteBuyingConfig
+    ) -> bool:
+        """강제 매도 여부 확인"""
+        if not self.is_active or self.average_price == 0:
+            return False
+
+        profit_rate = self.calculate_current_profit_rate(current_price)
+        return profit_rate <= config.force_stop_loss_rate
+
+    def should_take_profit(self, current_price: Decimal) -> bool:
+        """익절 여부 확인"""
+        if not self.is_active or self.target_sell_price == 0:
+            return False
+
+        return current_price >= self.target_sell_price
 
     def reset_cycle(self, market: str, cycle_id: str) -> None:
         """새로운 사이클로 초기화"""
@@ -162,9 +294,24 @@ class InfiniteBuyingState(BaseModel):
 
         return profit_rate
 
+    @classmethod
+    def from_cache_json(cls, json_str: str) -> "InfiniteBuyingState":
+        """캐시 JSON에서 모델 생성"""
+        return cls.model_validate_json(json_str)
+
+    def to_cache_json(self) -> str:
+        """캐시 저장용 JSON 문자열 반환"""
+        return self.model_dump_json(exclude_none=True)
+
+    def copy_with_updates(self, **kwargs: Any) -> "InfiniteBuyingState":
+        """업데이트된 복사본 생성"""
+        return self.model_copy(update=kwargs)
+
 
 class InfiniteBuyingResult(BaseModel):
     """무한매수법 실행 결과"""
+
+    model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
     success: bool  # 실행 성공 여부
     action_taken: "ActionTaken"  # 수행된 액션
@@ -178,3 +325,17 @@ class InfiniteBuyingResult(BaseModel):
     # 상태 정보
     current_state: InfiniteBuyingState | None = None
     profit_rate: Decimal | None = None
+
+    @field_serializer("trade_price", "trade_amount", "trade_volume", "profit_rate")
+    def serialize_decimal(self, value: Decimal | None) -> float | None:
+        """Decimal을 float로 직렬화"""
+        return float(value) if value is not None else None
+
+    @classmethod
+    def from_cache_json(cls, json_str: str) -> "InfiniteBuyingResult":
+        """캐시 JSON에서 모델 생성"""
+        return cls.model_validate_json(json_str)
+
+    def to_cache_json(self) -> str:
+        """캐시 저장용 JSON 문자열 반환"""
+        return self.model_dump_json(exclude_none=True)

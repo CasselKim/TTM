@@ -113,8 +113,7 @@ class TradeStatistics(BaseModel):
 
             # 평균 수익률 재계산
             total_cycles = updates["total_cycles"]
-            assert isinstance(total_cycles, int), "total_cycles must be int"
-            if total_cycles > 0:
+            if isinstance(total_cycles, int) and total_cycles > 0:
                 total_profit_rate = updates.get(
                     "total_profit_rate", self.total_profit_rate
                 )

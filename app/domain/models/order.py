@@ -8,10 +8,10 @@ from app.domain.enums import OrderSide, OrderType
 
 
 class OrderState(StrEnum):
-    대기 = "wait"
-    예약대기 = "watch"
-    완료 = "done"
-    취소 = "cancel"
+    WAIT = "wait"
+    WATCH = "watch"
+    DONE = "done"
+    CANCEL = "cancel"
 
 
 class Order(BaseModel):
@@ -52,17 +52,17 @@ class Order(BaseModel):
     @property
     def is_completed(self) -> bool:
         """주문 완료 여부"""
-        return self.state == OrderState.완료
+        return self.state == OrderState.DONE
 
     @property
     def is_cancelled(self) -> bool:
         """주문 취소 여부"""
-        return self.state == OrderState.취소
+        return self.state == OrderState.CANCEL
 
     @property
     def is_active(self) -> bool:
         """주문 활성 상태 여부"""
-        return self.state in [OrderState.대기, OrderState.예약대기]
+        return self.state in [OrderState.WAIT, OrderState.WATCH]
 
     @property
     def fill_rate(self) -> Decimal:
@@ -98,10 +98,10 @@ class Order(BaseModel):
         }
 
         state_mapping = {
-            "wait": OrderState.대기,
-            "watch": OrderState.예약대기,
-            "done": OrderState.완료,
-            "cancel": OrderState.취소,
+            "wait": OrderState.WAIT,
+            "watch": OrderState.WATCH,
+            "done": OrderState.DONE,
+            "cancel": OrderState.CANCEL,
         }
 
         return cls(

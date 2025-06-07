@@ -90,6 +90,129 @@ def _create_trade_confirmation_embed(
     return embed
 
 
+async def _execute_market_buy(
+    ctx: commands.Context[Any],
+    order_usecase: OrderUseCase,
+    market: MarketName,
+    amount_decimal: Decimal,
+) -> None:
+    """시장가 매수 실행"""
+    embed = _create_trade_confirmation_embed(
+        "매수", market, f"{amount_decimal:,.0f} KRW"
+    )
+    message = await ctx.send(embed=embed)
+    await message.add_reaction(DiscordConstants.EMOJI_CONFIRM)
+    await message.add_reaction(DiscordConstants.EMOJI_CANCEL)
+
+    def check(reaction: discord.Reaction, user: discord.User) -> bool:
+        return (
+            user == ctx.author
+            and str(reaction.emoji)
+            in [
+                DiscordConstants.EMOJI_CONFIRM,
+                DiscordConstants.EMOJI_CANCEL,
+            ]
+            and reaction.message.id == message.id
+        )
+
+    try:
+        reaction, _ = await ctx.bot.wait_for(
+            "reaction_add",
+            timeout=DiscordConstants.TRADE_CONFIRMATION_TIMEOUT_SECONDS,
+            check=check,
+        )
+
+        if str(reaction.emoji) == DiscordConstants.EMOJI_CONFIRM:
+            await ctx.send(
+                f"{DiscordConstants.EMOJI_PROCESSING} 시장가 매수 주문을 "
+                "실행중입니다..."
+            )
+            result = await order_usecase.buy_market(market, amount_decimal)
+
+            if not isinstance(result, OrderError):
+                await ctx.send(
+                    f"{DiscordConstants.EMOJI_SUCCESS} 시장가 매수 주문이 "
+                    f"성공적으로 실행되었습니다!\n주문 UUID: `{result.order_uuid}`"
+                )
+            else:
+                await ctx.send(
+                    f"{DiscordConstants.EMOJI_ERROR} 매수 주문 실패: "
+                    f"{result.error_message}"
+                )
+        else:
+            await ctx.send(
+                f"{DiscordConstants.EMOJI_CANCEL} 매수 주문이 취소되었습니다."
+            )
+
+    except Exception:
+        await ctx.send(
+            f"{DiscordConstants.EMOJI_TIMEOUT} 시간 초과로 매수 주문이 취소되었습니다."
+        )
+
+
+async def _execute_limit_buy(
+    ctx: commands.Context[Any],
+    order_usecase: OrderUseCase,
+    market: MarketName,
+    volume_decimal: Decimal,
+    price_decimal: Decimal,
+) -> None:
+    """지정가 매수 실행"""
+    embed = _create_trade_confirmation_embed(
+        "매수", market, str(volume_decimal), str(price_decimal)
+    )
+    message = await ctx.send(embed=embed)
+    await message.add_reaction(DiscordConstants.EMOJI_CONFIRM)
+    await message.add_reaction(DiscordConstants.EMOJI_CANCEL)
+
+    def check(reaction: discord.Reaction, user: discord.User) -> bool:
+        return (
+            user == ctx.author
+            and str(reaction.emoji)
+            in [
+                DiscordConstants.EMOJI_CONFIRM,
+                DiscordConstants.EMOJI_CANCEL,
+            ]
+            and reaction.message.id == message.id
+        )
+
+    try:
+        reaction, _ = await ctx.bot.wait_for(
+            "reaction_add",
+            timeout=DiscordConstants.TRADE_CONFIRMATION_TIMEOUT_SECONDS,
+            check=check,
+        )
+
+        if str(reaction.emoji) == DiscordConstants.EMOJI_CONFIRM:
+            await ctx.send(
+                f"{DiscordConstants.EMOJI_PROCESSING} 지정가 매수 주문을 "
+                "실행중입니다..."
+            )
+            limit_result = await order_usecase.buy_limit(
+                market, volume_decimal, price_decimal
+            )
+
+            if not isinstance(limit_result, OrderError):
+                await ctx.send(
+                    f"{DiscordConstants.EMOJI_SUCCESS} 지정가 매수 주문이 "
+                    f"성공적으로 실행되었습니다!\n주문 UUID: `{limit_result.order_uuid}`"
+                )
+            else:
+                await ctx.send(
+                    f"{DiscordConstants.EMOJI_ERROR} 매수 주문 실패: "
+                    f"{limit_result.error_message}"
+                )
+        else:
+            await ctx.send(
+                f"{DiscordConstants.EMOJI_CANCEL} 매수 주문이 취소되었습니다."
+            )
+
+    except Exception:
+        await ctx.send(
+            f"{DiscordConstants.EMOJI_TIMEOUT} 시간 초과로 매수 주문이 취소되었습니다."
+        )
+
+
 def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
     """매수 커맨드들 생성"""
 
@@ -128,7 +251,8 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
                 # 금액 제한 확인
                 if amount_decimal > DiscordConstants.MAX_TRADE_AMOUNT_KRW:
                     await ctx.send(
-                        f"{DiscordConstants.EMOJI_ERROR} 최대 거래 금액은 {DiscordConstants.MAX_TRADE_AMOUNT_KRW:,}원입니다."
+                        f"{DiscordConstants.EMOJI_ERROR} 최대 거래 금액은 "
+                        f"{DiscordConstants.MAX_TRADE_AMOUNT_KRW:,}원입니다."
                     )
                     return
 
@@ -174,12 +298,14 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
                             )
                     else:
                         await ctx.send(
-                            f"{DiscordConstants.EMOJI_CANCEL} 매수 주문이 취소되었습니다."
+                            f"{DiscordConstants.EMOJI_CANCEL} 매수 주문이 "
+                            "취소되었습니다."
                         )
 
                 except Exception:
                     await ctx.send(
-                        f"{DiscordConstants.EMOJI_TIMEOUT} 시간 초과로 매수 주문이 취소되었습니다."
+                        f"{DiscordConstants.EMOJI_TIMEOUT} 시간 초과로 매수 주문이 "
+                        "취소되었습니다."
                     )
 
             else:
@@ -193,7 +319,8 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
                     and volume_decimal > DiscordConstants.MAX_TRADE_VOLUME_BTC
                 ):
                     await ctx.send(
-                        f"{DiscordConstants.EMOJI_ERROR} 최대 BTC 거래량은 {DiscordConstants.MAX_TRADE_VOLUME_BTC}개입니다."
+                        f"{DiscordConstants.EMOJI_ERROR} 최대 BTC 거래량은 "
+                        f"{DiscordConstants.MAX_TRADE_VOLUME_BTC}개입니다."
                     )
                     return
 
@@ -201,7 +328,8 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
                 total_amount = volume_decimal * price_decimal
                 if total_amount > DiscordConstants.MAX_TRADE_AMOUNT_KRW:
                     await ctx.send(
-                        f"{DiscordConstants.EMOJI_ERROR} 총 거래 금액이 최대 한도({DiscordConstants.MAX_TRADE_AMOUNT_KRW:,}원)를 초과합니다."
+                        f"{DiscordConstants.EMOJI_ERROR} 총 거래 금액이 최대 한도"
+                        f"({DiscordConstants.MAX_TRADE_AMOUNT_KRW:,}원)를 초과합니다."
                     )
                     return
 
@@ -233,7 +361,8 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
 
                     if str(reaction.emoji) == DiscordConstants.EMOJI_CONFIRM:
                         await ctx.send(
-                            f"{DiscordConstants.EMOJI_PROCESSING} 지정가 매수 주문을 실행중입니다..."
+                            f"{DiscordConstants.EMOJI_PROCESSING} 지정가 매수 주문을 "
+                            "실행중입니다..."
                         )
                         limit_result = await order_usecase.buy_limit(
                             market, volume_decimal, price_decimal
@@ -285,7 +414,8 @@ def _create_buy_commands(order_usecase: OrderUseCase) -> list[Any]:
         # 관리자 권한 확인
         if not _is_admin(ctx.author.id):
             await ctx.send(
-                f"{DiscordConstants.EMOJI_ERROR} 거래 명령은 관리자만 사용할 수 있습니다."
+                f"{DiscordConstants.EMOJI_ERROR} 거래 명령은 관리자만 "
+                "사용할 수 있습니다."
             )
             return
 
@@ -699,7 +829,8 @@ def _create_infinite_buying_commands(
         # 관리자 권한 확인
         if not _is_admin(ctx.author.id):
             await ctx.send(
-                f"{DiscordConstants.EMOJI_ERROR} 무한매수법은 관리자만 사용할 수 있습니다."
+                f"{DiscordConstants.EMOJI_ERROR} 무한매수법은 관리자만 "
+                "사용할 수 있습니다."
             )
             return
 

@@ -34,7 +34,7 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
             ]
             return Account(balances=balances)
         except Exception as e:
-            logger.error(f"Failed to get account balance: {e!s}")
+            logger.exception(f"Failed to get account balance: {e!s}")
             raise UpbitAPIException(f"Failed to get account balance: {e!s}")
 
     # TickerRepository 구현
@@ -48,7 +48,7 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
             ticker_data = response[0]  # 단일 종목이므로 첫 번째 요소
             return Ticker.from_upbit_api(ticker_data)
         except Exception as e:
-            logger.error(f"Failed to get ticker for {market}: {e!s}")
+            logger.exception(f"Failed to get ticker for {market}: {e!s}")
             raise UpbitAPIException(f"Failed to get ticker for {market}: {e!s}")
 
     async def get_tickers(self, markets: list[str]) -> list[Ticker]:
@@ -59,7 +59,7 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
 
             return [Ticker.from_upbit_api(ticker_data) for ticker_data in response]
         except Exception as e:
-            logger.error(f"Failed to get tickers for {markets}: {e!s}")
+            logger.exception(f"Failed to get tickers for {markets}: {e!s}")
             raise UpbitAPIException(f"Failed to get tickers for {markets}: {e!s}")
 
     # OrderRepository 구현
@@ -81,7 +81,7 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
             return OrderResult(success=True, order=order)
 
         except Exception as e:
-            logger.error(f"Failed to place order: {e!s}")
+            logger.exception(f"Failed to place order: {e!s}")
             return OrderResult(success=False, error_message=str(e))
 
     async def get_order(self, uuid: str) -> Order:
@@ -90,7 +90,7 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
             response = self.client.get_order(uuid)
             return Order.from_upbit_api(response)
         except Exception as e:
-            logger.error(f"Failed to get order {uuid}: {e!s}")
+            logger.exception(f"Failed to get order {uuid}: {e!s}")
             raise UpbitAPIException(f"Failed to get order {uuid}: {e!s}")
 
     async def cancel_order(self, uuid: str) -> OrderResult:
@@ -100,5 +100,5 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
             order = Order.from_upbit_api(response)
             return OrderResult(success=True, order=order)
         except Exception as e:
-            logger.error(f"Failed to cancel order {uuid}: {e!s}")
+            logger.exception(f"Failed to cancel order {uuid}: {e!s}")
             return OrderResult(success=False, error_message=str(e))

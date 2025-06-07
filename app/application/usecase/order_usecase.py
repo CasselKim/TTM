@@ -65,8 +65,8 @@ class OrderUseCase:
                 fee=float(fee),
                 executed_at=datetime.now(),
             )
-        except Exception as e:
-            logger.error(f"Failed to send Discord notification: {e}")
+        except Exception:
+            logger.exception("Failed to send Discord notification")
             # Discord 알림 실패는 거래에 영향을 주지 않음
 
     async def buy_limit(
@@ -84,7 +84,8 @@ class OrderUseCase:
         """
         try:
             logger.info(
-                f"Executing limit buy - market: {market}, volume: {volume}, price: {price}"
+                f"Executing limit buy - market: {market}, volume: {volume}, "
+                f"price: {price}"
             )
 
             order_request = OrderRequest(
@@ -119,7 +120,7 @@ class OrderUseCase:
                 )
 
         except Exception as e:
-            logger.error(f"Failed to execute limit buy: {e!s}")
+            logger.exception("Failed to execute limit buy")
             return OrderError(success=False, error_message=str(e))
 
     async def buy_market(
@@ -166,7 +167,7 @@ class OrderUseCase:
                 )
 
         except Exception as e:
-            logger.error(f"Failed to execute market buy: {e!s}")
+            logger.exception("Failed to execute market buy")
             return OrderError(success=False, error_message=str(e))
 
     async def sell_limit(
@@ -184,7 +185,8 @@ class OrderUseCase:
         """
         try:
             logger.info(
-                f"Executing limit sell - market: {market}, volume: {volume}, price: {price}"
+                f"Executing limit sell - market: {market}, volume: {volume}, "
+                f"price: {price}"
             )
 
             order_request = OrderRequest(
@@ -219,7 +221,7 @@ class OrderUseCase:
                 )
 
         except Exception as e:
-            logger.error(f"Failed to execute limit sell: {e!s}")
+            logger.exception("Failed to execute limit sell")
             return OrderError(success=False, error_message=str(e))
 
     async def sell_market(
@@ -266,7 +268,7 @@ class OrderUseCase:
                 )
 
         except Exception as e:
-            logger.error(f"Failed to execute market sell: {e!s}")
+            logger.exception("Failed to execute market sell")
             return OrderError(success=False, error_message=str(e))
 
     async def get_order(self, uuid: str) -> dict[str, Any] | OrderError:
@@ -298,7 +300,7 @@ class OrderUseCase:
             }
 
         except Exception as e:
-            logger.error(f"Failed to get order {uuid}: {e!s}")
+            logger.exception(f"Failed to get order {uuid}")
             return OrderError(success=False, error_message=str(e))
 
     async def cancel_order(self, uuid: str) -> dict[str, Any] | OrderError:
@@ -332,7 +334,7 @@ class OrderUseCase:
                 )
 
         except Exception as e:
-            logger.error(f"Failed to cancel order {uuid}: {e!s}")
+            logger.exception(f"Failed to cancel order {uuid}")
             return OrderError(success=False, error_message=str(e))
 
     async def _send_order_cancel_notification(self, order: Any) -> None:
@@ -355,5 +357,5 @@ class OrderUseCase:
                     ("주문 상태", order.state.value, True),
                 ],
             )
-        except Exception as e:
-            logger.error(f"Failed to send order cancel notification: {e}")
+        except Exception:
+            logger.exception("Failed to send order cancel notification")

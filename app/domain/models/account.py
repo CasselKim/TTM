@@ -5,6 +5,11 @@ from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, field_serializer
 
+from app.domain.exceptions import (
+    InsufficientLockAmountError,
+    InsufficientUnlockAmountError,
+)
+
 
 class Currency(StrEnum):
     KRW = "KRW"
@@ -44,18 +49,14 @@ class Balance(BaseModel):
     def lock_amount(self, amount: Decimal) -> Self:
         """금액을 잠금 처리한 새로운 Balance 객체 반환"""
         if amount > self.available_balance:
-            raise ValueError(
-                f"잠금 금액({amount})이 사용 가능 잔액({self.available_balance})보다 큽니다"
-            )
+            raise InsufficientLockAmountError(str(amount), str(self.available_balance))
 
         return self.model_copy(update={"locked": self.locked + amount})
 
     def unlock_amount(self, amount: Decimal) -> Self:
         """금액을 잠금 해제한 새로운 Balance 객체 반환"""
         if amount > self.locked:
-            raise ValueError(
-                f"해제 금액({amount})이 잠긴 금액({self.locked})보다 큽니다"
-            )
+            raise InsufficientUnlockAmountError(str(amount), str(self.locked))
 
         return self.model_copy(update={"locked": self.locked - amount})
 

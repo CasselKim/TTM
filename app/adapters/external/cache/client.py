@@ -47,15 +47,16 @@ class CacheClient:
 
                 self._client = await GlideClusterClient.create(cluster_config)
                 logger.info(
-                    f"Cache 서버에 연결되었습니다: {self._config.host}:{self._config.port}"
+                    f"Cache 서버에 연결되었습니다: "
+                    f"{self._config.host}:{self._config.port}"
                 )
             except (
                 GlideTimeoutError,
                 RequestError,
                 GlideConnectionError,
                 ClosingError,
-            ) as e:
-                logger.error(f"Cache 연결 실패: {e}")
+            ):
+                logger.exception("Cache 연결 실패")
                 raise
 
         return self._client
@@ -74,7 +75,7 @@ class CacheClient:
             GlideConnectionError,
             ClosingError,
         ) as e:
-            logger.error(f"캐시 조회 실패 - key: {key}, error: {e}")
+            logger.exception(f"캐시 조회 실패 - key: {key}, error: {e}")
             return None
 
     async def set(
@@ -92,7 +93,7 @@ class CacheClient:
             GlideConnectionError,
             ClosingError,
         ) as e:
-            logger.error(f"캐시 저장 실패 - key: {key}, error: {e}")
+            logger.exception(f"캐시 저장 실패 - key: {key}, error: {e}")
             return False
         else:
             return True
@@ -108,7 +109,7 @@ class CacheClient:
             GlideConnectionError,
             ClosingError,
         ) as e:
-            logger.error(f"캐시 삭제 실패 - key: {key}, error: {e}")
+            logger.exception(f"캐시 삭제 실패 - key: {key}, error: {e}")
             return False
         else:
             return True
@@ -124,7 +125,7 @@ class CacheClient:
             GlideConnectionError,
             ClosingError,
         ) as e:
-            logger.error(f"캐시 만료 설정 실패 - key: {key}, error: {e}")
+            logger.exception(f"캐시 만료 설정 실패 - key: {key}, error: {e}")
             return False
         else:
             return True
@@ -141,7 +142,7 @@ class CacheClient:
             GlideConnectionError,
             ClosingError,
         ) as e:
-            logger.error(f"캐시 키 스캔 실패 - pattern: {pattern}, error: {e}")
+            logger.exception(f"캐시 키 스캔 실패 - pattern: {pattern}, error: {e}")
             return []
         else:
             return keys
@@ -154,4 +155,4 @@ class CacheClient:
                 self._client = None
                 logger.info("Cache 클라이언트 연결 종료")
             except Exception as e:
-                logger.error(f"Cache 클라이언트 종료 실패: {e}")
+                logger.exception(f"Cache 클라이언트 종료 실패: {e}")

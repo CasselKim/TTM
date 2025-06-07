@@ -18,6 +18,13 @@ from pydantic import (
     model_validator,
 )
 
+from app.domain.exceptions import (
+    ForceStopLossError,
+    MaxInvestmentRatioError,
+    PriceDropThresholdError,
+    ProfitRateError,
+)
+
 if TYPE_CHECKING:
     from app.domain.types import ActionTaken
 
@@ -72,13 +79,13 @@ class InfiniteBuyingConfig(BaseModel):
     def validate_config(self) -> Self:
         """설정값 검증"""
         if self.target_profit_rate <= 0:
-            raise ValueError("목표 수익률은 0보다 커야 합니다")
+            raise ProfitRateError()
         if self.price_drop_threshold >= 0:
-            raise ValueError("추가 매수 트리거는 음수여야 합니다")
+            raise PriceDropThresholdError()
         if self.force_stop_loss_rate >= 0:
-            raise ValueError("강제 손절률은 음수여야 합니다")
+            raise ForceStopLossError()
         if self.max_investment_ratio <= 0 or self.max_investment_ratio > 1:
-            raise ValueError("최대 투자 비율은 0과 1 사이여야 합니다")
+            raise MaxInvestmentRatioError()
         return self
 
     @classmethod
@@ -239,7 +246,8 @@ class InfiniteBuyingState(BaseModel):
             if time_diff < config.min_buy_interval_minutes:
                 return (
                     False,
-                    f"최소 매수 간격({config.min_buy_interval_minutes}분)이 지나지 않았습니다",
+                    f"최소 매수 간격({config.min_buy_interval_minutes}분)이 "
+                    "지나지 않았습니다",
                 )
 
         return True, "추가 매수 가능"

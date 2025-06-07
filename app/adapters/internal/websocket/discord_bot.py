@@ -727,30 +727,89 @@ def _create_balance_command(account_usecase: AccountUseCase) -> Any:
             result = await account_usecase.get_balance()
 
             if result.balances:
-                message = "💰 **계좌 잔고**\n"
+                # 잔액이 있는 통화만 필터링
+                non_zero_balances = [
+                    balance
+                    for balance in result.balances
+                    if float(balance.balance) > 0 or float(balance.locked) > 0
+                ]
 
-                for balance in result.balances:
-                    balance_val = float(balance.balance)
-                    locked_val = float(balance.locked)
+                if not non_zero_balances:
+                    await ctx.send("💰 **계좌 잔고**\n\n보유 중인 자산이 없습니다.")
+                    return
 
-                    if balance_val > 0 or locked_val > 0:
+                # KRW를 맨 위로, 나머지는 통화명 순으로 정렬
+                def sort_key(balance: Any) -> tuple[int, str]:
+                    currency = balance.currency
+                    if currency == "KRW":
+                        return (0, currency)  # KRW가 가장 위로
+                    else:
+                        return (1, currency)  # 나머지는 알파벳 순
+
+                sorted_balances = sorted(non_zero_balances, key=sort_key)
+
+                # 메시지 시작
+                message = "💰 **계좌 잔고**\n\n"
+
+                # KRW 섹션
+                krw_balances = [b for b in sorted_balances if b.currency == "KRW"]
+                crypto_balances = [b for b in sorted_balances if b.currency != "KRW"]
+
+                if krw_balances:
+                    message += "```\n"
+                    message += "💵 KRW (원화)\n"
+                    message += "─" * 50 + "\n"
+                    message += f"{'항목':<12} {'금액':<20}\n"
+                    message += "─" * 50 + "\n"
+
+                    for balance in krw_balances:
+                        balance_val = float(balance.balance)
+                        locked_val = float(balance.locked)
+                        total = balance_val + locked_val
+
+                        message += f"{'사용가능':<12} {balance_val:>18,.0f} 원\n"
+                        if locked_val > 0:
+                            message += f"{'거래중':<12} {locked_val:>18,.0f} 원\n"
+                        message += f"{'총 보유':<12} {total:>18,.0f} 원\n"
+
+                    message += "```\n"
+
+                # 암호화폐 섹션
+                if crypto_balances:
+                    if krw_balances:  # KRW가 있으면 구분선 추가
+                        message += "\n" + "━" * 50 + "\n\n"
+
+                    message += "```\n"
+                    message += "🪙 암호화폐\n"
+                    message += "─" * 70 + "\n"
+                    message += f"{'통화':<8} {'사용가능':<15} {'거래중':<15} {'총 보유':<15} {'평균단가':<12}\n"
+                    message += "─" * 70 + "\n"
+
+                    for balance in crypto_balances:
+                        balance_val = float(balance.balance)
+                        locked_val = float(balance.locked)
                         total = balance_val + locked_val
                         currency = balance.currency
+                        avg_buy_price = float(balance.avg_buy_price)
 
-                        message += f"\n**{currency}**\n"
-                        message += f"  • 사용 가능: {_format_currency_amount(balance_val, currency)}\n"
-                        message += f"  • 거래 중: {_format_currency_amount(locked_val, currency)}\n"
-                        message += (
-                            f"  • 총 보유: {_format_currency_amount(total, currency)}\n"
+                        # 수량 포맷팅 (소수점 정리)
+                        balance_str = _format_currency_amount(balance_val, currency)
+                        locked_str = _format_currency_amount(locked_val, currency)
+                        total_str = _format_currency_amount(total, currency)
+
+                        # 평균매수가 표시 (0보다 큰 경우만)
+                        avg_price_str = (
+                            f"{avg_buy_price:,.0f}" if avg_buy_price > 0 else "-"
                         )
 
-                        avg_buy_price = float(balance.avg_buy_price)
-                        if avg_buy_price > 0:
-                            message += f"  • 평균 매수가: {_format_currency_amount(avg_buy_price, 'KRW')} KRW\n"
+                        message += f"{currency:<8} {balance_str:<15} {locked_str:<15} {total_str:<15} {avg_price_str:<12}\n"
 
-                message += (
-                    f"\n💵 **총 평가 금액**: {float(result.total_balance_krw):,.0f} KRW"
-                )
+                    message += "```\n"
+
+                # 총 평가 금액
+                total_krw = float(result.total_balance_krw)
+                message += f"\n💎 **총 평가 금액**: {total_krw:,.0f} KRW"
+
                 await ctx.send(message)
             else:
                 await ctx.send("❌ 계좌 정보를 가져올 수 없습니다.")

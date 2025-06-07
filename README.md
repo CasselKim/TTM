@@ -1,5 +1,50 @@
-# TTM(To the Moon)
-Auto trade and manage stocks/coins platform
+# TTM Trading Application
+
+> 업비트 API를 활용한 자동 거래 시스템
+
+## 주요 기능
+
+### 무한매수법 (Infinite Buying Strategy)
+- 분할 매수를 통한 평균 단가 하락 전략
+- 목표 수익률 달성 시 자동 익절
+- **실시간 수익률 조회 기능 추가** ✨
+
+#### 수익률 조회 기능
+무한매수법 조회 시 다음 정보를 실시간으로 확인할 수 있습니다:
+- **현재가**: 실시간 시장 가격
+- **현재 수익률**: 평균 매수가 대비 수익률 (%)
+- **현재 평가금액**: 보유수량 × 현재가
+- **수익/손실 금액**: 현재평가금액 - 총투자금액
+
+```python
+# 예시: 무한매수법 상태 조회
+market_status = await infinite_buying_usecase.get_infinite_buying_market_status("KRW-BTC")
+
+print(f"시장: {market_status.market}")
+print(f"총 투자금액: {market_status.total_investment:,.0f}원")
+print(f"평균 매수가: {market_status.average_price:,.0f}원")
+print(f"현재가: {market_status.current_price:,.0f}원")
+print(f"현재 수익률: {market_status.current_profit_rate:.2%}")
+print(f"현재 평가금액: {market_status.current_value:,.0f}원")
+print(f"수익/손실: {market_status.profit_loss_amount:,.0f}원")
+```
+
+### 기술 스택
+- Python 3.11+
+- FastAPI
+- PostgreSQL
+- Redis
+- Docker
+
+### 개발 가이드라인
+- 타입 힌트 필수 (mypy --strict)
+- 코드 포맷팅: ruff
+- 테스트 커버리지 유지
+- 도메인 주도 설계 (DDD) 적용
+
+---
+
+© 2024 TTM Trading Application
 
 ## Requirements
 - python 12.0

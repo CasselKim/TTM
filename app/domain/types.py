@@ -254,6 +254,15 @@ class InfiniteBuyingMarketStatus(BaseModel):
     last_buy_price: Decimal
     last_buy_time: datetime | None
     cycle_start_time: datetime | None
+
+    # 실시간 수익률 정보 추가
+    current_price: Decimal | None = None  # 현재가
+    current_profit_rate: Decimal | None = None  # 현재 수익률 (%)
+    current_value: Decimal | None = None  # 현재 평가금액 (보유수량 × 현재가)
+    profit_loss_amount: Decimal | None = (
+        None  # 수익/손실 금액 (현재평가금액 - 총투자금액)
+    )
+
     buying_rounds: list[BuyingRoundInfo]
     statistics: TradeStatistics | None
     recent_history: list[CycleHistoryItem]
@@ -264,10 +273,14 @@ class InfiniteBuyingMarketStatus(BaseModel):
         "average_price",
         "target_sell_price",
         "last_buy_price",
+        "current_price",
+        "current_profit_rate",
+        "current_value",
+        "profit_loss_amount",
     )
-    def serialize_decimal(self, value: Decimal) -> float:
+    def serialize_decimal(self, value: Decimal | None) -> float | None:
         """Decimal을 float로 직렬화"""
-        return float(value)
+        return float(value) if value is not None else None
 
     @field_serializer("last_buy_time", "cycle_start_time")
     def serialize_datetime(self, dt: datetime | None) -> str | None:

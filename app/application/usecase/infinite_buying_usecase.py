@@ -261,6 +261,33 @@ class InfiniteBuyingUsecase:
             market, limit=5
         )
 
+        # 현재가 조회 및 수익률 계산 (활성 상태인 경우만)
+        current_price = None
+        current_profit_rate = None
+        current_value = None
+        profit_loss_amount = None
+
+        if redis_state.is_active:
+            try:
+                # 현재가 조회
+                ticker = await self.ticker_repository.get_ticker(market)
+                current_price = ticker.trade_price
+
+                # 수익률 계산
+                if redis_state.average_price > 0:
+                    current_profit_rate = redis_state.calculate_current_profit_rate(
+                        current_price
+                    )
+
+                # 현재 평가금액 계산 (보유수량 × 현재가)
+                if redis_state.total_volume > 0:
+                    current_value = redis_state.total_volume * current_price
+                    profit_loss_amount = current_value - redis_state.total_investment
+
+            except Exception as e:
+                self.logger.warning(f"현재가 조회 실패: {market}, 오류: {e}")
+                # 현재가 조회 실패 시에도 나머지 정보는 정상 반환
+
         # 매수 회차 정보 변환
         buying_rounds = []
         for r in redis_state.buying_rounds:
@@ -289,6 +316,10 @@ class InfiniteBuyingUsecase:
             last_buy_price=redis_state.last_buy_price,
             last_buy_time=redis_state.last_buy_time,
             cycle_start_time=redis_state.cycle_start_time,
+            current_price=current_price,
+            current_profit_rate=current_profit_rate,
+            current_value=current_value,
+            profit_loss_amount=profit_loss_amount,
             buying_rounds=buying_rounds,
             statistics=statistics,
             recent_history=recent_history,

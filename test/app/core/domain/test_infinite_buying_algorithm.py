@@ -714,3 +714,53 @@ class TestInfiniteBuyingIntegration:
         assert result_3.profit_rate is not None
         assert result_3.profit_rate > Decimal("0")  # 수익 발생
         assert algorithm.state.phase == InfiniteBuyingPhase.INACTIVE
+
+    @pytest.mark.asyncio
+    async def test_profit_rate_calculation_with_current_price(self):
+        """현재가 기준 수익률 계산 테스트"""
+        # 무한매수법 상태 설정
+        state = InfiniteBuyingState(market="KRW-BTC")
+        state.phase = InfiniteBuyingPhase.ACCUMULATING
+        state.total_investment = Decimal("250000")  # 총 투자금액 25만원
+        state.total_volume = Decimal("0.005")  # 총 보유수량 0.005 BTC
+        state.average_price = Decimal("50000000")  # 평균단가 5천만원
+
+        # 현재가별 수익률 테스트
+        # 1. 10% 상승한 경우
+        current_price_up = Decimal("55000000")
+        profit_rate_up = state.calculate_current_profit_rate(current_price_up)
+        assert profit_rate_up == Decimal("0.10")  # 10% 수익
+
+        current_value_up = state.total_volume * current_price_up  # 275,000원
+        profit_amount_up = current_value_up - state.total_investment  # 25,000원 수익
+        assert current_value_up == Decimal("275000")
+        assert profit_amount_up == Decimal("25000")
+
+        # 2. 5% 하락한 경우
+        current_price_down = Decimal("47500000")
+        profit_rate_down = state.calculate_current_profit_rate(current_price_down)
+        assert profit_rate_down == Decimal("-0.05")  # 5% 손실
+
+        current_value_down = state.total_volume * current_price_down  # 237,500원
+        loss_amount_down = current_value_down - state.total_investment  # -12,500원 손실
+        assert current_value_down == Decimal("237500")
+        assert loss_amount_down == Decimal("-12500")
+
+        # 3. 변화 없는 경우
+        current_price_same = Decimal("50000000")
+        profit_rate_same = state.calculate_current_profit_rate(current_price_same)
+        assert profit_rate_same == Decimal("0")  # 손익 없음
+
+    def test_profit_rate_calculation_edge_cases(self):
+        """수익률 계산 경계 조건 테스트"""
+        state = InfiniteBuyingState(market="KRW-BTC")
+
+        # 평균단가가 0인 경우 (매수 전)
+        profit_rate = state.calculate_current_profit_rate(Decimal("50000000"))
+        assert profit_rate == Decimal("0")
+
+        # 보유수량이 0인 경우
+        state.average_price = Decimal("50000000")
+        state.total_volume = Decimal("0")
+        current_value = state.total_volume * Decimal("55000000")
+        assert current_value == Decimal("0")

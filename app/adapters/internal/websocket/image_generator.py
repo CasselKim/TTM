@@ -69,17 +69,13 @@ def _draw_section_header(
     text_color: tuple[int, int, int],
     font: Any,
 ) -> None:
-    """섹션 헤더를 색상 박스와 함께 그리기"""
-    # 색상 박스 그리기 (작은 사각형)
-    box_size = 12
-    draw.rectangle([(x, y + 2), (x + box_size, y + box_size + 2)], fill=icon_color)
-
-    # 텍스트를 박스 옆에 그리기
-    draw.text((x + box_size + 8, y), text, fill=text_color, font=font)
+    """섹션 헤더를 그립니다 (색상 박스 제거)"""
+    # 단순히 텍스트만 그리기 (색상 박스 제거)
+    draw.text((x, y), text, fill=text_color, font=font)
 
 
 def _format_korean_amount(amount: float) -> str:
-    """큰 숫자를 한국식 단위(만, 억)로 간단하게 표시"""
+    """큰 숫자를 한국식 단위(만, 억)로 표시"""
     if amount >= 100_000_000:  # 1억 이상
         return f"{amount / 100_000_000:.1f}억".replace(".0억", "억")
     elif amount >= 10_000:  # 1만 이상
@@ -93,9 +89,7 @@ def _format_currency_amount(amount: float, currency: str) -> str:
     if currency == "KRW":
         return _format_korean_amount(amount)
     else:
-        # 암호화폐는 8자리 소수점까지 표시하되, 불필요한 0 제거
         formatted = f"{amount:.8f}".rstrip("0").rstrip(".")
-        # 천 단위 구분자 추가 (정수 부분에만)
         parts = formatted.split(".")
         if len(parts) == 2:
             integer_part = f"{int(parts[0]):,}"
@@ -122,12 +116,12 @@ def create_balance_image(
         base_height + len(crypto_data) * row_height + 200
     )  # 요약 섹션 + 하단 여백 증가
 
-    # 색상 정의
+    # 색상 정의 (색상 최소화)
     bg_color = (54, 57, 63)  # Discord 다크 배경색
     text_color = (255, 255, 255)  # 흰색 텍스트
-    header_color = (88, 101, 242)  # Discord 브랜드 색상
-    green_color = (87, 242, 135)  # 수익 색상
-    red_color = (237, 66, 69)  # 손실 색상
+    header_color = (220, 220, 220)  # 연한 회색 (헤더용)
+    green_color = (87, 242, 135)  # 수익 색상 (수익률용만)
+    red_color = (237, 66, 69)  # 손실 색상 (수익률용만)
     gray_color = (153, 170, 181)  # 중성 색상
 
     # 이미지 생성
@@ -143,13 +137,11 @@ def create_balance_image(
     y = 20
 
     # 제목
-    _draw_section_header(
-        draw, 20, y, "계좌 잔고", (255, 215, 0), text_color, title_font
-    )
+    _draw_section_header(draw, 20, y, "계좌 잔고", gray_color, text_color, title_font)
     y += 50
 
     # KRW 섹션
-    _draw_section_header(draw, 20, y, "원화", (34, 139, 34), header_color, header_font)
+    _draw_section_header(draw, 20, y, "원화", gray_color, header_color, header_font)
     y += 30
     draw.text(
         (40, y),
@@ -162,7 +154,7 @@ def create_balance_image(
     # 암호화폐 섹션
     if crypto_data:
         _draw_section_header(
-            draw, 20, y, "암호화폐", (255, 165, 0), header_color, header_font
+            draw, 20, y, "암호화폐", gray_color, header_color, header_font
         )
         y += 30
 
@@ -192,7 +184,7 @@ def create_balance_image(
             current_value = _format_korean_amount(crypto["current_value"])
             avg_price = _format_korean_amount(crypto["avg_buy_price"])
 
-            # 수익률 색상 결정
+            # 수익률 색상 결정 (오직 수익률에만 색상 적용)
             profit_rate = crypto["profit_rate"]
             if profit_rate > 0:
                 profit_color = green_color
@@ -204,7 +196,7 @@ def create_balance_image(
                 profit_color = gray_color
                 profit_text = "0.00%"
 
-            # 손익 금액
+            # 손익 금액 (오직 손익 금액에만 색상 적용)
             profit_loss = crypto["profit_loss"]
             if profit_loss > 0:
                 loss_color = green_color
@@ -216,7 +208,7 @@ def create_balance_image(
                 loss_color = gray_color
                 loss_text = "±0"
 
-            # 데이터 행 그리기
+            # 데이터 행 그리기 (기본 데이터는 흰색)
             data = [currency, volume, current_price, current_value, avg_price]
 
             for i, value in enumerate(data):
@@ -246,7 +238,7 @@ def create_balance_image(
     # 요약 섹션
     y += 30
     _draw_section_header(
-        draw, 20, y, "포트폴리오 요약", (138, 43, 226), header_color, header_font
+        draw, 20, y, "포트폴리오 요약", gray_color, header_color, header_font
     )
     y += 30
 
@@ -268,7 +260,7 @@ def create_balance_image(
     )
     y += 25
 
-    # 총 수익률
+    # 총 수익률 (오직 수익률에만 색상 적용)
     if total_profit_rate > 0:
         total_color = green_color
         total_text = f"총 수익률: +{total_profit_rate:.2f}% (+{_format_korean_amount(total_profit_loss)}원)"
@@ -301,12 +293,12 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
     width = 800
     height = 450
 
-    # 색상 정의
+    # 색상 정의 (색상 최소화)
     bg_color = (54, 57, 63)  # Discord 다크 배경색
     text_color = (255, 255, 255)  # 흰색 텍스트
-    header_color = (88, 101, 242)  # Discord 브랜드 색상
-    green_color = (87, 242, 135)  # 수익 색상
-    red_color = (237, 66, 69)  # 손실 색상
+    header_color = (220, 220, 220)  # 연한 회색 (헤더용)
+    green_color = (87, 242, 135)  # 수익 색상 (수익률용만)
+    red_color = (237, 66, 69)  # 손실 색상 (수익률용만)
     gray_color = (153, 170, 181)  # 중성 색상
 
     # 이미지 생성
@@ -324,13 +316,13 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
     # 제목
     market = getattr(market_status, "market", "N/A")
     _draw_section_header(
-        draw, 20, y, f"{market} 무한매수법 상태", (75, 181, 67), text_color, title_font
+        draw, 20, y, f"{market} 무한매수법 상태", gray_color, text_color, title_font
     )
     y += 50
 
     # 기본 정보 섹션
     _draw_section_header(
-        draw, 20, y, "기본 정보", (255, 165, 0), header_color, header_font
+        draw, 20, y, "기본 정보", gray_color, header_color, header_font
     )
     y += 30
 
@@ -350,7 +342,7 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
 
     # 투자 정보 섹션
     _draw_section_header(
-        draw, 20, y, "투자 정보", (138, 43, 226), header_color, header_font
+        draw, 20, y, "투자 정보", gray_color, header_color, header_font
     )
     y += 30
 
@@ -387,7 +379,7 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
 
     if current_price and current_profit_rate is not None:
         _draw_section_header(
-            draw, 20, y, "현재 수익 정보", (0, 162, 255), header_color, header_font
+            draw, 20, y, "현재 수익 정보", gray_color, header_color, header_font
         )
         y += 30
 
@@ -399,7 +391,7 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
         )
         y += 20
 
-        # 수익률 색상 결정
+        # 수익률 색상 결정 (오직 수익률에만 색상 적용)
         profit_rate_percent = float(current_profit_rate) * 100
         if profit_rate_percent > 0:
             profit_color = green_color
@@ -414,7 +406,7 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
         draw.text((40, y), profit_text, fill=profit_color, font=normal_font)
         y += 20
 
-        # 손익 금액
+        # 손익 금액 (오직 손익 금액에만 색상 적용)
         if profit_loss_amount is not None:
             profit_loss = float(profit_loss_amount)
             if profit_loss > 0:

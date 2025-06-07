@@ -2,7 +2,7 @@
 
 import os
 from decimal import Decimal
-from typing import Any
+from typing import Any, TypedDict
 
 import discord
 from discord.ext import commands
@@ -18,6 +18,20 @@ from app.domain.types import (
     InfiniteBuyingStatus,
     MarketName,
 )
+
+
+class CryptoData(TypedDict):
+    """암호화폐 데이터 타입"""
+
+    currency: str
+    volume: float
+    current_price: float
+    current_value: float
+    avg_buy_price: float
+    investment_amount: float
+    profit_rate: float
+    profit_loss: float
+
 
 # 관리자 사용자 ID (환경 변수에서 가져옴)
 ADMIN_USER_IDS = set()
@@ -697,11 +711,21 @@ def _create_order_commands(order_usecase: OrderUseCase) -> list[Any]:
     return [get_order_command, cancel_order_command]
 
 
+def _format_korean_amount(amount: float) -> str:
+    """큰 숫자를 한국식 단위(만, 억)로 간단하게 표시"""
+    if amount >= 100_000_000:  # 1억 이상
+        return f"{amount / 100_000_000:.1f}억".replace(".0억", "억")
+    elif amount >= 10_000:  # 1만 이상
+        return f"{amount / 10_000:.1f}만".replace(".0만", "만")
+    else:
+        return f"{amount:,.0f}"
+
+
 def _format_currency_amount(amount: float, currency: str) -> str:
     """통화 타입에 따라 적절한 포맷으로 숫자를 표시"""
     if currency == "KRW":
-        # KRW는 정수로 표시 (소수점 불필요)
-        return f"{int(amount):,}"
+        # KRW는 한국식 단위로 표시
+        return _format_korean_amount(amount)
     else:
         # 암호화폐는 8자리 소수점까지 표시하되, 불필요한 0 제거
         formatted = f"{amount:.8f}".rstrip("0").rstrip(".")
@@ -715,7 +739,19 @@ def _format_currency_amount(amount: float, currency: str) -> str:
             return f"{int(amount):,}"
 
 
-def _create_balance_command(account_usecase: AccountUseCase) -> Any:
+def _format_percentage(value: float) -> str:
+    """수익률을 색깔 이모지와 함께 표시"""
+    if value > 0:
+        return f"🟢+{value:.2f}%"
+    elif value < 0:
+        return f"🔴{value:.2f}%"
+    else:
+        return "⚪0.00%"
+
+
+def _create_balance_command(
+    account_usecase: AccountUseCase, ticker_usecase: TickerUseCase
+) -> Any:
     """잔고 조회 커맨드 생성"""
 
     @commands.command(name="잔고", aliases=["balance", "계좌"])
@@ -755,60 +791,170 @@ def _create_balance_command(account_usecase: AccountUseCase) -> Any:
                 krw_balances = [b for b in sorted_balances if b.currency == "KRW"]
                 crypto_balances = [b for b in sorted_balances if b.currency != "KRW"]
 
+                total_krw_amount = 0.0
+
                 if krw_balances:
                     message += "```\n"
                     message += "💵 KRW (원화)\n"
-                    message += "─" * 50 + "\n"
-                    message += f"{'항목':<12} {'금액':<20}\n"
-                    message += "─" * 50 + "\n"
+                    message += "─" * 40 + "\n"
+                    message += f"{'항목':<12} {'금액':<15}\n"
+                    message += "─" * 40 + "\n"
 
                     for balance in krw_balances:
                         balance_val = float(balance.balance)
                         locked_val = float(balance.locked)
                         total = balance_val + locked_val
+                        total_krw_amount += total
 
-                        message += f"{'사용가능':<12} {balance_val:>18,.0f} 원\n"
+                        message += f"{'사용가능':<12} {_format_korean_amount(balance_val):<15}\n"
                         if locked_val > 0:
-                            message += f"{'거래중':<12} {locked_val:>18,.0f} 원\n"
-                        message += f"{'총 보유':<12} {total:>18,.0f} 원\n"
+                            message += f"{'거래중':<12} {_format_korean_amount(locked_val):<15}\n"
+                        message += (
+                            f"{'총 보유':<12} {_format_korean_amount(total):<15}\n"
+                        )
 
                     message += "```\n"
 
                 # 암호화폐 섹션
+                crypto_data: list[CryptoData] = []
+                total_crypto_value = 0.0
+                total_crypto_investment = 0.0
+
                 if crypto_balances:
-                    if krw_balances:  # KRW가 있으면 구분선 추가
-                        message += "\n" + "━" * 50 + "\n\n"
-
-                    message += "```\n"
-                    message += "🪙 암호화폐\n"
-                    message += "─" * 70 + "\n"
-                    message += f"{'통화':<8} {'사용가능':<15} {'거래중':<15} {'총 보유':<15} {'평균단가':<12}\n"
-                    message += "─" * 70 + "\n"
-
                     for balance in crypto_balances:
-                        balance_val = float(balance.balance)
-                        locked_val = float(balance.locked)
-                        total = balance_val + locked_val
                         currency = balance.currency
+                        total_volume = float(balance.balance) + float(balance.locked)
                         avg_buy_price = float(balance.avg_buy_price)
 
-                        # 수량 포맷팅 (소수점 정리)
-                        balance_str = _format_currency_amount(balance_val, currency)
-                        locked_str = _format_currency_amount(locked_val, currency)
-                        total_str = _format_currency_amount(total, currency)
+                        if total_volume <= 0:
+                            continue
 
-                        # 평균매수가 표시 (0보다 큰 경우만)
-                        avg_price_str = (
-                            f"{avg_buy_price:,.0f}" if avg_buy_price > 0 else "-"
+                        # 현재가 조회
+                        market_code = f"KRW-{currency}"
+                        try:
+                            ticker = await ticker_usecase.get_ticker_price(market_code)
+                            current_price = float(ticker.trade_price) if ticker else 0
+                        except Exception:
+                            current_price = 0
+
+                        # 평가금액 계산
+                        current_value = (
+                            total_volume * current_price if current_price > 0 else 0
                         )
 
-                        message += f"{currency:<8} {balance_str:<15} {locked_str:<15} {total_str:<15} {avg_price_str:<12}\n"
+                        # 투자금액 계산 (평균매수가 × 수량)
+                        investment_amount = (
+                            total_volume * avg_buy_price if avg_buy_price > 0 else 0
+                        )
 
-                    message += "```\n"
+                        # 수익률 계산
+                        profit_rate = (
+                            ((current_price - avg_buy_price) / avg_buy_price * 100)
+                            if avg_buy_price > 0 and current_price > 0
+                            else 0
+                        )
 
-                # 총 평가 금액
-                total_krw = float(result.total_balance_krw)
-                message += f"\n💎 **총 평가 금액**: {total_krw:,.0f} KRW"
+                        # 수익/손실 금액
+                        profit_loss = current_value - investment_amount
+
+                        crypto_info: CryptoData = {
+                            "currency": currency,
+                            "volume": total_volume,
+                            "current_price": current_price,
+                            "current_value": current_value,
+                            "avg_buy_price": avg_buy_price,
+                            "investment_amount": investment_amount,
+                            "profit_rate": profit_rate,
+                            "profit_loss": profit_loss,
+                        }
+                        crypto_data.append(crypto_info)
+
+                        total_crypto_value += current_value
+                        total_crypto_investment += investment_amount
+
+                    if crypto_data:
+                        if krw_balances:  # KRW가 있으면 구분선 추가
+                            message += "━" * 50 + "\n\n"
+
+                        message += "```\n"
+                        message += "🪙 암호화폐\n"
+                        message += "─" * 85 + "\n"
+                        message += f"{'통화':<6} {'수량':<12} {'현재가':<10} {'평가금액':<10} {'평균단가':<10} {'수익률':<12} {'손익':<10}\n"
+                        message += "─" * 85 + "\n"
+
+                        for crypto in crypto_data:
+                            currency_str = crypto["currency"][:5]  # 통화명 제한
+                            volume_str = _format_currency_amount(
+                                crypto["volume"], crypto["currency"]
+                            )[:11]
+                            current_price_str = (
+                                _format_korean_amount(crypto["current_price"])[:9]
+                                if crypto["current_price"] > 0
+                                else "-"
+                            )
+                            current_value_str = (
+                                _format_korean_amount(crypto["current_value"])[:9]
+                                if crypto["current_value"] > 0
+                                else "-"
+                            )
+                            avg_price_str = (
+                                _format_korean_amount(crypto["avg_buy_price"])[:9]
+                                if crypto["avg_buy_price"] > 0
+                                else "-"
+                            )
+
+                            # 수익률 표시 (이모지 포함하여 짧게)
+                            if crypto["profit_rate"] > 0:
+                                profit_rate_str = f"🟢+{crypto['profit_rate']:.1f}%"
+                            elif crypto["profit_rate"] < 0:
+                                profit_rate_str = f"🔴{crypto['profit_rate']:.1f}%"
+                            else:
+                                profit_rate_str = "⚪0.0%"
+
+                            profit_loss_str = _format_korean_amount(
+                                abs(crypto["profit_loss"])
+                            )[:9]
+                            if crypto["profit_loss"] > 0:
+                                profit_loss_str = f"+{profit_loss_str}"
+                            elif crypto["profit_loss"] < 0:
+                                profit_loss_str = f"-{profit_loss_str}"
+
+                            message += f"{currency_str:<6} {volume_str:<12} {current_price_str:<10} {current_value_str:<10} {avg_price_str:<10} {profit_rate_str:<12} {profit_loss_str:<10}\n"
+
+                        message += "```\n"
+
+                # 총 포트폴리오 요약
+                total_portfolio_value = total_krw_amount + total_crypto_value
+                total_portfolio_investment = total_krw_amount + total_crypto_investment
+
+                # 총 수익률 계산 (KRW는 투자원금으로 가정)
+                if total_portfolio_investment > 0:
+                    total_profit_rate = (
+                        (total_portfolio_value - total_portfolio_investment)
+                        / total_portfolio_investment
+                        * 100
+                    )
+                    total_profit_loss = (
+                        total_portfolio_value - total_portfolio_investment
+                    )
+                else:
+                    total_profit_rate = 0
+                    total_profit_loss = 0
+
+                message += "\n💎 **포트폴리오 요약**\n"
+                message += f"• **총 평가금액**: {_format_korean_amount(total_portfolio_value)}원 "
+                message += f"(KRW: {_format_korean_amount(total_krw_amount)}원 + 암호화폐: {_format_korean_amount(total_crypto_value)}원)\n"
+
+                if total_crypto_investment > 0:
+                    message += f"• **총 투자금액**: {_format_korean_amount(total_portfolio_investment)}원\n"
+
+                    # 총 수익률 표시
+                    if total_profit_rate > 0:
+                        message += f"• **총 수익률**: 🟢+{total_profit_rate:.2f}% (+{_format_korean_amount(total_profit_loss)}원) 📈"
+                    elif total_profit_rate < 0:
+                        message += f"• **총 수익률**: 🔴{total_profit_rate:.2f}% (-{_format_korean_amount(abs(total_profit_loss))}원) 📉"
+                    else:
+                        message += "• **총 수익률**: ⚪0.00% (±0원) ➡️"
 
                 await ctx.send(message)
             else:
@@ -844,12 +990,16 @@ def _create_price_command(ticker_usecase: TickerUseCase) -> Any:
                 change_color = "🟢" if change_rate >= 0 else "🔴"
 
                 message = f"{change_emoji} **{market} 시세 정보**\n\n"
-                message += f"**현재가**: {float(ticker.trade_price):,.0f} KRW\n"
-                message += f"**전일 대비**: {change_color} {float(ticker.signed_change_price):+,.0f} ({int(change_rate):+}%)\n"
-                message += f"**고가**: {float(ticker.high_price):,.0f} KRW\n"
-                message += f"**저가**: {float(ticker.low_price):,.0f} KRW\n"
-                message += f"**거래량**: {int(float(ticker.acc_trade_volume_24h))}\n"
-                message += f"**거래대금**: {float(ticker.acc_trade_price_24h):,.0f} KRW"
+                message += f"**현재가**: {_format_korean_amount(float(ticker.trade_price))}원\n"
+                message += f"**전일 대비**: {change_color} {_format_korean_amount(abs(float(ticker.signed_change_price)))}원 ({int(change_rate):+}%)\n"
+                message += (
+                    f"**고가**: {_format_korean_amount(float(ticker.high_price))}원\n"
+                )
+                message += (
+                    f"**저가**: {_format_korean_amount(float(ticker.low_price))}원\n"
+                )
+                message += f"**거래량**: {_format_korean_amount(float(ticker.acc_trade_volume_24h))}\n"
+                message += f"**거래대금**: {_format_korean_amount(float(ticker.acc_trade_price_24h))}원"
 
                 await ctx.send(message)
             else:
@@ -1075,19 +1225,72 @@ def _create_infinite_buying_commands(
 
                 embed.add_field(
                     name="총 투자액",
-                    value=f"{market_status.total_investment:,.0f} 원",
+                    value=f"{_format_korean_amount(float(market_status.total_investment))}원",
                     inline=True,
                 )
                 embed.add_field(
                     name="평균 단가",
-                    value=f"{market_status.average_price:,.0f} 원",
+                    value=f"{_format_korean_amount(float(market_status.average_price))}원",
                     inline=True,
                 )
                 embed.add_field(
                     name="목표 가격",
-                    value=f"{market_status.target_sell_price:,.0f} 원",
+                    value=f"{_format_korean_amount(float(market_status.target_sell_price))}원",
                     inline=True,
                 )
+
+                # 수익률 정보 추가 (현재가 정보가 있는 경우)
+                if (
+                    market_status.current_price
+                    and market_status.current_profit_rate is not None
+                ):
+                    embed.add_field(
+                        name="현재가",
+                        value=f"{_format_korean_amount(float(market_status.current_price))}원",
+                        inline=True,
+                    )
+                    embed.add_field(
+                        name="현재 평가금액",
+                        value=f"{_format_korean_amount(float(market_status.current_value))}원"
+                        if market_status.current_value
+                        else "-",
+                        inline=True,
+                    )
+
+                    # 수익률 표시
+                    profit_rate = float(market_status.current_profit_rate) * 100
+                    if profit_rate > 0:
+                        profit_display = f"🟢+{profit_rate:.2f}%"
+                    elif profit_rate < 0:
+                        profit_display = f"🔴{profit_rate:.2f}%"
+                    else:
+                        profit_display = "⚪0.00%"
+
+                    embed.add_field(
+                        name="현재 수익률",
+                        value=profit_display,
+                        inline=True,
+                    )
+
+                    # 손익 금액
+                    if market_status.profit_loss_amount is not None:
+                        profit_loss = float(market_status.profit_loss_amount)
+                        if profit_loss > 0:
+                            profit_loss_display = (
+                                f"🟢+{_format_korean_amount(profit_loss)}원"
+                            )
+                        elif profit_loss < 0:
+                            profit_loss_display = (
+                                f"🔴-{_format_korean_amount(abs(profit_loss))}원"
+                            )
+                        else:
+                            profit_loss_display = "⚪±0원"
+
+                        embed.add_field(
+                            name="손익 금액",
+                            value=profit_loss_display,
+                            inline=True,
+                        )
 
                 # 매수 히스토리
                 if market_status.buying_rounds:
@@ -1095,7 +1298,13 @@ def _create_infinite_buying_commands(
                     for round_info in market_status.buying_rounds[
                         -5:
                     ]:  # 최근 5개만 표시
-                        history_text += f"{round_info.round_number}회: {round_info.buy_price:,.0f}원 ({round_info.buy_amount:,.0f}원)\n"
+                        buy_price_str = _format_korean_amount(
+                            float(round_info.buy_price)
+                        )
+                        buy_amount_str = _format_korean_amount(
+                            float(round_info.buy_amount)
+                        )
+                        history_text += f"{round_info.round_number}회: {buy_price_str}원 ({buy_amount_str}원)\n"
 
                     embed.add_field(
                         name="최근 매수 히스토리",
@@ -1300,7 +1509,7 @@ def setup_bot_commands(
 ) -> None:
     """Discord Bot에 커맨드를 등록합니다."""
     # 기존 커맨드들
-    balance_command = _create_balance_command(account_usecase)
+    balance_command = _create_balance_command(account_usecase, ticker_usecase)
     price_command = _create_price_command(ticker_usecase)
     help_command = _create_help_command()
 

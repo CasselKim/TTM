@@ -28,8 +28,6 @@ class UpbitClient:
             "Charset": "UTF-8",
         }
 
-        # logger.info(f"Request: {method} {url}, params: {params}, json: {json_data}")
-
         if method.upper() == "GET":
             response = requests.request(method, url, params=params, headers=headers)
         else:
@@ -80,7 +78,6 @@ class UpbitClient:
         url = f"{self.base_url}/ticker"
         headers = {"Content-Type": "application/json", "Charset": "UTF-8"}
 
-        logger.info(f"Request: {url}, {params}, {headers}")
         response = requests.get(url, params=params, headers=headers)
         logger.info(f"Response: {response.json()}")
         response.raise_for_status()

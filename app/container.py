@@ -10,7 +10,6 @@ from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.infinite_buying_usecase import InfiniteBuyingUsecase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
-from app.application.usecase.trading_usecase import TradingUsecase
 
 
 class Container(containers.DeclarativeContainer):
@@ -59,13 +58,6 @@ class Container(containers.DeclarativeContainer):
         order_repository=upbit_adapter,
         ticker_repository=upbit_adapter,
         discord_adapter=discord_adapter,
-    )
-
-    trading_usecase = providers.Singleton(
-        TradingUsecase,
-        account_repository=upbit_adapter,
-        order_repository=upbit_adapter,
-        ticker_repository=upbit_adapter,
     )
 
     infinite_buying_usecase = providers.Singleton(

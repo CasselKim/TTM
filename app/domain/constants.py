@@ -57,10 +57,6 @@ class DiscordConstants:
 class AlgorithmConstants:
     """거래 알고리즘 관련 상수"""
 
-    # SimpleTradingAlgorithm 임계값
-    SIMPLE_BUY_THRESHOLD = Decimal("-0.05")  # -5%
-    SIMPLE_SELL_THRESHOLD = Decimal("0.10")  # +10%
-
     # 매도 비율
     MIN_SELL_RATIO = Decimal("0.5")  # 최소 50%
     MAX_CONFIDENCE = Decimal("1.0")  # 최대 신뢰도

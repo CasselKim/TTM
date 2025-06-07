@@ -152,20 +152,3 @@ if discord_token:
 async def health_check() -> dict[str, str]:
     """서비스 상태 확인을 위한 health check endpoint"""
     return {"status": "healthy", "service": "TTM Trading Bot"}
-
-
-# 에러 테스트용 엔드포인트 (개발/테스트 환경에서만 사용)
-@app.get("/test-error")
-async def test_error() -> dict[str, str]:
-    """에러 알림 테스트용 엔드포인트"""
-    if os.getenv("ENV", "production").lower() != "production":
-        # 다양한 레벨의 로그 테스트
-        logging.debug("테스트 디버그 로그 메시지입니다.")
-        logging.info("테스트 정보 로그 메시지입니다.")
-        logging.warning("테스트 경고 로그 메시지입니다.")
-        logging.error("테스트 에러 로그 메시지입니다.")
-
-        # 예외 발생 테스트
-        raise ValueError("테스트용 예외가 발생했습니다.")
-
-    return {"message": "Production 환경에서는 사용할 수 없습니다."}

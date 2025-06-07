@@ -8,6 +8,10 @@ import discord
 from discord.ext import commands
 
 from app.adapters.external.discord.adapter import DiscordAdapter
+from app.adapters.internal.websocket.image_generator import (
+    create_balance_image,
+    create_infinite_buying_image,
+)
 from app.application.dto.order_dto import OrderError
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.infinite_buying_usecase import InfiniteBuyingUsecase
@@ -941,22 +945,41 @@ def _create_balance_command(
                     total_profit_rate = 0
                     total_profit_loss = 0
 
-                message += "\n💎 **포트폴리오 요약**\n"
-                message += f"• **총 평가금액**: {_format_korean_amount(total_portfolio_value)}원 "
-                message += f"(KRW: {_format_korean_amount(total_krw_amount)}원 + 암호화폐: {_format_korean_amount(total_crypto_value)}원)\n"
+                # 이미지 생성
+                try:
+                    image_bytes = create_balance_image(
+                        krw_amount=total_krw_amount,
+                        crypto_data=crypto_data,
+                        total_portfolio_value=total_portfolio_value,
+                        total_portfolio_investment=total_portfolio_investment,
+                        total_profit_rate=total_profit_rate,
+                        total_profit_loss=total_profit_loss,
+                    )
 
-                if total_crypto_investment > 0:
-                    message += f"• **총 투자금액**: {_format_korean_amount(total_portfolio_investment)}원\n"
+                    # Discord 파일 객체 생성
+                    file = discord.File(fp=image_bytes, filename="balance.png")
 
-                    # 총 수익률 표시
-                    if total_profit_rate > 0:
-                        message += f"• **총 수익률**: 🟢+{total_profit_rate:.2f}% (+{_format_korean_amount(total_profit_loss)}원) 📈"
-                    elif total_profit_rate < 0:
-                        message += f"• **총 수익률**: 🔴{total_profit_rate:.2f}% (-{_format_korean_amount(abs(total_profit_loss))}원) 📉"
-                    else:
-                        message += "• **총 수익률**: ⚪0.00% (±0원) ➡️"
+                    # 이미지와 함께 간단한 메시지 전송
+                    await ctx.send("💰 **계좌 잔고**", file=file)
 
-                await ctx.send(message)
+                except Exception as img_error:
+                    # 이미지 생성 실패시 기존 텍스트 방식으로 폴백
+                    message += "\n💎 **포트폴리오 요약**\n"
+                    message += f"• **총 평가금액**: {_format_korean_amount(total_portfolio_value)}원 "
+                    message += f"(KRW: {_format_korean_amount(total_krw_amount)}원 + 암호화폐: {_format_korean_amount(total_crypto_value)}원)\n"
+
+                    if total_crypto_investment > 0:
+                        message += f"• **총 투자금액**: {_format_korean_amount(total_portfolio_investment)}원\n"
+
+                        # 총 수익률 표시
+                        if total_profit_rate > 0:
+                            message += f"• **총 수익률**: 🟢+{total_profit_rate:.2f}% (+{_format_korean_amount(total_profit_loss)}원) 📈"
+                        elif total_profit_rate < 0:
+                            message += f"• **총 수익률**: 🔴{total_profit_rate:.2f}% (-{_format_korean_amount(abs(total_profit_loss))}원) 📉"
+                        else:
+                            message += "• **총 수익률**: ⚪0.00% (±0원) ➡️"
+
+                    await ctx.send(f"{message}\n\n⚠️ 이미지 생성 실패: {img_error}")
             else:
                 await ctx.send("❌ 계좌 정보를 가져올 수 없습니다.")
 
@@ -1208,111 +1231,129 @@ def _create_infinite_buying_commands(
                     await ctx.send(f"📴 **{market}** 무한매수법이 실행 중이 아닙니다.")
                     return
 
-                embed = discord.Embed(
-                    title=f"🔄 {market} 무한매수법 상태",
-                    color=DiscordConstants.COLOR_INFO,
-                )
+                # 이미지 생성 시도
+                try:
+                    image_bytes = create_infinite_buying_image(market_status)
+                    file = discord.File(
+                        fp=image_bytes, filename="infinite_buying_status.png"
+                    )
+                    await ctx.send(f"🔄 **{market} 무한매수법 상태**", file=file)
 
-                embed.add_field(name="상태", value=market_status.phase, inline=True)
-                embed.add_field(
-                    name="현재 회차",
-                    value=f"{market_status.current_round}회",
-                    inline=True,
-                )
-                embed.add_field(
-                    name="사이클 ID", value=market_status.cycle_id or "N/A", inline=True
-                )
+                except Exception as img_error:
+                    # 이미지 생성 실패시 기존 Embed 방식으로 폴백
+                    embed = discord.Embed(
+                        title=f"🔄 {market} 무한매수법 상태",
+                        color=DiscordConstants.COLOR_INFO,
+                    )
 
-                embed.add_field(
-                    name="총 투자액",
-                    value=f"{_format_korean_amount(float(market_status.total_investment))}원",
-                    inline=True,
-                )
-                embed.add_field(
-                    name="평균 단가",
-                    value=f"{_format_korean_amount(float(market_status.average_price))}원",
-                    inline=True,
-                )
-                embed.add_field(
-                    name="목표 가격",
-                    value=f"{_format_korean_amount(float(market_status.target_sell_price))}원",
-                    inline=True,
-                )
-
-                # 수익률 정보 추가 (현재가 정보가 있는 경우)
-                if (
-                    market_status.current_price
-                    and market_status.current_profit_rate is not None
-                ):
+                    embed.add_field(name="상태", value=market_status.phase, inline=True)
                     embed.add_field(
-                        name="현재가",
-                        value=f"{_format_korean_amount(float(market_status.current_price))}원",
+                        name="현재 회차",
+                        value=f"{market_status.current_round}회",
                         inline=True,
                     )
                     embed.add_field(
-                        name="현재 평가금액",
-                        value=f"{_format_korean_amount(float(market_status.current_value))}원"
-                        if market_status.current_value
-                        else "-",
+                        name="사이클 ID",
+                        value=market_status.cycle_id or "N/A",
                         inline=True,
                     )
-
-                    # 수익률 표시
-                    profit_rate = float(market_status.current_profit_rate) * 100
-                    if profit_rate > 0:
-                        profit_display = f"🟢+{profit_rate:.2f}%"
-                    elif profit_rate < 0:
-                        profit_display = f"🔴{profit_rate:.2f}%"
-                    else:
-                        profit_display = "⚪0.00%"
 
                     embed.add_field(
-                        name="현재 수익률",
-                        value=profit_display,
+                        name="총 투자액",
+                        value=f"{_format_korean_amount(float(market_status.total_investment))}원",
+                        inline=True,
+                    )
+                    embed.add_field(
+                        name="평균 단가",
+                        value=f"{_format_korean_amount(float(market_status.average_price))}원",
+                        inline=True,
+                    )
+                    embed.add_field(
+                        name="목표 가격",
+                        value=f"{_format_korean_amount(float(market_status.target_sell_price))}원",
                         inline=True,
                     )
 
-                    # 손익 금액
-                    if market_status.profit_loss_amount is not None:
-                        profit_loss = float(market_status.profit_loss_amount)
-                        if profit_loss > 0:
-                            profit_loss_display = (
-                                f"🟢+{_format_korean_amount(profit_loss)}원"
-                            )
-                        elif profit_loss < 0:
-                            profit_loss_display = (
-                                f"🔴-{_format_korean_amount(abs(profit_loss))}원"
-                            )
-                        else:
-                            profit_loss_display = "⚪±0원"
-
+                    # 수익률 정보 추가 (현재가 정보가 있는 경우)
+                    if (
+                        market_status.current_price
+                        and market_status.current_profit_rate is not None
+                    ):
                         embed.add_field(
-                            name="손익 금액",
-                            value=profit_loss_display,
+                            name="현재가",
+                            value=f"{_format_korean_amount(float(market_status.current_price))}원",
+                            inline=True,
+                        )
+                        embed.add_field(
+                            name="현재 평가금액",
+                            value=f"{_format_korean_amount(float(market_status.current_value))}원"
+                            if market_status.current_value
+                            else "-",
                             inline=True,
                         )
 
-                # 매수 히스토리
-                if market_status.buying_rounds:
-                    history_text = ""
-                    for round_info in market_status.buying_rounds[
-                        -5:
-                    ]:  # 최근 5개만 표시
-                        buy_price_str = _format_korean_amount(
-                            float(round_info.buy_price)
+                        # 수익률 표시
+                        profit_rate = float(market_status.current_profit_rate) * 100
+                        if profit_rate > 0:
+                            profit_display = f"🟢+{profit_rate:.2f}%"
+                        elif profit_rate < 0:
+                            profit_display = f"🔴{profit_rate:.2f}%"
+                        else:
+                            profit_display = "⚪0.00%"
+
+                        embed.add_field(
+                            name="현재 수익률",
+                            value=profit_display,
+                            inline=True,
                         )
-                        buy_amount_str = _format_korean_amount(
-                            float(round_info.buy_amount)
+
+                        # 손익 금액
+                        if market_status.profit_loss_amount is not None:
+                            profit_loss = float(market_status.profit_loss_amount)
+                            if profit_loss > 0:
+                                profit_loss_display = (
+                                    f"🟢+{_format_korean_amount(profit_loss)}원"
+                                )
+                            elif profit_loss < 0:
+                                profit_loss_display = (
+                                    f"🔴-{_format_korean_amount(abs(profit_loss))}원"
+                                )
+                            else:
+                                profit_loss_display = "⚪±0원"
+
+                            embed.add_field(
+                                name="손익 금액",
+                                value=profit_loss_display,
+                                inline=True,
+                            )
+
+                    # 매수 히스토리
+                    if market_status.buying_rounds:
+                        history_text = ""
+                        for round_info in market_status.buying_rounds[
+                            -5:
+                        ]:  # 최근 5개만 표시
+                            buy_price_str = _format_korean_amount(
+                                float(round_info.buy_price)
+                            )
+                            buy_amount_str = _format_korean_amount(
+                                float(round_info.buy_amount)
+                            )
+                            history_text += f"{round_info.round_number}회: {buy_price_str}원 ({buy_amount_str}원)\n"
+
+                        embed.add_field(
+                            name="최근 매수 히스토리",
+                            value=history_text if history_text else "없음",
+                            inline=False,
                         )
-                        history_text += f"{round_info.round_number}회: {buy_price_str}원 ({buy_amount_str}원)\n"
 
                     embed.add_field(
-                        name="최근 매수 히스토리",
-                        value=history_text if history_text else "없음",
+                        name="⚠️ 알림",
+                        value=f"이미지 생성 실패: {img_error}",
                         inline=False,
                     )
 
-                await ctx.send(embed=embed)
+                    await ctx.send(embed=embed)
             else:
                 # 전체 상태 조회
                 overall_status = (

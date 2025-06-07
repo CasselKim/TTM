@@ -25,6 +25,7 @@ discord-py = "^2.5.2"
 boto3 = "^1.35.0"
 botocore = "^1.35.0"
 pydantic = "^2.9.0"
+pillow = "^10.4.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -41,6 +42,7 @@ typer = "^0.9.0"
 types-requests = "^2.32.0"
 types-setuptools = "^79.0.0"
 uvicorn = "0.23.2"
+types-pillow = "^10.2.0.20240822"
 
 
 [tool.poetry.group.pytest-bdd.dependencies]

@@ -106,25 +106,8 @@ def _test_korean_support(font: Any) -> bool:
 def _get_korean_font(size: int) -> Any:
     """한글을 지원하는 폰트를 찾아서 반환"""
 
-    # 환경변수로 폰트 경로 오버라이드 가능
-    env_font_path = os.getenv("TTM_KOREAN_FONT_PATH")
-    if env_font_path:
-        env_path = Path(env_font_path)
-        if env_path.exists():
-            try:
-                font = ImageFont.truetype(str(env_path), size)
-                if _test_korean_support(font):
-                    logger.info(f"Using environment font: {env_path}")
-                    return font
-                else:
-                    logger.warning(
-                        f"Environment font {env_path} does not support Korean"
-                    )
-            except (OSError, IOError) as e:
-                logger.warning(f"Failed to load environment font {env_path}: {e}")
-
     # 프로젝트에 번들된 폰트 경로
-    project_root = Path(__file__).parent.parent.parent.parent
+    project_root = Path(__file__).parent.parent.parent.parent.parent
     bundled_font_dir = project_root / "assets" / "fonts"
 
     # 모든 폰트 후보 경로 수집

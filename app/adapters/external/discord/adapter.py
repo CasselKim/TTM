@@ -11,6 +11,25 @@ from app.domain.constants import DiscordConstants
 logger = logging.getLogger(__name__)
 
 
+def _truncate_field_value(value: str, max_length: int = 1024) -> str:
+    """
+    Discord embed 필드 값을 최대 길이로 제한
+
+    Args:
+        value: 원본 값
+        max_length: 최대 길이 (기본: 1024)
+
+    Returns:
+        잘린 값 (필요시 "..." 추가)
+    """
+    if len(value) <= max_length:
+        return value
+
+    # "..." 추가를 고려하여 3자를 뺀 위치에서 자름
+    truncated = value[: max_length - 3]
+    return truncated + "..."
+
+
 class DiscordAdapter:
     """Discord Bot 어댑터"""
 
@@ -237,7 +256,9 @@ class DiscordAdapter:
         )
 
         if details:
-            embed.add_field(name="상세 정보", value=details, inline=False)
+            # Discord 필드 길이 제한 적용
+            truncated_details = _truncate_field_value(details)
+            embed.add_field(name="상세 정보", value=truncated_details, inline=False)
 
         if not self.alert_channel:
             logger.error("알림 채널이 연결되지 않았습니다.")
@@ -278,7 +299,9 @@ class DiscordAdapter:
 
         if fields:
             for name, value, inline in fields:
-                embed.add_field(name=name, value=value, inline=inline)
+                # Discord 필드 길이 제한 적용
+                truncated_value = _truncate_field_value(value)
+                embed.add_field(name=name, value=truncated_value, inline=inline)
 
         return await self.send_embed(embed)
 
@@ -332,9 +355,12 @@ class DiscordAdapter:
         )
 
         if details:
-            # Discord 필드 길이 제한 고려
-            if len(details) > 1024:
-                details = details[:1020] + "..."
+            # 코드 블록을 포함한 상세 정보의 길이 제한
+            # "```\n" + details + "\n```" 형태이므로 8자를 추가로 고려
+            max_details_length = 1024 - 8 - 3  # 코드 블록 마크다운(8자) + "..."(3자)
+            if len(details) > max_details_length:
+                details = details[:max_details_length] + "..."
+
             embed.add_field(
                 name="상세 정보", value=f"```\n{details}\n```", inline=False
             )

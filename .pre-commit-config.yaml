@@ -37,7 +37,6 @@ repos:
             pyjwt,
             discord-py,
             valkey-glide,
-            pydantic,
           ]
         args: ["--strict"]
         exclude: database.py|base_orm.py|alembic/|test/

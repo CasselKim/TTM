@@ -180,7 +180,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
                 cycle_id = str(uuid.uuid4())[:8]
                 self.state.reset_cycle(market_data.market, cycle_id)
 
-            self.state.add_buying_round(new_round)
+            self.state.add_buying_round(new_round, self.config)
             self.state.phase = InfiniteBuyingPhase.ACCUMULATING
 
             # 목표 매도 가격 업데이트

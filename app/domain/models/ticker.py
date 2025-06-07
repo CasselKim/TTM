@@ -1,5 +1,6 @@
 from decimal import Decimal
 from enum import StrEnum
+from typing import Any
 
 from pydantic import BaseModel
 
@@ -52,3 +53,39 @@ class Ticker(BaseModel):
     market_state: MarketState  # 거래상태
     market_warning: MarketWarning  # 유의 종목 여부
     timestamp: int  # 타임스탬프(millisecond)
+
+    @classmethod
+    def from_upbit_api(cls, data: dict[str, Any]) -> "Ticker":
+        """Upbit API 응답을 Ticker 도메인 모델로 변환합니다."""
+        return cls(
+            market=data["market"],
+            trade_price=Decimal(str(data["trade_price"])),
+            prev_closing_price=Decimal(str(data["prev_closing_price"])),
+            change=ChangeType(data["change"]),
+            change_price=Decimal(str(data["change_price"])),
+            change_rate=Decimal(str(data["change_rate"])),
+            signed_change_price=Decimal(str(data["signed_change_price"])),
+            signed_change_rate=Decimal(str(data["signed_change_rate"])),
+            opening_price=Decimal(str(data["opening_price"])),
+            high_price=Decimal(str(data["high_price"])),
+            low_price=Decimal(str(data["low_price"])),
+            trade_volume=Decimal(str(data["trade_volume"])),
+            acc_trade_price=Decimal(str(data["acc_trade_price"])),
+            acc_trade_price_24h=Decimal(str(data["acc_trade_price_24h"])),
+            acc_trade_volume=Decimal(str(data["acc_trade_volume"])),
+            acc_trade_volume_24h=Decimal(str(data["acc_trade_volume_24h"])),
+            highest_52_week_price=Decimal(str(data["highest_52_week_price"])),
+            highest_52_week_date=data["highest_52_week_date"],
+            lowest_52_week_price=Decimal(str(data["lowest_52_week_price"])),
+            lowest_52_week_date=data["lowest_52_week_date"],
+            trade_date=data["trade_date"],
+            trade_time=data["trade_time"],
+            trade_date_kst=data["trade_date_kst"],
+            trade_time_kst=data["trade_time_kst"],
+            trade_timestamp=data["trade_timestamp"],
+            market_state=MarketState(data.get("market_state", "ACTIVE")),  # 기본값 설정
+            market_warning=MarketWarning(
+                data.get("market_warning", "NONE")
+            ),  # 기본값 설정
+            timestamp=data["timestamp"],
+        )

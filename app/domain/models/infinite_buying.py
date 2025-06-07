@@ -339,3 +339,12 @@ class InfiniteBuyingResult(BaseModel):
     def to_cache_json(self) -> str:
         """캐시 저장용 JSON 문자열 반환"""
         return self.model_dump_json(exclude_none=True)
+
+
+# Forward reference 해결을 위한 model rebuild
+# ActionTaken이 정의된 후에 호출해야 함
+def rebuild_models() -> None:
+    """Pydantic v2 forward reference 해결을 위한 model rebuild"""
+    from app.domain.types import ActionTaken  # noqa: F401
+
+    InfiniteBuyingResult.model_rebuild()

@@ -1,18 +1,11 @@
 import logging
 from decimal import Decimal
-from typing import Any
 
 from app.adapters.external.upbit.client import UpbitClient
 from app.adapters.external.upbit.exceptions import UpbitAPIException
-from app.domain.enums import OrderSide, OrderType
 from app.domain.models.account import Account, Balance, Currency
-from app.domain.models.order import (
-    Order,
-    OrderRequest,
-    OrderResult,
-    OrderState,
-)
-from app.domain.models.ticker import ChangeType, MarketState, MarketWarning, Ticker
+from app.domain.models.order import Order, OrderRequest, OrderResult
+from app.domain.models.ticker import Ticker
 from app.domain.repositories.account_repository import AccountRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
@@ -53,7 +46,7 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
                 raise UpbitAPIException(f"No ticker data found for market: {market}")
 
             ticker_data = response[0]  # 단일 종목이므로 첫 번째 요소
-            return self._convert_to_ticker(ticker_data)
+            return Ticker.from_upbit_api(ticker_data)
         except Exception as e:
             logger.error(f"Failed to get ticker for {market}: {e!s}")
             raise UpbitAPIException(f"Failed to get ticker for {market}: {e!s}")
@@ -64,7 +57,7 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
             markets_str = ",".join(markets)
             response = self.client.get_ticker(markets_str)
 
-            return [self._convert_to_ticker(ticker_data) for ticker_data in response]
+            return [Ticker.from_upbit_api(ticker_data) for ticker_data in response]
         except Exception as e:
             logger.error(f"Failed to get tickers for {markets}: {e!s}")
             raise UpbitAPIException(f"Failed to get tickers for {markets}: {e!s}")
@@ -84,7 +77,7 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
                 price=price_str,
             )
 
-            order = self._convert_to_order(response)
+            order = Order.from_upbit_api(response)
             return OrderResult(success=True, order=order)
 
         except Exception as e:
@@ -95,7 +88,7 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
         """특정 주문 정보를 조회합니다."""
         try:
             response = self.client.get_order(uuid)
-            return self._convert_to_order(response)
+            return Order.from_upbit_api(response)
         except Exception as e:
             logger.error(f"Failed to get order {uuid}: {e!s}")
             raise UpbitAPIException(f"Failed to get order {uuid}: {e!s}")
@@ -104,79 +97,8 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
         """주문을 취소합니다."""
         try:
             response = self.client.cancel_order(uuid)
-            order = self._convert_to_order(response)
+            order = Order.from_upbit_api(response)
             return OrderResult(success=True, order=order)
         except Exception as e:
             logger.error(f"Failed to cancel order {uuid}: {e!s}")
             return OrderResult(success=False, error_message=str(e))
-
-    def _convert_to_ticker(self, data: dict[str, Any]) -> Ticker:
-        """API 응답을 Ticker 도메인 모델로 변환합니다."""
-        return Ticker(
-            market=data["market"],
-            trade_price=Decimal(str(data["trade_price"])),
-            prev_closing_price=Decimal(str(data["prev_closing_price"])),
-            change=ChangeType(data["change"]),
-            change_price=Decimal(str(data["change_price"])),
-            change_rate=Decimal(str(data["change_rate"])),
-            signed_change_price=Decimal(str(data["signed_change_price"])),
-            signed_change_rate=Decimal(str(data["signed_change_rate"])),
-            opening_price=Decimal(str(data["opening_price"])),
-            high_price=Decimal(str(data["high_price"])),
-            low_price=Decimal(str(data["low_price"])),
-            trade_volume=Decimal(str(data["trade_volume"])),
-            acc_trade_price=Decimal(str(data["acc_trade_price"])),
-            acc_trade_price_24h=Decimal(str(data["acc_trade_price_24h"])),
-            acc_trade_volume=Decimal(str(data["acc_trade_volume"])),
-            acc_trade_volume_24h=Decimal(str(data["acc_trade_volume_24h"])),
-            highest_52_week_price=Decimal(str(data["highest_52_week_price"])),
-            highest_52_week_date=data["highest_52_week_date"],
-            lowest_52_week_price=Decimal(str(data["lowest_52_week_price"])),
-            lowest_52_week_date=data["lowest_52_week_date"],
-            trade_date=data["trade_date"],
-            trade_time=data["trade_time"],
-            trade_date_kst=data["trade_date_kst"],
-            trade_time_kst=data["trade_time_kst"],
-            trade_timestamp=data["trade_timestamp"],
-            market_state=MarketState(data.get("market_state", "ACTIVE")),  # 기본값 설정
-            market_warning=MarketWarning(
-                data.get("market_warning", "NONE")
-            ),  # 기본값 설정
-            timestamp=data["timestamp"],
-        )
-
-    def _convert_to_order(self, data: dict[str, Any]) -> Order:
-        """API 응답을 Order 도메인 모델로 변환합니다."""
-        # API 응답 값을 Enum으로 변환
-        side_mapping = {"bid": OrderSide.BID, "ask": OrderSide.ASK}
-
-        ord_type_mapping = {
-            "limit": OrderType.LIMIT,
-            "price": OrderType.PRICE,
-            "market": OrderType.MARKET,
-        }
-
-        state_mapping = {
-            "wait": OrderState.대기,
-            "watch": OrderState.예약대기,
-            "done": OrderState.완료,
-            "cancel": OrderState.취소,
-        }
-
-        return Order(
-            uuid=data["uuid"],
-            side=side_mapping[data["side"]],
-            ord_type=ord_type_mapping[data["ord_type"]],
-            price=Decimal(str(data["price"])) if data.get("price") else None,
-            state=state_mapping[data["state"]],
-            market=data["market"],
-            created_at=data["created_at"],
-            volume=Decimal(str(data["volume"])) if data.get("volume") else None,
-            remaining_volume=Decimal(str(data.get("remaining_volume", "0"))),
-            reserved_fee=Decimal(str(data.get("reserved_fee", "0"))),
-            remaining_fee=Decimal(str(data.get("remaining_fee", "0"))),
-            paid_fee=Decimal(str(data.get("paid_fee", "0"))),
-            locked=Decimal(str(data.get("locked", "0"))),
-            executed_volume=Decimal(str(data.get("executed_volume", "0"))),
-            trades_count=data.get("trades_count", 0),
-        )

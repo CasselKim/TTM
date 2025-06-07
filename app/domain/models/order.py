@@ -85,6 +85,43 @@ class Order(BaseModel):
                     return self.price
         return self.price
 
+    @classmethod
+    def from_upbit_api(cls, data: dict[str, Any]) -> "Order":
+        """Upbit API 응답을 Order 도메인 모델로 변환합니다."""
+        # API 응답 값을 Enum으로 변환
+        side_mapping = {"bid": OrderSide.BID, "ask": OrderSide.ASK}
+
+        ord_type_mapping = {
+            "limit": OrderType.LIMIT,
+            "price": OrderType.PRICE,
+            "market": OrderType.MARKET,
+        }
+
+        state_mapping = {
+            "wait": OrderState.대기,
+            "watch": OrderState.예약대기,
+            "done": OrderState.완료,
+            "cancel": OrderState.취소,
+        }
+
+        return cls(
+            uuid=data["uuid"],
+            side=side_mapping[data["side"]],
+            ord_type=ord_type_mapping[data["ord_type"]],
+            price=Decimal(str(data["price"])) if data.get("price") else None,
+            state=state_mapping[data["state"]],
+            market=data["market"],
+            created_at=data["created_at"],
+            volume=Decimal(str(data["volume"])) if data.get("volume") else None,
+            remaining_volume=Decimal(str(data.get("remaining_volume", "0"))),
+            reserved_fee=Decimal(str(data.get("reserved_fee", "0"))),
+            remaining_fee=Decimal(str(data.get("remaining_fee", "0"))),
+            paid_fee=Decimal(str(data.get("paid_fee", "0"))),
+            locked=Decimal(str(data.get("locked", "0"))),
+            executed_volume=Decimal(str(data.get("executed_volume", "0"))),
+            trades_count=data.get("trades_count", 0),
+        )
+
 
 class OrderRequest(BaseModel):
     """주문 요청"""

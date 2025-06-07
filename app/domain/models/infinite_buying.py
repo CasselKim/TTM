@@ -53,12 +53,12 @@ class InfiniteBuyingConfig(BaseModel):
 
     # 수익/손실 기준
     target_profit_rate: Decimal = Decimal("0.10")  # 목표 수익률 (10%)
-    price_drop_threshold: Decimal = Decimal("-0.05")  # 추가 매수 트리거 하락률 (-5%)
-    force_stop_loss_rate: Decimal = Decimal("-0.30")  # 강제 손절률 (-30%)
+    price_drop_threshold: Decimal = Decimal("-0.04")  # 추가 매수 트리거 하락률 (-4%)
+    force_stop_loss_rate: Decimal = Decimal("-0.25")  # 강제 손절률 (-25%)
 
     # 리스크 관리
-    max_buy_rounds: int = 10  # 최대 매수 회차
-    max_investment_ratio: Decimal = Decimal("0.50")  # 전체 자산 대비 최대 투자 비율
+    max_buy_rounds: int = 8  # 최대 매수 회차
+    max_investment_ratio: Decimal = Decimal("0.30")  # 전체 자산 대비 최대 투자 비율
 
     # 시간 관리
     min_buy_interval_minutes: int = 30  # 최소 매수 간격 (분)

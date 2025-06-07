@@ -1,9 +1,9 @@
 from dependency_injector import containers, providers
 
-from app.adapters.external.cache.config import CacheConfig
-from app.adapters.external.cache.infinite_buying_adapter import (
+from app.adapters.external.cache.adapter import (
     CacheInfiniteBuyingRepository,
 )
+from app.adapters.external.cache.config import CacheConfig
 from app.adapters.external.discord.adapter import DiscordAdapter
 from app.adapters.external.upbit.adapter import UpbitAdapter
 from app.application.usecase.account_usecase import AccountUseCase

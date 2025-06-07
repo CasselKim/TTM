@@ -1,8 +1,7 @@
-from dataclasses import dataclass
+from pydantic import BaseModel
 
 
-@dataclass
-class TickerPriceDTO:
+class TickerPriceDTO(BaseModel):
     """현재가 정보 응답 DTO"""
 
     market: str
@@ -35,8 +34,7 @@ class TickerPriceDTO:
     timestamp: int
 
 
-@dataclass
-class TickerPricesDTO:
+class TickerPricesDTO(BaseModel):
     """여러 종목 현재가 정보 응답 DTO"""
 
     tickers: list[TickerPriceDTO]

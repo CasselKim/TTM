@@ -45,7 +45,8 @@ class SimpleTradingAlgorithm(TradingAlgorithm):
                     abs(change_rate) / abs(self.buy_threshold),
                     AlgorithmConstants.MAX_CONFIDENCE,
                 ),
-                reason=f"24시간 변동률 {change_rate:.2%}로 매수 임계값({self.buy_threshold:.2%}) 이하",
+                reason=f"24시간 변동률 {change_rate:.2%}로 "
+                f"매수 임계값({self.buy_threshold:.2%}) 이하",
             )
 
         # 매도 신호: 24시간 변동률이 +10% 이상이고 보유 중인 경우
@@ -60,7 +61,8 @@ class SimpleTradingAlgorithm(TradingAlgorithm):
                         change_rate / self.sell_threshold,
                         AlgorithmConstants.MAX_CONFIDENCE,
                     ),
-                    reason=f"24시간 변동률 {change_rate:.2%}로 매도 임계값({self.sell_threshold:.2%}) 이상",
+                    reason=f"24시간 변동률 {change_rate:.2%}로 "
+                    f"매도 임계값({self.sell_threshold:.2%}) 이상",
                 )
 
         # HOLD 신호

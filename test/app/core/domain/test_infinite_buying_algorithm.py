@@ -79,6 +79,7 @@ class TestInfiniteBuyingState:
     def test_add_buying_round(self):
         """매수 회차 추가 테스트"""
         state = InfiniteBuyingState(market="KRW-BTC")
+        config = InfiniteBuyingConfig(initial_buy_amount=Decimal("100000"))
 
         # 첫 번째 매수 회차 추가
         first_round = BuyingRound(
@@ -89,7 +90,7 @@ class TestInfiniteBuyingState:
             timestamp=datetime.now()
         )
 
-        state.add_buying_round(first_round)
+        state.add_buying_round(first_round, config)
 
         assert state.current_round == 1
         assert state.total_investment == Decimal("100000")
@@ -100,6 +101,7 @@ class TestInfiniteBuyingState:
     def test_multiple_buying_rounds(self):
         """여러 매수 회차 추가 테스트"""
         state = InfiniteBuyingState(market="KRW-BTC")
+        config = InfiniteBuyingConfig(initial_buy_amount=Decimal("100000"))
 
         # 첫 번째 매수: 5천만원에 10만원
         first_round = BuyingRound(
@@ -109,7 +111,7 @@ class TestInfiniteBuyingState:
             buy_volume=Decimal("0.002"),
             timestamp=datetime.now()
         )
-        state.add_buying_round(first_round)
+        state.add_buying_round(first_round, config)
 
         # 두 번째 매수: 4천5백만원에 15만원
         second_round = BuyingRound(
@@ -119,7 +121,7 @@ class TestInfiniteBuyingState:
             buy_volume=Decimal("0.00333333"),
             timestamp=datetime.now()
         )
-        state.add_buying_round(second_round)
+        state.add_buying_round(second_round, config)
 
         assert state.current_round == 2
         assert state.total_investment == Decimal("250000")

@@ -51,7 +51,8 @@ class InfiniteBuyingRepository(ABC):
     async def get_buying_rounds(
         self, market: str, cycle_id: str | None = None
     ) -> list[BuyingRound]:
-        """매수 회차 목록을 조회합니다. cycle_id가 없으면 현재 활성 사이클의 회차들을 반환합니다."""
+        """매수 회차 목록을 조회합니다. cycle_id가 없으면 현재 활성 사이클의
+        회차들을 반환합니다."""
         pass
 
     @abstractmethod

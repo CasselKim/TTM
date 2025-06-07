@@ -150,7 +150,8 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         available_volume = target_balance.balance - target_balance.locked
 
         self.logger.info(
-            f"무한매수법 매도 수량 계산: 전량 매도 {available_volume} (평균단가: {self.state.average_price:,.0f})"
+            f"무한매수법 매도 수량 계산: 전량 매도 {available_volume} "
+            f"(평균단가: {self.state.average_price:,.0f})"
         )
 
         return available_volume
@@ -180,7 +181,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
                 cycle_id = str(uuid.uuid4())[:8]
                 self.state.reset_cycle(market_data.market, cycle_id)
 
-            self.state.add_buying_round(new_round)
+            self.state.add_buying_round(new_round, self.config)
             self.state.phase = InfiniteBuyingPhase.ACCUMULATING
 
             # 목표 매도 가격 업데이트
@@ -198,7 +199,8 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             return InfiniteBuyingResult(
                 success=True,
                 action_taken=ActionTaken.BUY,
-                message=f"{new_round.round_number}회차 매수 완료 (평균단가: {self.state.average_price:,.0f}원)",
+                message=f"{new_round.round_number}회차 매수 완료 "
+                f"(평균단가: {self.state.average_price:,.0f}원)",
                 trade_price=current_price,
                 trade_amount=buy_amount,
                 trade_volume=buy_volume,
@@ -206,7 +208,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             )
 
         except Exception as e:
-            self.logger.error(f"무한매수법 매수 실행 중 오류: {e}")
+            self.logger.exception("무한매수법 매수 실행 중 오류")
             return InfiniteBuyingResult(
                 success=False,
                 action_taken=ActionTaken.BUY_FAILED,
@@ -219,6 +221,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         account: Account,
         market_data: MarketData,
         sell_volume: Decimal,
+        *,
         is_force_sell: bool = False,
     ) -> InfiniteBuyingResult:
         """
@@ -251,7 +254,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             )
 
         except Exception as e:
-            self.logger.error(f"무한매수법 매도 실행 중 오류: {e}")
+            self.logger.exception("무한매수법 매도 실행 중 오류")
             return InfiniteBuyingResult(
                 success=False,
                 action_taken=ActionTaken.SELL_FAILED,
@@ -271,13 +274,15 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             return TradingSignal(
                 action=TradingAction.HOLD,
                 confidence=Decimal("0.5"),
-                reason=f"초기 매수 자금 부족 (필요: {self.config.initial_buy_amount:,.0f}원, 보유: {available_krw:,.0f}원)",
+                reason=f"초기 매수 자금 부족 (필요: {self.config.initial_buy_amount:,.0f}원, "
+                f"보유: {available_krw:,.0f}원)",
             )
 
         return TradingSignal(
             action=TradingAction.BUY,
             confidence=AlgorithmConstants.MAX_CONFIDENCE,
-            reason=f"무한매수법 초기 매수 신호 (매수금액: {self.config.initial_buy_amount:,.0f}원)",
+            reason=f"무한매수법 초기 매수 신호 "
+            f"(매수금액: {self.config.initial_buy_amount:,.0f}원)",
         )
 
     def _calculate_current_profit_rate(self, current_price: Decimal) -> Decimal:
@@ -373,7 +378,8 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         return TradingSignal(
             action=TradingAction.BUY,
             confidence=AlgorithmConstants.MAX_CONFIDENCE,
-            reason=f"무한매수법 {self.state.current_round + 1}회차 추가 매수 (하락률: {drop_rate:.2%})",
+            reason=f"무한매수법 {self.state.current_round + 1}회차 추가 매수 "
+            f"(하락률: {drop_rate:.2%})",
         )
 
     def _get_available_krw_balance(self, account: Account) -> Decimal:

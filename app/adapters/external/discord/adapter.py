@@ -80,7 +80,7 @@ class DiscordAdapter:
         try:
             await self.bot.start(self.bot_token)
         except Exception as e:
-            logger.error(f"Discord 봇 시작 실패: {e}")
+            logger.exception(f"Discord 봇 시작 실패: {e}")
             raise
 
     async def close(self) -> None:
@@ -100,7 +100,7 @@ class DiscordAdapter:
         try:
             await self.channel.send(embed=embed)
         except Exception as e:
-            logger.error(f"Discord 메시지 전송 실패: {e}")
+            logger.exception(f"Discord 메시지 전송 실패: {e}")
             return False
         else:
             return True
@@ -114,7 +114,7 @@ class DiscordAdapter:
         try:
             await self.channel.send(content)
         except Exception as e:
-            logger.error(f"Discord 메시지 전송 실패: {e}")
+            logger.exception(f"Discord 메시지 전송 실패: {e}")
             return False
         else:
             return True

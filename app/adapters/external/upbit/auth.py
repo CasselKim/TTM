@@ -1,16 +1,15 @@
 import hashlib
 import logging
 import uuid
-from dataclasses import dataclass
 from urllib.parse import urlencode
 
 import jwt
+from pydantic import BaseModel
 
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class UpbitAuth:
+class UpbitAuth(BaseModel):
     access_key: str
     secret_key: str
 

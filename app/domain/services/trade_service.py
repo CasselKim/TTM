@@ -76,7 +76,7 @@ class TradeService:
                 )
 
         except Exception as e:
-            self.logger.error(f"매매 사이클 실행 중 오류 발생: {e}")
+            self.logger.exception("매매 사이클 실행 중 오류 발생")
             return TradingResult(success=False, message=f"매매 사이클 실행 실패: {e!s}")
 
     async def _collect_market_data(self, config: TradingConfig) -> MarketData:
@@ -120,7 +120,8 @@ class TradeService:
             if buy_amount < config.min_order_amount:
                 return TradingResult(
                     success=False,
-                    message=f"매수 금액이 최소 주문 금액({config.min_order_amount})보다 적습니다.",
+                    message=f"매수 금액이 최소 주문 금액({config.min_order_amount})보다 "
+                    "적습니다.",
                 )
 
             # 실제 주문 실행
@@ -148,7 +149,7 @@ class TradeService:
                 )
 
         except Exception as e:
-            self.logger.error(f"매수 주문 실행 중 오류: {e}")
+            self.logger.exception("매수 주문 실행 중 오류")
             return TradingResult(success=False, message=f"매수 주문 실행 실패: {e!s}")
 
     async def _execute_sell_order(
@@ -195,5 +196,5 @@ class TradeService:
                 )
 
         except Exception as e:
-            self.logger.error(f"매도 주문 실행 중 오류: {e}")
+            self.logger.exception("매도 주문 실행 중 오류")
             return TradingResult(success=False, message=f"매도 주문 실행 실패: {e!s}")

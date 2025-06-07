@@ -11,7 +11,7 @@ logger = logging.getLogger(__name__)
 
 class UpbitClient:
     def __init__(self, access_key: str, secret_key: str):
-        self.auth = UpbitAuth(access_key, secret_key)
+        self.auth = UpbitAuth(access_key=access_key, secret_key=secret_key)
         self.base_url = NetworkConstants.UPBIT_API_BASE_URL
 
     def _request(

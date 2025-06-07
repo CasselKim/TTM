@@ -8,6 +8,7 @@ import logging
 from decimal import Decimal
 
 from app.domain.enums import OrderSide, OrderType, TradingAction
+from app.domain.exceptions import ConfigSaveError, StateSaveError
 from app.domain.models.account import Account
 from app.domain.models.infinite_buying import (
     InfiniteBuyingConfig,
@@ -108,14 +109,14 @@ class InfiniteBuyingUsecase:
         # Redis에 설정 저장
         config_saved = await self.infinite_buying_repository.save_config(market, config)
         if not config_saved:
-            raise RuntimeError("설정 저장에 실패했습니다.")
+            raise ConfigSaveError()
 
         # Redis에 초기 상태 저장
         state_saved = await self.infinite_buying_repository.save_state(
             market, algorithm.state
         )
         if not state_saved:
-            raise RuntimeError("상태 저장에 실패했습니다.")
+            raise StateSaveError()
 
         self.logger.info(
             f"무한매수법 시작: {market}, 초기금액: {initial_buy_amount:,.0f}원, "
@@ -130,7 +131,7 @@ class InfiniteBuyingUsecase:
         )
 
     async def stop_infinite_buying(
-        self, market: MarketName, force_sell: bool = False
+        self, market: MarketName, *, force_sell: bool = False
     ) -> InfiniteBuyingResult:
         """
         무한매수법 종료
@@ -332,7 +333,8 @@ class InfiniteBuyingUsecase:
             order_result = await self.order_repository.place_order(buy_order_request)
             if not order_result.success:
                 self.logger.error(
-                    f"매수 주문 실패: {market}, 금액: {buy_amount}, 오류: {order_result.error_message}"
+                    f"매수 주문 실패: {market}, 금액: {buy_amount}, "
+                    f"오류: {order_result.error_message}"
                 )
                 return InfiniteBuyingResult(
                     success=False,
@@ -368,7 +370,8 @@ class InfiniteBuyingUsecase:
             order_result = await self.order_repository.place_order(sell_order_request)
             if not order_result.success:
                 self.logger.error(
-                    f"매도 주문 실패: {market}, 수량: {sell_volume}, 오류: {order_result.error_message}"
+                    f"매도 주문 실패: {market}, 수량: {sell_volume}, "
+                    f"오류: {order_result.error_message}"
                 )
                 return InfiniteBuyingResult(
                     success=False,

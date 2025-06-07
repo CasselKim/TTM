@@ -11,6 +11,7 @@ from typing import Any
 
 from app.application.dto.trading_dto import TradingResult
 from app.domain.constants import TradingConstants
+from app.domain.exceptions import UnsupportedAlgorithmError
 from app.domain.models.account import Currency
 from app.domain.models.enums import TradingMode
 from app.domain.models.trading import TradingConfig
@@ -89,8 +90,9 @@ class TradingUsecase:
 
         except Exception as e:
             error_msg = f"매매 사이클 실행 실패: {e!s}"
-            self.logger.error(
-                f"[{mode.value}] {target_currency.value} ({algorithm_type.value}) 거래 실패: {error_msg}"
+            self.logger.exception(
+                f"[{mode.value}] {target_currency.value} ({algorithm_type.value}) "
+                "거래 실패"
             )
             result = TradingResult(success=False, message=error_msg)
         else:
@@ -105,14 +107,10 @@ class TradingUsecase:
             case AlgorithmType.SIMPLE:
                 return SimpleTradingAlgorithm()
 
-            # 향후 다른 알고리즘 추가 시
-            # case AlgorithmType.RSI:
-            #     return RSITradingAlgorithm()
-            # case AlgorithmType.MACD:
-            #     return MACDTradingAlgorithm()
+            # 향후 다른 알고리즘 추가 시 여기에 추가
 
             case _:
-                raise ValueError(f"지원하지 않는 알고리즘 타입: {algorithm_type}")
+                raise UnsupportedAlgorithmError(algorithm_type.value)
 
     def _log_trading_result(
         self,

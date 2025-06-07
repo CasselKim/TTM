@@ -4,12 +4,12 @@
 매매 실행 결과 등 데이터 전송을 위한 객체들을 정의합니다.
 """
 
-from dataclasses import dataclass
 from decimal import Decimal
 
+from pydantic import BaseModel
 
-@dataclass
-class TradingResult:
+
+class TradingResult(BaseModel):
     """거래 결과 (DTO)"""
 
     success: bool

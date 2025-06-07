@@ -24,6 +24,7 @@ dependency-injector = "^4.46.0"
 discord-py = "^2.5.2"
 boto3 = "^1.35.0"
 botocore = "^1.35.0"
+pydantic = "^2.9.0"
 
 
 [tool.poetry.group.dev.dependencies]
@@ -59,63 +60,6 @@ extend-exclude = [
     ".venv/",
     "__pycache__/",
 ]
-
-[tool.ruff.lint]
-# Enable rules equivalent to black, isort, flake8
-select = [
-    "E",     # pycodestyle errors
-    "W",     # pycodestyle warnings
-    "F",     # pyflakes
-    "I",     # isort
-    "N",     # pep8-naming
-    "UP",    # pyupgrade
-    "C4",    # flake8-comprehensions
-    "B",     # flake8-bugbear
-    "A",     # flake8-builtins
-    "YTT",   # flake8-2020
-    "S",     # flake8-bandit
-    "BLE",   # flake8-blind-except
-    "FBT",   # flake8-boolean-trap
-    "C90",   # mccabe
-    "DJ",    # flake8-django
-    "ERA",   # eradicate
-    "PL",    # pylint
-    "TRY",   # tryceratops
-    "RUF",   # ruff-specific rules
-]
-
-ignore = [
-    "E501",    # line too long (handled by formatter)
-    "S101",    # assert detected
-    "PLR0913", # too many arguments
-    "TRY003",  # avoid specifying long messages outside exception class
-    "FBT001",  # boolean positional arg in function definition
-    "FBT002",  # boolean default positional argument in function definition
-    "B008",    # Do not perform function call in argument defaults (FastAPI dependency injection 허용)
-    "S104",    # Possible binding to all interfaces (개발환경에서 허용)
-    "BLE001",  # Do not catch blind exception (일반적인 Exception 처리 허용)
-    "TRY400",  # Use logging.exception instead of logging.error (현재 스타일 유지)
-    "B904",    # Within an except clause, raise exceptions with raise ... from err (현재 스타일 유지)
-    "TRY301",  # Abstract raise to an inner function (간단한 raise 허용)
-    "N818",    # Exception name should be named with an Error suffix (현재 네이밍 유지)
-    "PLC2401", # Variable name contains a non-ASCII character (한국어 enum 허용)
-    "ERA001",  # Found commented-out code (주석 코드 허용)
-    "S113",    # Probable use of requests call without timeout (현재 코드 스타일 유지)
-]
-
-# Exclude specific directories and files
-exclude = [
-    "database.py",
-    "base_orm.py",
-    "alembic/",
-    "test/",
-    "bdd/",
-]
-
-[tool.ruff.lint.per-file-ignores]
-"test/**/*.py" = ["S101", "PLR2004", "S105", "S106"]
-"alembic/**/*.py" = ["E501", "F401"]
-"app/adapters/internal/websocket/discord_bot.py" = ["C901", "PLR0915", "PLR0912"]
 
 [tool.ruff.format]
 # Use double quotes for strings

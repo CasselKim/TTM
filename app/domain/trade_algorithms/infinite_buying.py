@@ -20,6 +20,7 @@ from app.domain.enums import TradingAction
 from app.domain.models.account import Account, Balance, Currency
 from app.domain.models.infinite_buying import (
     BuyingRound,
+    BuyType,
     InfiniteBuyingConfig,
     InfiniteBuyingPhase,
     InfiniteBuyingResult,
@@ -72,8 +73,9 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             return self._create_profit_taking_signal(current_profit_rate)
 
         # 추가 매수 확인
-        if await self._should_add_buy(account, market_data):
-            return await self._create_add_buy_signal(account, market_data)
+        should_buy, buy_reason = await self._should_add_buy(account, market_data)
+        if should_buy:
+            return await self._create_add_buy_signal(account, market_data, buy_reason)
 
         # 홀드
         return TradingSignal(
@@ -156,7 +158,11 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         return available_volume
 
     async def execute_buy(
-        self, account: Account, market_data: MarketData, buy_amount: Decimal
+        self,
+        account: Account,
+        market_data: MarketData,
+        buy_amount: Decimal,
+        buy_type: BuyType = BuyType.INITIAL,
     ) -> InfiniteBuyingResult:
         """
         매수 실행 및 상태 업데이트
@@ -172,6 +178,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
                 buy_amount=buy_amount,
                 buy_volume=buy_volume,
                 timestamp=datetime.now(),
+                buy_type=buy_type,
             )
 
             # 상태 업데이트
@@ -181,6 +188,10 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
 
             self.state.add_buying_round(new_round, self.config)
             self.state.phase = InfiniteBuyingPhase.ACCUMULATING
+
+            # 시간 기반 매수인 경우 시간 업데이트
+            if buy_type == BuyType.TIME_BASED:
+                self.state.last_time_based_buy_time = datetime.now()
 
             # 목표 매도 가격 업데이트
             self.state.target_sell_price = self.state.average_price * (
@@ -313,29 +324,21 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         """익절 조건 확인"""
         return current_profit_rate >= self.config.target_profit_rate
 
-    async def _should_add_buy(self, account: Account, market_data: MarketData) -> bool:
-        """추가 매수 조건 확인"""
+    async def _should_add_buy(
+        self, account: Account, market_data: MarketData
+    ) -> tuple[bool, str]:
+        """추가 매수 조건 확인 - 하이브리드 DCA 방식"""
         # 최대 회차 확인
         if self.state.current_round >= self.config.max_buy_rounds:
-            return False
+            return False, "max_rounds"
 
-        # 가격 하락률 확인
-        if self.state.average_price == 0:
-            return False
-
-        price_drop_rate = (
-            market_data.current_price - self.state.average_price
-        ) / self.state.average_price
-        if price_drop_rate > self.config.price_drop_threshold:
-            return False
-
-        # 최소 매수 간격 확인
+        # 최소 매수 간격 확인 (모든 매수에 공통 적용)
         if (
             self.state.last_buy_time
             and datetime.now() - self.state.last_buy_time
             < timedelta(minutes=self.config.min_buy_interval_minutes)
         ):
-            return False
+            return False, "min_interval"
 
         # 사용 가능한 자금 확인
         available_krw = self._get_available_krw_balance(account)
@@ -344,9 +347,49 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
                 self.state.buying_rounds[-1].buy_amount * self.config.add_buy_multiplier
             )
             if available_krw < next_buy_amount:
-                return False
+                return False, "insufficient_funds"
 
-        return True
+        # 1. 시간 기반 매수 조건 확인
+        if await self._should_time_based_buy():
+            return True, "time_based"
+
+        # 2. 가격 하락 기반 매수 조건 확인
+        if await self._should_price_drop_buy(market_data):
+            return True, "price_drop"
+
+        return False, "no_trigger"
+
+    async def _should_time_based_buy(self) -> bool:
+        """시간 기반 매수 조건 확인"""
+        if not self.config.enable_time_based_buying:
+            return False
+
+        # 첫 매수 후 시간 기반 매수 시작
+        if self.state.current_round == 0:
+            return False
+
+        # 마지막 시간 기반 매수로부터 1일 경과 확인
+        last_time_buy = (
+            self.state.last_time_based_buy_time or self.state.cycle_start_time
+        )
+        if not last_time_buy:
+            return True
+
+        time_since_last = datetime.now() - last_time_buy
+        return time_since_last >= timedelta(
+            days=self.config.time_based_buy_interval_days
+        )
+
+    async def _should_price_drop_buy(self, market_data: MarketData) -> bool:
+        """가격 하락 기반 매수 조건 확인"""
+        if self.state.average_price == 0:
+            return False
+
+        price_drop_rate = (
+            market_data.current_price - self.state.average_price
+        ) / self.state.average_price
+
+        return price_drop_rate <= self.config.price_drop_threshold
 
     def _create_force_sell_signal(self, current_profit_rate: Decimal) -> TradingSignal:
         """강제 손절 신호 생성"""
@@ -367,17 +410,21 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         )
 
     async def _create_add_buy_signal(
-        self, account: Account, market_data: MarketData
+        self, account: Account, market_data: MarketData, buy_reason: str
     ) -> TradingSignal:
         """추가 매수 신호 생성"""
-        drop_rate = (
-            market_data.current_price - self.state.average_price
-        ) / self.state.average_price
+        if buy_reason == BuyType.TIME_BASED:
+            reason = f"무한매수법 {self.state.current_round + 1}회차 시간 기반 매수 (1일 간격)"
+        else:  # price_drop
+            drop_rate = (
+                market_data.current_price - self.state.average_price
+            ) / self.state.average_price
+            reason = f"무한매수법 {self.state.current_round + 1}회차 하락 매수 (하락률: {drop_rate:.2%})"
+
         return TradingSignal(
             action=TradingAction.BUY,
             confidence=AlgorithmConstants.MAX_CONFIDENCE,
-            reason=f"무한매수법 {self.state.current_round + 1}회차 추가 매수 "
-            f"(하락률: {drop_rate:.2%})",
+            reason=reason,
         )
 
     def _get_available_krw_balance(self, account: Account) -> Decimal:

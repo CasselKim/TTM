@@ -40,6 +40,14 @@ class InfiniteBuyingPhase(StrEnum):
     FORCE_SELLING = "force_selling"  # 강제 손절 단계
 
 
+class BuyType(StrEnum):
+    """매수 타입"""
+
+    INITIAL = "initial"  # 초기 매수
+    PRICE_DROP = "price_drop"  # 가격 하락 기반 매수
+    TIME_BASED = "time_based"  # 시간 기반 매수
+
+
 class InfiniteBuyingConfig(BaseModel):
     """무한매수법 설정"""
 
@@ -63,6 +71,10 @@ class InfiniteBuyingConfig(BaseModel):
     # 시간 관리
     min_buy_interval_minutes: int = 30  # 최소 매수 간격 (분)
     max_cycle_days: int = 30  # 최대 사이클 기간 (일)
+
+    # 하이브리드 DCA 설정
+    time_based_buy_interval_days: int = 1  # 시간 기반 매수 간격 (일)
+    enable_time_based_buying: bool = True  # 시간 기반 매수 활성화
 
     @field_serializer(
         "initial_buy_amount",
@@ -115,6 +127,7 @@ class BuyingRound(BaseModel):
     buy_amount: Decimal  # 매수 금액 (KRW)
     buy_volume: Decimal  # 매수 수량 (코인)
     timestamp: datetime  # 매수 시점
+    buy_type: BuyType = BuyType.PRICE_DROP  # 매수 타입
 
     @field_serializer("buy_price", "buy_amount", "buy_volume")
     def serialize_decimal(self, value: Decimal) -> float:
@@ -164,6 +177,7 @@ class InfiniteBuyingState(BaseModel):
     # 최근 거래 정보
     last_buy_price: Decimal = Decimal("0")  # 마지막 매수 가격
     last_buy_time: datetime | None = None  # 마지막 매수 시점
+    last_time_based_buy_time: datetime | None = None  # 마지막 시간 기반 매수 시점
 
     # 사이클 정보
     cycle_start_time: datetime | None = None  # 사이클 시작 시점
@@ -183,7 +197,7 @@ class InfiniteBuyingState(BaseModel):
         """Decimal을 float로 직렬화"""
         return float(value)
 
-    @field_serializer("last_buy_time", "cycle_start_time")
+    @field_serializer("last_buy_time", "cycle_start_time", "last_time_based_buy_time")
     def serialize_datetime(self, dt: datetime | None) -> str | None:
         """datetime을 ISO 형식으로 직렬화"""
         return dt.isoformat() if dt else None
@@ -281,6 +295,7 @@ class InfiniteBuyingState(BaseModel):
         self.average_price = Decimal("0")
         self.last_buy_price = Decimal("0")
         self.last_buy_time = None
+        self.last_time_based_buy_time = None
         self.cycle_start_time = datetime.now()
         self.target_sell_price = Decimal("0")
         self.buying_rounds = []

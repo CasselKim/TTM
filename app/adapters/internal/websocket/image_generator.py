@@ -218,7 +218,7 @@ def create_balance_image(
     base_height = 150  # 기본 높이 감소 (250 → 150)
     row_height = 30  # 각 암호화폐 행 높이 감소 (40 → 30)
     height = (
-        base_height + len(crypto_data) * row_height + 100
+        base_height + len(crypto_data) * row_height + 200
     )  # 하단 여백 감소 (200 → 50)
 
     # 색상 정의 (색상 최소화)

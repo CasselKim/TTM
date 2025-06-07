@@ -1,11 +1,115 @@
 """Discord 봇용 이미지 생성 모듈"""
 
 import io
-from typing import Any
+from pathlib import Path
+from typing import Any, TypedDict
 
 from PIL import Image, ImageDraw, ImageFont  # type: ignore
 
-from app.adapters.internal.websocket.discord_bot import CryptoData
+
+class CryptoData(TypedDict):
+    """암호화폐 데이터 타입"""
+
+    currency: str
+    volume: float
+    current_price: float
+    current_value: float
+    avg_buy_price: float
+    investment_amount: float
+    profit_rate: float
+    profit_loss: float
+
+
+def _get_korean_font(size: int) -> Any:
+    """한글을 지원하는 폰트를 찾아서 반환"""
+    try:
+        # 프로젝트에 번들된 폰트 경로
+        project_root = Path(__file__).parent.parent.parent.parent
+        bundled_fonts = [
+            project_root / "assets" / "fonts" / "NotoSansKR-Regular.ttf",
+            project_root / "assets" / "fonts" / "NotoSansKR-Bold.ttf",
+        ]
+
+        # 번들된 폰트 우선 시도
+        for font_path in bundled_fonts:
+            if font_path.exists():
+                try:
+                    return ImageFont.truetype(str(font_path), size)
+                except (OSError, IOError):
+                    continue
+
+        # 번들된 폰트가 없으면 시스템 폰트 시도 (기존 로직)
+        system_fonts = [
+            "/System/Library/Fonts/Apple SD Gothic Neo.ttc",
+            "/System/Library/Fonts/AppleGothic.ttf",
+            "/System/Library/Fonts/Helvetica.ttc",
+            "/Library/Fonts/Arial Unicode MS.ttf",
+        ]
+
+        for system_font_path in system_fonts:
+            try:
+                return ImageFont.truetype(system_font_path, size)
+            except (OSError, IOError):
+                continue
+
+        # 모든 폰트를 찾을 수 없는 경우 기본 폰트 사용
+        return ImageFont.load_default()
+
+    except OSError:
+        # 폰트를 찾을 수 없는 경우 기본 폰트 사용
+        return ImageFont.load_default()
+
+
+def _get_emoji_font(size: int) -> Any:
+    """이모지를 지원하는 폰트를 찾아서 반환"""
+    try:
+        # macOS 이모지 폰트 시도
+        emoji_fonts = [
+            "/System/Library/Fonts/Apple Color Emoji.ttc",
+            "/System/Library/Fonts/NotoColorEmoji.ttf",
+        ]
+
+        for font_path in emoji_fonts:
+            try:
+                return ImageFont.truetype(font_path, size)
+            except (OSError, IOError):
+                continue
+
+        # 이모지 폰트를 찾을 수 없으면 한글 폰트 사용
+        return _get_korean_font(size)
+
+    except OSError:
+        return _get_korean_font(size)
+
+
+def _draw_text_with_emoji(
+    draw: Any,
+    x: int,
+    y: int,
+    text: str,
+    emoji: str,
+    fill: tuple[int, int, int],
+    korean_font: Any,
+    emoji_font: Any,
+) -> None:
+    """이모지와 텍스트를 함께 그리기"""
+    try:
+        # 이모지 먼저 그리기
+        draw.text((x, y), emoji, fill=fill, font=emoji_font)
+
+        # 이모지 폭 계산 (대략적으로)
+        emoji_width = (
+            emoji_font.getbbox(emoji)[2] - emoji_font.getbbox(emoji)[0]
+            if hasattr(emoji_font, "getbbox")
+            else 20
+        )
+
+        # 텍스트를 이모지 옆에 그리기
+        draw.text((x + emoji_width + 5, y), f" {text}", fill=fill, font=korean_font)
+
+    except Exception:
+        # 이모지 그리기 실패시 텍스트만 그리기
+        draw.text((x, y), f"{emoji} {text}", fill=fill, font=korean_font)
 
 
 def _format_korean_amount(amount: float) -> str:
@@ -46,9 +150,11 @@ def create_balance_image(
 
     # 이미지 크기 설정
     width = 800
-    base_height = 200  # 기본 높이
+    base_height = 250  # 기본 높이 증가
     row_height = 40  # 각 암호화폐 행 높이
-    height = base_height + len(crypto_data) * row_height + 150  # 요약 섹션
+    height = (
+        base_height + len(crypto_data) * row_height + 200
+    )  # 요약 섹션 + 하단 여백 증가
 
     # 색상 정의
     bg_color = (54, 57, 63)  # Discord 다크 배경색
@@ -62,26 +168,25 @@ def create_balance_image(
     img = Image.new("RGB", (width, height), bg_color)
     draw = ImageDraw.Draw(img)
 
-    # 폰트 설정 (기본 폰트 사용)
-    try:
-        title_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", 20)
-        header_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", 14)
-        normal_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 12)
-    except OSError:
-        # 폰트를 찾을 수 없는 경우 기본 폰트 사용
-        title_font = ImageFont.load_default()
-        header_font = ImageFont.load_default()
-        normal_font = ImageFont.load_default()
+    # 폰트 설정 (한글 지원 폰트 사용)
+    title_font = _get_korean_font(20)
+    header_font = _get_korean_font(14)
+    normal_font = _get_korean_font(12)
+    emoji_font = _get_emoji_font(16)
 
     # 시작 Y 위치
     y = 20
 
     # 제목
-    draw.text((20, y), "💰 계좌 잔고", fill=text_color, font=title_font)
+    _draw_text_with_emoji(
+        draw, 20, y, "계좌 잔고", "💰", text_color, title_font, emoji_font
+    )
     y += 50
 
     # KRW 섹션
-    draw.text((20, y), "💵 KRW (원화)", fill=header_color, font=header_font)
+    _draw_text_with_emoji(
+        draw, 20, y, "원화", "💵", header_color, header_font, emoji_font
+    )
     y += 30
     draw.text(
         (40, y),
@@ -93,7 +198,9 @@ def create_balance_image(
 
     # 암호화폐 섹션
     if crypto_data:
-        draw.text((20, y), "🪙 암호화폐", fill=header_color, font=header_font)
+        _draw_text_with_emoji(
+            draw, 20, y, "암호화폐", "🪙", header_color, header_font, emoji_font
+        )
         y += 30
 
         # 테이블 헤더
@@ -137,25 +244,25 @@ def create_balance_image(
             profit_rate = crypto["profit_rate"]
             if profit_rate > 0:
                 profit_color = green_color
-                profit_text = f"+{profit_rate:.1f}%"
+                profit_text = f"🟢 +{profit_rate:.1f}%"
             elif profit_rate < 0:
                 profit_color = red_color
-                profit_text = f"{profit_rate:.1f}%"
+                profit_text = f"🔴 {profit_rate:.1f}%"
             else:
                 profit_color = gray_color
-                profit_text = "0.0%"
+                profit_text = "⚪ 0.0%"
 
             # 손익 금액
             profit_loss = crypto["profit_loss"]
             if profit_loss > 0:
                 profit_loss_color = green_color
-                profit_loss_text = f"+{_format_korean_amount(profit_loss)}"
+                profit_loss_text = f"🟢 +{_format_korean_amount(profit_loss)}"
             elif profit_loss < 0:
                 profit_loss_color = red_color
-                profit_loss_text = f"-{_format_korean_amount(abs(profit_loss))}"
+                profit_loss_text = f"🔴 -{_format_korean_amount(abs(profit_loss))}"
             else:
                 profit_loss_color = gray_color
-                profit_loss_text = "±0"
+                profit_loss_text = "⚪ ±0"
 
             # 데이터 그리기
             data = [currency, volume, current_price, current_value, avg_price]
@@ -181,7 +288,9 @@ def create_balance_image(
     y += 20
 
     # 포트폴리오 요약
-    draw.text((20, y), "💎 포트폴리오 요약", fill=header_color, font=header_font)
+    _draw_text_with_emoji(
+        draw, 20, y, "포트폴리오 요약", "💎", header_color, header_font, emoji_font
+    )
     y += 30
 
     # 총 평가금액
@@ -207,15 +316,15 @@ def create_balance_image(
         if total_profit_rate > 0:
             profit_color = green_color
             emoji = "📈"
-            profit_text = f"총 수익률: +{total_profit_rate:.2f}% (+{_format_korean_amount(total_profit_loss)}원) {emoji}"
+            profit_text = f"총 수익률: {emoji} +{total_profit_rate:.2f}% (+{_format_korean_amount(total_profit_loss)}원)"
         elif total_profit_rate < 0:
             profit_color = red_color
             emoji = "📉"
-            profit_text = f"총 수익률: {total_profit_rate:.2f}% (-{_format_korean_amount(abs(total_profit_loss))}원) {emoji}"
+            profit_text = f"총 수익률: {emoji} {total_profit_rate:.2f}% (-{_format_korean_amount(abs(total_profit_loss))}원)"
         else:
             profit_color = gray_color
             emoji = "➡️"
-            profit_text = f"총 수익률: 0.00% (±0원) {emoji}"
+            profit_text = f"총 수익률: {emoji} 0.00% (±0원)"
 
         draw.text((40, y), profit_text, fill=profit_color, font=normal_font)
 
@@ -232,7 +341,7 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
 
     # 이미지 크기 설정
     width = 600
-    height = 400
+    height = 450  # 하단 여백 늘리기
 
     # 색상 정의
     bg_color = (54, 57, 63)
@@ -246,22 +355,23 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
     img = Image.new("RGB", (width, height), bg_color)
     draw = ImageDraw.Draw(img)
 
-    # 폰트 설정
-    try:
-        title_font = ImageFont.truetype("/System/Library/Fonts/Arial Bold.ttf", 18)
-        normal_font = ImageFont.truetype("/System/Library/Fonts/Arial.ttf", 12)
-    except OSError:
-        title_font = ImageFont.load_default()
-        normal_font = ImageFont.load_default()
+    # 폰트 설정 (한글 지원 폰트 사용)
+    title_font = _get_korean_font(18)
+    normal_font = _get_korean_font(12)
+    emoji_font = _get_emoji_font(16)
 
     y = 20
 
     # 제목
-    draw.text(
-        (20, y),
-        f"🔄 {market_status.market} 무한매수법 상태",
-        fill=text_color,
-        font=title_font,
+    _draw_text_with_emoji(
+        draw,
+        20,
+        y,
+        f"{market_status.market} 무한매수법 상태",
+        "🔄",
+        text_color,
+        title_font,
+        emoji_font,
     )
     y += 40
 
@@ -284,7 +394,9 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
     # 수익률 정보 (있는 경우)
     if market_status.current_price and market_status.current_profit_rate is not None:
         y += 10
-        draw.text((20, y), "📊 실시간 수익률", fill=header_color, font=title_font)
+        _draw_text_with_emoji(
+            draw, 20, y, "실시간 수익률", "📊", header_color, title_font, emoji_font
+        )
         y += 30
 
         # 현재가
@@ -310,13 +422,13 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
         profit_rate = float(market_status.current_profit_rate) * 100
         if profit_rate > 0:
             profit_color = green_color
-            profit_text = f"현재 수익률: +{profit_rate:.2f}%"
+            profit_text = f"현재 수익률: 🟢 +{profit_rate:.2f}%"
         elif profit_rate < 0:
             profit_color = red_color
-            profit_text = f"현재 수익률: {profit_rate:.2f}%"
+            profit_text = f"현재 수익률: 🔴 {profit_rate:.2f}%"
         else:
             profit_color = gray_color
-            profit_text = "현재 수익률: 0.00%"
+            profit_text = "현재 수익률: ⚪ 0.00%"
 
         draw.text((20, y), profit_text, fill=profit_color, font=normal_font)
         y += 20
@@ -326,15 +438,17 @@ def create_infinite_buying_image(market_status: Any) -> io.BytesIO:
             profit_loss = float(market_status.profit_loss_amount)
             if profit_loss > 0:
                 profit_loss_color = green_color
-                profit_loss_text = f"손익 금액: +{_format_korean_amount(profit_loss)}원"
+                profit_loss_text = (
+                    f"손익 금액: 🟢 +{_format_korean_amount(profit_loss)}원"
+                )
             elif profit_loss < 0:
                 profit_loss_color = red_color
                 profit_loss_text = (
-                    f"손익 금액: -{_format_korean_amount(abs(profit_loss))}원"
+                    f"손익 금액: 🔴 -{_format_korean_amount(abs(profit_loss))}원"
                 )
             else:
                 profit_loss_color = gray_color
-                profit_loss_text = "손익 금액: ±0원"
+                profit_loss_text = "손익 금액: ⚪ ±0원"
 
             draw.text(
                 (20, y), profit_loss_text, fill=profit_loss_color, font=normal_font

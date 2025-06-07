@@ -165,3 +165,7 @@ cython_debug/
 logs/
 
 .cursor/
+
+# Test files
+test_*.png
+test_image_generation.py

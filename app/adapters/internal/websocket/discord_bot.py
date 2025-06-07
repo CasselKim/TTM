@@ -2,13 +2,14 @@
 
 import os
 from decimal import Decimal
-from typing import Any, TypedDict
+from typing import Any
 
 import discord
 from discord.ext import commands
 
 from app.adapters.external.discord.adapter import DiscordAdapter
 from app.adapters.internal.websocket.image_generator import (
+    CryptoData,
     create_balance_image,
     create_infinite_buying_image,
 )
@@ -22,19 +23,6 @@ from app.domain.types import (
     InfiniteBuyingStatus,
     MarketName,
 )
-
-
-class CryptoData(TypedDict):
-    """암호화폐 데이터 타입"""
-
-    currency: str
-    volume: float
-    current_price: float
-    current_value: float
-    avg_buy_price: float
-    investment_amount: float
-    profit_rate: float
-    profit_loss: float
 
 
 # 관리자 사용자 ID (환경 변수에서 가져옴)

@@ -38,20 +38,6 @@ def _get_korean_font(size: int) -> Any:
                 except (OSError, IOError):
                     continue
 
-        # 번들된 폰트가 없으면 시스템 폰트 시도 (기존 로직)
-        system_fonts = [
-            "/System/Library/Fonts/Apple SD Gothic Neo.ttc",
-            "/System/Library/Fonts/AppleGothic.ttf",
-            "/System/Library/Fonts/Helvetica.ttc",
-            "/Library/Fonts/Arial Unicode MS.ttf",
-        ]
-
-        for system_font_path in system_fonts:
-            try:
-                return ImageFont.truetype(system_font_path, size)
-            except (OSError, IOError):
-                continue
-
         # 모든 폰트를 찾을 수 없는 경우 기본 폰트 사용
         return ImageFont.load_default()
 
@@ -119,7 +105,7 @@ def create_balance_image(
     # 색상 정의 (색상 최소화)
     bg_color = (54, 57, 63)  # Discord 다크 배경색
     text_color = (255, 255, 255)  # 흰색 텍스트
-    header_color = (220, 220, 220)  # 연한 회색 (헤더용)
+    header_color = (255, 255, 255)  # 연한 회색 (헤더용)
     green_color = (87, 242, 135)  # 수익 색상 (수익률용만)
     red_color = (237, 66, 69)  # 손실 색상 (수익률용만)
     gray_color = (153, 170, 181)  # 중성 색상

@@ -629,6 +629,42 @@ class TestInfiniteBuyingAlgorithm:
         assert algorithm.state.buying_rounds[1].buy_type == BuyType.TIME_BASED
         assert algorithm.state.buying_rounds[2].buy_type == BuyType.PRICE_DROP
 
+    @pytest.mark.asyncio
+    async def test_empty_buying_rounds_with_current_round_gt_zero(self, algorithm, account, market_data):
+        """current_round > 0이지만 buying_rounds가 비어있는 데이터 불일치 상황 테스트"""
+        # 데이터 불일치 상황 시뮬레이션: current_round는 2이지만 buying_rounds는 비어있음
+        algorithm.state.current_round = 2
+        algorithm.state.total_investment = Decimal("150000")
+        algorithm.state.average_price = Decimal("48000000")
+        algorithm.state.buying_rounds = []  # 의도적으로 비워둠
+
+        # 매수 신호 생성
+        signal = TradingSignal(
+            action=TradingAction.BUY,
+            confidence=Decimal("1.0"),
+            reason="테스트용 매수 신호"
+        )
+
+        # 매수 금액 계산 - IndexError가 발생하지 않아야 함
+        buy_amount = await algorithm.calculate_buy_amount(
+            account,
+            market_data,
+            signal,
+            max_investment_ratio=Decimal("0.5"),
+            min_order_amount=Decimal("5000"),
+        )
+
+        # 초기 매수 금액으로 계산되어야 함
+        expected_amount = min(algorithm.config.initial_buy_amount, Decimal("1000000"))
+        assert buy_amount == expected_amount
+        assert buy_amount > 0
+
+        # 실제 매수 실행도 정상 작동해야 함
+        result = await algorithm.execute_buy(account, market_data, buy_amount)
+        assert result.success
+        assert len(algorithm.state.buying_rounds) == 1  # 새로운 라운드가 추가됨
+        assert algorithm.state.current_round == 3  # 회차가 증가함
+
 
 class TestInfiniteBuyingIntegration:
     """무한매수법 통합 테스트"""

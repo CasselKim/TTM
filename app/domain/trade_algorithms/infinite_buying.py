@@ -106,9 +106,18 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             buy_amount = min(self.config.initial_buy_amount, available_krw)
         else:
             # 추가 매수: 이전 매수 금액의 배수
-            last_round = self.state.buying_rounds[-1]
-            buy_amount = last_round.buy_amount * self.config.add_buy_multiplier
-            buy_amount = min(buy_amount, available_krw)
+            if not self.state.buying_rounds:
+                # 데이터 불일치 상황: current_round > 0이지만 buying_rounds가 비어있음
+                # 이 경우 초기 매수 금액을 기준으로 계산
+                self.logger.warning(
+                    f"데이터 불일치 감지: current_round={self.state.current_round}이지만 "
+                    "buying_rounds가 비어있습니다. 초기 매수 금액으로 계산합니다."
+                )
+                buy_amount = min(self.config.initial_buy_amount, available_krw)
+            else:
+                last_round = self.state.buying_rounds[-1]
+                buy_amount = last_round.buy_amount * self.config.add_buy_multiplier
+                buy_amount = min(buy_amount, available_krw)
 
         # 최소 주문 금액 확인
         if buy_amount < min_order_amount:

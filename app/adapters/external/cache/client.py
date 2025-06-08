@@ -66,7 +66,6 @@ class CacheClient:
         try:
             client = await self._get_client()
             value = await client.hget(key, field)
-            logger.info(f"hget - key: {key}, field: {field}, value: {value}")
             if value is None:
                 return None
             return value.decode("utf-8") if isinstance(value, bytes) else str(value)

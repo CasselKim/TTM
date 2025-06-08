@@ -540,10 +540,6 @@ class InfiniteBuyingUsecase:
         config = await self.infinite_buying_repository.get_config(market)
         state = await self.infinite_buying_repository.get_state_with_rounds(market)
 
-        self.logger.info(f"execute_infinite_buying_cycle: {market}")
-        self.logger.info(f"config: {config}")
-        self.logger.info(f"state: {state}")
-
         if not config or not state or not state.is_active:
             return InfiniteBuyingResult(
                 success=False,

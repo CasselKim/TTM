@@ -74,12 +74,10 @@ class UpbitClient:
             list[dict[str, Any]]: 현재가 정보 리스트
         """
         params = {"markets": markets}
-        # 시세 정보는 인증이 필요 없으므로 auth 없이 요청
         url = f"{self.base_url}/ticker"
         headers = {"Content-Type": "application/json", "Charset": "UTF-8"}
 
         response = requests.get(url, params=params, headers=headers)
-        logger.info(f"Response: {response.json()}")
         response.raise_for_status()
         return cast(list[dict[str, Any]], response.json())
 

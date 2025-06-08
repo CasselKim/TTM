@@ -62,7 +62,7 @@ class InfiniteBuyingConfig(BaseModel):
 
     # 수익/손실 기준
     target_profit_rate: Decimal = Decimal("0.10")  # 목표 수익률 (10%)
-    price_drop_threshold: Decimal = Decimal("-0.04")  # 추가 매수 트리거 하락률 (-4%)
+    price_drop_threshold: Decimal = Decimal("-0.025")  # 추가 매수 트리거 하락률 (-2.5%)
     force_stop_loss_rate: Decimal = Decimal("-0.25")  # 강제 손절률 (-25%)
 
     # 리스크 관리
@@ -71,10 +71,10 @@ class InfiniteBuyingConfig(BaseModel):
 
     # 시간 관리
     min_buy_interval_minutes: int = 30  # 최소 매수 간격 (분)
-    max_cycle_days: int = 30  # 최대 사이클 기간 (일)
+    max_cycle_days: int = 45  # 최대 사이클 기간 (일)
 
     # 하이브리드 DCA 설정
-    time_based_buy_interval_days: int = 1  # 시간 기반 매수 간격 (일)
+    time_based_buy_interval_days: int = 3  # 시간 기반 매수 간격 (일)
     enable_time_based_buying: bool = True  # 시간 기반 매수 활성화
 
     @field_validator(

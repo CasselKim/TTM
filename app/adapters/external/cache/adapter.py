@@ -65,11 +65,12 @@ class CacheInfiniteBuyingRepository(InfiniteBuyingRepository):
     async def get_state_with_rounds(self, market: str) -> InfiniteBuyingState | None:
         """매수 회차 정보를 포함한 상태를 조회합니다."""
         state = await self.get_state(market)
+
         if not state or not state.cycle_id:
             return state
 
-        rounds = await self.get_buying_rounds(market, state.cycle_id)
-        state.buying_rounds = rounds
+        # KEY_STATE에서 이미 buying_rounds가 포함되어 있으므로 추가 조회 불필요
+        # 기존의 중복 저장 방식으로 인한 데이터 불일치 문제를 방지
         return state
 
     async def add_buying_round(self, market: str, buying_round: BuyingRound) -> bool:
@@ -92,14 +93,20 @@ class CacheInfiniteBuyingRepository(InfiniteBuyingRepository):
     ) -> list[BuyingRound]:
         """매수 라운드 목록을 조회합니다."""
         data = await self.client.hget(self.KEY_ROUNDS, market)
+
         if not data:
             return []
 
-        all_rounds = [BuyingRound.from_cache_json(r) for r in data.split("|") if r]
+        split_data = data.split("|")
+        all_rounds = [BuyingRound.from_cache_json(r) for r in split_data if r]
 
         if not cycle_id:
             return all_rounds
-        return [r for r in all_rounds if getattr(r, "cycle_id", None) == cycle_id]
+
+        filtered_rounds = [
+            r for r in all_rounds if getattr(r, "cycle_id", None) == cycle_id
+        ]
+        return filtered_rounds
 
     async def save_cycle_history(
         self,

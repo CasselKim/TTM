@@ -16,6 +16,7 @@ from pydantic import (
     ConfigDict,
     Field,
     field_serializer,
+    field_validator,
     model_validator,
 )
 
@@ -76,6 +77,24 @@ class InfiniteBuyingConfig(BaseModel):
     time_based_buy_interval_days: int = 1  # 시간 기반 매수 간격 (일)
     enable_time_based_buying: bool = True  # 시간 기반 매수 활성화
 
+    @field_validator(
+        "initial_buy_amount",
+        "add_buy_multiplier",
+        "target_profit_rate",
+        "price_drop_threshold",
+        "force_stop_loss_rate",
+        "max_investment_ratio",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimal_fields(cls, v: Any) -> Decimal:
+        """Decimal 필드 역직렬화 처리"""
+        if isinstance(v, (int, float, str)):
+            return Decimal(str(v))
+        if isinstance(v, Decimal):
+            return v
+        raise ValueError(f"Cannot convert {type(v)} to Decimal")
+
     @field_serializer(
         "initial_buy_amount",
         "add_buy_multiplier",
@@ -128,6 +147,26 @@ class BuyingRound(BaseModel):
     buy_volume: Decimal  # 매수 수량 (코인)
     timestamp: datetime  # 매수 시점
     buy_type: BuyType = BuyType.PRICE_DROP  # 매수 타입
+
+    @field_validator("buy_price", "buy_amount", "buy_volume", mode="before")
+    @classmethod
+    def validate_decimal_fields(cls, v: Any) -> Decimal:
+        """Decimal 필드 역직렬화 처리"""
+        if isinstance(v, (int, float, str)):
+            return Decimal(str(v))
+        if isinstance(v, Decimal):
+            return v
+        raise ValueError(f"Cannot convert {type(v)} to Decimal")
+
+    @field_validator("timestamp", mode="before")
+    @classmethod
+    def validate_datetime_field(cls, v: Any) -> datetime:
+        """datetime 필드 역직렬화 처리"""
+        if isinstance(v, str):
+            return datetime.fromisoformat(v)
+        if isinstance(v, datetime):
+            return v
+        raise ValueError(f"Cannot convert {type(v)} to datetime")
 
     @field_serializer("buy_price", "buy_amount", "buy_volume")
     def serialize_decimal(self, value: Decimal) -> float:
@@ -185,6 +224,37 @@ class InfiniteBuyingState(BaseModel):
 
     # 매수 히스토리
     buying_rounds: list[BuyingRound] = Field(default_factory=list)  # 매수 회차별 정보
+
+    @field_validator(
+        "total_investment",
+        "total_volume",
+        "average_price",
+        "last_buy_price",
+        "target_sell_price",
+        mode="before",
+    )
+    @classmethod
+    def validate_decimal_fields(cls, v: Any) -> Decimal:
+        """Decimal 필드 역직렬화 처리"""
+        if isinstance(v, (int, float, str)):
+            return Decimal(str(v))
+        if isinstance(v, Decimal):
+            return v
+        raise ValueError(f"Cannot convert {type(v)} to Decimal")
+
+    @field_validator(
+        "last_buy_time", "cycle_start_time", "last_time_based_buy_time", mode="before"
+    )
+    @classmethod
+    def validate_datetime_fields(cls, v: Any) -> datetime | None:
+        """datetime 필드 역직렬화 처리"""
+        if v is None:
+            return None
+        if isinstance(v, str):
+            return datetime.fromisoformat(v)
+        if isinstance(v, datetime):
+            return v
+        raise ValueError(f"Cannot convert {type(v)} to datetime")
 
     @field_serializer(
         "total_investment",
@@ -349,6 +419,20 @@ class InfiniteBuyingResult(BaseModel):
     # 상태 정보
     current_state: InfiniteBuyingState | None = None
     profit_rate: Decimal | None = None
+
+    @field_validator(
+        "trade_price", "trade_amount", "trade_volume", "profit_rate", mode="before"
+    )
+    @classmethod
+    def validate_decimal_fields(cls, v: Any) -> Decimal | None:
+        """Decimal 필드 역직렬화 처리"""
+        if v is None:
+            return None
+        if isinstance(v, (int, float, str)):
+            return Decimal(str(v))
+        if isinstance(v, Decimal):
+            return v
+        raise ValueError(f"Cannot convert {type(v)} to Decimal")
 
     @field_serializer("trade_price", "trade_amount", "trade_volume", "profit_rate")
     def serialize_decimal(self, value: Decimal | None) -> float | None:

@@ -88,8 +88,6 @@ class Container(containers.DeclarativeContainer):
         DiscordUIUseCase,
         account_usecase=account_usecase,
         infinite_buying_usecase=infinite_buying_usecase,
-        ticker_usecase=ticker_usecase,
-        order_usecase=order_usecase,
     )
 
     # Discord Adapters

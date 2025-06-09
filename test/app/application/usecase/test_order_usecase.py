@@ -31,9 +31,14 @@ def mock_ticker_repository():
 
 
 @pytest.fixture
-def order_usecase(mock_order_repository, mock_ticker_repository):
+def mock_notification_repo():
+    return AsyncMock()
+
+
+@pytest.fixture
+def order_usecase(mock_order_repository, mock_ticker_repository, mock_notification_repo):
     """주문 유스케이스 인스턴스"""
-    return OrderUseCase(mock_order_repository, mock_ticker_repository)
+    return OrderUseCase(mock_order_repository, mock_ticker_repository, mock_notification_repo)
 
 
 class TestOrderUseCase:

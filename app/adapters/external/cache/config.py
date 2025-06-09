@@ -14,7 +14,7 @@ class CacheConfig(BaseModel):
     socket_connect_timeout: int = 5
     retry_on_timeout: bool = True
     decode_responses: bool = True
-    use_tls: bool = True
+    use_tls: bool = False
 
     @classmethod
     def from_env(cls) -> "CacheConfig":

@@ -6,12 +6,9 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from app.domain.models.infinite_buying import (
-    BuyingRound,
     InfiniteBuyingConfig,
-    InfiniteBuyingResult,
     InfiniteBuyingState,
 )
-from app.domain.types import CycleHistoryItem, TradeStatistics
 
 
 class InfiniteBuyingRepository(ABC):
@@ -34,55 +31,7 @@ class InfiniteBuyingRepository(ABC):
 
     @abstractmethod
     async def get_state(self, market: str) -> InfiniteBuyingState | None:
-        """현재 무한매수법 상태를 조회합니다. buying_rounds는 별도 메서드로 조회 권장."""
-        pass
-
-    @abstractmethod
-    async def get_state_with_rounds(self, market: str) -> InfiniteBuyingState | None:
-        """매수 회차 정보를 포함한 상태를 조회합니다."""
-        pass
-
-    @abstractmethod
-    async def add_buying_round(self, market: str, buying_round: BuyingRound) -> bool:
-        """매수 회차를 추가합니다."""
-        pass
-
-    @abstractmethod
-    async def get_buying_rounds(
-        self, market: str, cycle_id: str | None = None
-    ) -> list[BuyingRound]:
-        """매수 회차 목록을 조회합니다. cycle_id가 없으면 현재 활성 사이클의
-        회차들을 반환합니다."""
-        pass
-
-    @abstractmethod
-    async def save_cycle_history(
-        self,
-        market: str,
-        cycle_id: str,
-        state: InfiniteBuyingState,
-        result: InfiniteBuyingResult,
-    ) -> bool:
-        """완료된 사이클 히스토리를 저장합니다."""
-        pass
-
-    @abstractmethod
-    async def get_cycle_history(
-        self, market: str, limit: int = 100
-    ) -> list[CycleHistoryItem]:
-        """완료된 사이클 히스토리를 조회합니다."""
-        pass
-
-    @abstractmethod
-    async def get_trade_statistics(self, market: str) -> TradeStatistics:
-        """거래 통계를 조회합니다."""
-        pass
-
-    @abstractmethod
-    async def update_statistics(
-        self, market: str, result: InfiniteBuyingResult
-    ) -> bool:
-        """거래 통계를 업데이트합니다."""
+        """현재 무한매수법 상태를 조회합니다."""
         pass
 
     @abstractmethod
@@ -103,4 +52,9 @@ class InfiniteBuyingRepository(ABC):
     @abstractmethod
     async def get_active_markets(self) -> list[str]:
         """현재 활성화된 무한매수법 마켓 목록을 반환합니다."""
+        pass
+
+    @abstractmethod
+    async def close(self) -> None:
+        """연결을 종료합니다."""
         pass

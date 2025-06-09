@@ -26,12 +26,10 @@ from app.domain.trade_algorithms.infinite_buying import InfiniteBuyingAlgorithm
 from app.domain.types import (
     ActionTaken,
     BuyingRoundInfo,
-    CycleHistoryItem,
     InfiniteBuyingMarketStatus,
     InfiniteBuyingOverallStatus,
     InfiniteBuyingStatus,
     MarketName,
-    TradeStatistics,
 )
 
 
@@ -81,7 +79,7 @@ class InfiniteBuyingUsecase:
         Returns:
             InfiniteBuyingResult: 시작 결과
         """
-        # 이미 실행 중인지 확인 (Redis에서)
+        # 이미 실행 중인지 확인
         existing_state = await self.infinite_buying_repository.get_state(market)
         if existing_state and existing_state.is_active:
             return InfiniteBuyingResult(
@@ -104,12 +102,12 @@ class InfiniteBuyingUsecase:
         # 상태를 첫 매수 대기 상태로 설정 (cycle_id 자동 생성)
         algorithm.state.reset_cycle(market)
 
-        # Redis에 설정 저장
+        # 설정 저장
         config_saved = await self.infinite_buying_repository.save_config(market, config)
         if not config_saved:
             raise ConfigSaveError()
 
-        # Redis에 초기 상태 저장
+        # 초기 상태 저장
         state_saved = await self.infinite_buying_repository.save_state(
             market, algorithm.state
         )
@@ -141,9 +139,9 @@ class InfiniteBuyingUsecase:
         Returns:
             InfiniteBuyingResult: 종료 결과
         """
-        # 실행 중인 알고리즘 확인 (Redis에서)
+        # 실행 중인 알고리즘 확인
         config = await self.infinite_buying_repository.get_config(market)
-        state = await self.infinite_buying_repository.get_state_with_rounds(market)
+        state = await self.infinite_buying_repository.get_state(market)
 
         if not config or not state or not state.is_active:
             return InfiniteBuyingResult(
@@ -185,25 +183,7 @@ class InfiniteBuyingUsecase:
                 else:
                     self.logger.warning(f"강제 매도 실패: {sell_result.message}")
 
-        # 최종 상태
-        final_state = algorithm.state
-
-        # 강제 종료인 경우 사이클 히스토리 저장
-        if force_sell and final_state.is_active:
-            cycle_result = InfiniteBuyingResult(
-                success=True,
-                action_taken=ActionTaken.FORCE_STOP,
-                message="강제 종료",
-                current_state=final_state,
-            )
-            await self.infinite_buying_repository.save_cycle_history(
-                market, final_state.cycle_id or "unknown", final_state, cycle_result
-            )
-            await self.infinite_buying_repository.update_statistics(
-                market, cycle_result
-            )
-
-        # Redis에서 현재 상태 삭제 (설정은 유지)
+        # 데이터 삭제
         await self.infinite_buying_repository.clear_market_data(market)
 
         action_msg = "강제 종료" if force_sell else "정상 종료"
@@ -214,7 +194,7 @@ class InfiniteBuyingUsecase:
             success=True,
             action_taken=ActionTaken.STOP,
             message=f"{market} 무한매수법이 {action_msg}되었습니다.",
-            current_state=final_state,
+            current_state=algorithm.state,
         )
 
     async def get_infinite_buying_market_status(
@@ -229,12 +209,10 @@ class InfiniteBuyingUsecase:
         Returns:
             InfiniteBuyingMarketStatus: 특정 마켓 상태 정보
         """
-        # Redis에서 상태 조회
-        redis_state = await self.infinite_buying_repository.get_state_with_rounds(
-            market
-        )
+        # 상태 조회
+        state = await self.infinite_buying_repository.get_state(market)
 
-        if not redis_state or not redis_state.is_active:
+        if not state or not state.is_active:
             return InfiniteBuyingMarketStatus(
                 market=market,
                 status=InfiniteBuyingStatus.INACTIVE,
@@ -253,44 +231,35 @@ class InfiniteBuyingUsecase:
                 recent_history=[],
             )
 
-        # 통계 정보 조회
-        statistics = await self.infinite_buying_repository.get_trade_statistics(market)
-
-        # 히스토리 조회 (최근 5개)
-        recent_history = await self.infinite_buying_repository.get_cycle_history(
-            market, limit=5
-        )
-
         # 현재가 조회 및 수익률 계산 (활성 상태인 경우만)
         current_price = None
         current_profit_rate = None
         current_value = None
         profit_loss_amount = None
 
-        if redis_state.is_active:
+        if state.is_active:
             try:
                 # 현재가 조회
                 ticker = await self.ticker_repository.get_ticker(market)
                 current_price = ticker.trade_price
 
                 # 수익률 계산
-                if redis_state.average_price > 0:
-                    current_profit_rate = redis_state.calculate_current_profit_rate(
+                if state.average_price > 0:
+                    current_profit_rate = state.calculate_current_profit_rate(
                         current_price
                     )
 
                 # 현재 평가금액 계산 (보유수량 × 현재가)
-                if redis_state.total_volume > 0:
-                    current_value = redis_state.total_volume * current_price
-                    profit_loss_amount = current_value - redis_state.total_investment
+                if state.total_volume > 0:
+                    current_value = state.total_volume * current_price
+                    profit_loss_amount = current_value - state.total_investment
 
             except Exception as e:
                 self.logger.warning(f"현재가 조회 실패: {market}, 오류: {e}")
-                # 현재가 조회 실패 시에도 나머지 정보는 정상 반환
 
         # 매수 회차 정보 변환
         buying_rounds = []
-        for r in redis_state.buying_rounds:
+        for r in state.buying_rounds:
             buying_rounds.append(
                 BuyingRoundInfo(
                     round_number=r.round_number,
@@ -304,25 +273,25 @@ class InfiniteBuyingUsecase:
         return InfiniteBuyingMarketStatus(
             market=market,
             status=InfiniteBuyingStatus.ACTIVE
-            if redis_state.is_active
+            if state.is_active
             else InfiniteBuyingStatus.INACTIVE,
-            phase=redis_state.phase,
-            cycle_id=redis_state.cycle_id,
-            current_round=redis_state.current_round,
-            total_investment=redis_state.total_investment,
-            total_volume=redis_state.total_volume,
-            average_price=redis_state.average_price,
-            target_sell_price=redis_state.target_sell_price,
-            last_buy_price=redis_state.last_buy_price,
-            last_buy_time=redis_state.last_buy_time,
-            cycle_start_time=redis_state.cycle_start_time,
+            phase=state.phase,
+            cycle_id=state.cycle_id,
+            current_round=state.current_round,
+            total_investment=state.total_investment,
+            total_volume=state.total_volume,
+            average_price=state.average_price,
+            target_sell_price=state.target_sell_price,
+            last_buy_price=state.last_buy_price,
+            last_buy_time=state.last_buy_time,
+            cycle_start_time=state.cycle_start_time,
             current_price=current_price,
             current_profit_rate=current_profit_rate,
             current_value=current_value,
             profit_loss_amount=profit_loss_amount,
             buying_rounds=buying_rounds,
-            statistics=statistics,
-            recent_history=recent_history,
+            statistics=None,  # 통계 기능 제거
+            recent_history=[],  # 히스토리 기능 제거
         )
 
     async def get_infinite_buying_overall_status(self) -> InfiniteBuyingOverallStatus:
@@ -332,7 +301,7 @@ class InfiniteBuyingUsecase:
         Returns:
             InfiniteBuyingOverallStatus: 전체 상태 정보
         """
-        # Redis에서 활성 마켓 목록 조회
+        # 활성 마켓 목록 조회
         active_markets = await self.infinite_buying_repository.get_active_markets()
         statuses = {}
 
@@ -454,15 +423,9 @@ class InfiniteBuyingUsecase:
         # 상태 업데이트
         result = await algorithm.execute_buy(account, market_data, buy_amount)
 
-        # Redis에 상태 저장
+        # 상태 저장
         if result.success:
             await self.infinite_buying_repository.save_state(market, algorithm.state)
-            # 매수 회차 정보 저장
-            if algorithm.state.buying_rounds:
-                latest_round = algorithm.state.buying_rounds[-1]
-                await self.infinite_buying_repository.add_buying_round(
-                    market, latest_round
-                )
 
         return result
 
@@ -496,7 +459,7 @@ class InfiniteBuyingUsecase:
         # 상태 업데이트
         result = await algorithm.execute_sell(account, market_data, sell_volume)
 
-        # 사이클 완료 시 처리
+        # 매도 성공 시 처리
         if result.success:
             await self._handle_sell_success(algorithm, market, result)
 
@@ -512,14 +475,8 @@ class InfiniteBuyingUsecase:
         # 상태 저장
         await self.infinite_buying_repository.save_state(market, algorithm.state)
 
-        # 사이클 완료 시 히스토리 저장 및 통계 업데이트
+        # 사이클 완료 시 로그
         if algorithm.state.phase == InfiniteBuyingPhase.INACTIVE:
-            cycle_id = algorithm.state.cycle_id or "unknown"
-            await self.infinite_buying_repository.save_cycle_history(
-                market, cycle_id, algorithm.state, result
-            )
-            await self.infinite_buying_repository.update_statistics(market, result)
-            # 상태를 비활성으로 만들어 Redis에서 더 이상 조회되지 않도록 함
             self.logger.info(
                 f"무한매수법 사이클 완료: {market}, 수익률: {result.profit_rate}"
             )
@@ -536,9 +493,9 @@ class InfiniteBuyingUsecase:
         Returns:
             InfiniteBuyingResult: 실행 결과
         """
-        # Redis에서 설정과 상태 조회
+        # 설정과 상태 조회
         config = await self.infinite_buying_repository.get_config(market)
-        state = await self.infinite_buying_repository.get_state_with_rounds(market)
+        state = await self.infinite_buying_repository.get_state(market)
 
         if not config or not state or not state.is_active:
             return InfiniteBuyingResult(
@@ -587,16 +544,3 @@ class InfiniteBuyingUsecase:
         """특정 시장이 실행 중인지 확인"""
         state = await self.infinite_buying_repository.get_state(market)
         return state is not None and state.is_active
-
-    async def get_trade_statistics(self, market: MarketName) -> TradeStatistics | None:
-        """특정 마켓의 거래 통계 조회"""
-        return await self.infinite_buying_repository.get_trade_statistics(market)
-
-    async def get_cycle_history(
-        self, market: MarketName, limit: int = 10
-    ) -> list[CycleHistoryItem]:
-        """특정 마켓의 사이클 히스토리 조회"""
-        return await self.infinite_buying_repository.get_cycle_history(
-            market=market,
-            limit=limit,
-        )

@@ -39,6 +39,7 @@ class DiscordAdapter:
         channel_id: int,
         alert_channel_id: int,
         log_channel_id: int,
+        ui_usecase: Any = None,
         command_prefix: str = DiscordConstants.DEFAULT_COMMAND_PREFIX,
     ):
         """
@@ -55,6 +56,7 @@ class DiscordAdapter:
         self.channel_id = channel_id
         self.alert_channel_id = alert_channel_id
         self.log_channel_id = log_channel_id
+        self.ui_usecase = ui_usecase
         self.bot: commands.Bot
         self.channel: discord.TextChannel | None = None
         self.alert_channel: discord.TextChannel | None = None
@@ -376,3 +378,9 @@ class DiscordAdapter:
     def add_command(self, func: commands.Command[Any, ..., Any]) -> None:
         """봇에 커맨드 추가"""
         self.bot.add_command(func)
+
+    async def setup_slash_commands(self) -> None:
+        """Slash Commands 설정"""
+        from .commands.slash_commands import setup_slash_commands
+
+        await setup_slash_commands(self.bot, self.ui_usecase)

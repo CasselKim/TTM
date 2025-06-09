@@ -76,7 +76,7 @@ line-ending = "auto"
 
 [tool.ruff.lint.isort]
 # Import sorting configuration
-known-first-party = ["app", "common"]
+known-first-party = ["app", "common", "resources"]
 force-single-line = false
 force-sort-within-sections = false
 split-on-trailing-comma = true

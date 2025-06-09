@@ -1,9 +1,8 @@
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
-from app.adapters.external.discord.adapter import DiscordAdapter
 from app.application.dto.order_dto import (
     LimitBuyResult,
     LimitSellResult,
@@ -14,8 +13,13 @@ from app.application.dto.order_dto import (
 from app.domain.constants import TradingConstants
 from app.domain.enums import OrderSide, OrderType
 from app.domain.models.order import OrderRequest
+from app.domain.repositories.notification import NotificationRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
+from app.domain.types import MarketName
+
+if TYPE_CHECKING:
+    pass
 
 logger = logging.getLogger(__name__)
 
@@ -25,49 +29,11 @@ class OrderUseCase:
         self,
         order_repository: OrderRepository,
         ticker_repository: TickerRepository,
-        discord_adapter: DiscordAdapter | None = None,
+        notification_repo: "NotificationRepository",
     ):
-        self.order_repository = order_repository
+        self._order_repository = order_repository
         self.ticker_repository = ticker_repository
-        self.discord_adapter = discord_adapter
-
-    async def _send_trade_notification(
-        self,
-        market: str,
-        side: str,
-        price: Decimal | None = None,
-        volume: Decimal | None = None,
-        amount: Decimal | None = None,
-    ) -> None:
-        """거래 체결 알림을 Discord로 전송합니다."""
-        if not self.discord_adapter:
-            return
-
-        try:
-            # 실제 거래 정보를 조회하거나 추정
-            # 시장가의 경우 실제 체결 가격은 나중에 확인 가능
-            if price and volume:
-                total_price = price * volume
-            elif amount:
-                total_price = amount
-            else:
-                total_price = Decimal("0")
-
-            # 수수료 계산 (상수 사용)
-            fee = total_price * TradingConstants.UPBIT_TRADING_FEE_RATE
-
-            await self.discord_adapter.send_trade_notification(
-                market=market,
-                side=side,
-                price=float(price) if price else 0,
-                volume=float(volume) if volume else 0,
-                total_price=float(total_price),
-                fee=float(fee),
-                executed_at=datetime.now(),
-            )
-        except Exception:
-            logger.exception("Failed to send Discord notification")
-            # Discord 알림 실패는 거래에 영향을 주지 않음
+        self.notification_repo = notification_repo
 
     async def buy_limit(
         self, market: str, volume: Decimal, price: Decimal
@@ -96,15 +62,25 @@ class OrderUseCase:
                 price=price,
             )
 
-            result = await self.order_repository.place_order(order_request)
+            result = await self._order_repository.place_order(order_request)
 
-            if result.success and result.order:
-                # Discord 알림 전송
-                await self._send_trade_notification(
-                    market=market,
+            if (
+                result.success
+                and result.order
+                and result.order.price
+                and result.order.volume
+            ):
+                # 거래 성공 알림
+                total_price = result.order.price * result.order.volume
+                fee = total_price * TradingConstants.UPBIT_TRADING_FEE_RATE
+                await self.notification_repo.send_trade_notification(
+                    market=result.order.market,
                     side="BUY",
-                    price=price,
-                    volume=volume,
+                    price=float(result.order.price),
+                    volume=float(result.order.volume),
+                    total_price=float(total_price),
+                    fee=float(fee),
+                    executed_at=datetime.fromisoformat(result.order.created_at),
                 )
 
                 return LimitBuyResult(
@@ -114,17 +90,29 @@ class OrderUseCase:
                     volume=str(result.order.volume),
                     price=str(result.order.price),
                 )
-            else:
+            elif result.success is False:
+                # 거래 실패 알림
+                await self.notification_repo.send_error_notification(
+                    error_type="Limit Buy Failed",
+                    error_message=result.error_message or "Unknown error",
+                    details=f"Market: {market}, Volume: {volume}, Price: {price}",
+                )
                 return OrderError(
                     success=False, error_message=result.error_message or "Unknown error"
                 )
+            return OrderError(success=False, error_message="Order result is invalid.")
 
         except Exception as e:
             logger.exception("Failed to execute limit buy")
+            await self.notification_repo.send_error_notification(
+                error_type="Limit Buy Exception",
+                error_message=str(e),
+                details=f"Market: {market}, Volume: {volume}, Price: {price}",
+            )
             return OrderError(success=False, error_message=str(e))
 
     async def buy_market(
-        self, market: str, amount: Decimal
+        self, market: MarketName, amount: Decimal
     ) -> MarketBuyResult | OrderError:
         """시장가 매수를 실행합니다.
 
@@ -145,14 +133,20 @@ class OrderUseCase:
                 price=amount,  # 시장가 매수는 price에 매수할 금액을 설정
             )
 
-            result = await self.order_repository.place_order(order_request)
+            result = await self._order_repository.place_order(order_request)
 
-            if result.success and result.order:
-                # Discord 알림 전송
-                await self._send_trade_notification(
-                    market=market,
+            if result.success and result.order and result.order.price:
+                # 거래 성공 알림
+                total_price = result.order.price
+                fee = total_price * TradingConstants.UPBIT_TRADING_FEE_RATE
+                await self.notification_repo.send_trade_notification(
+                    market=result.order.market,
                     side="BUY",
-                    amount=amount,
+                    price=0,  # 시장가는 체결가가 유동적
+                    volume=0,  # 시장가는 체결량이 유동적
+                    total_price=float(total_price),
+                    fee=float(fee),
+                    executed_at=datetime.fromisoformat(result.order.created_at),
                 )
 
                 return MarketBuyResult(
@@ -161,13 +155,25 @@ class OrderUseCase:
                     market=result.order.market,
                     amount=str(amount),
                 )
-            else:
+            elif result.success is False:
+                # 거래 실패 알림
+                await self.notification_repo.send_error_notification(
+                    error_type="Market Buy Failed",
+                    error_message=result.error_message or "Unknown error",
+                    details=f"Market: {market}, Amount: {amount}",
+                )
                 return OrderError(
                     success=False, error_message=result.error_message or "Unknown error"
                 )
+            return OrderError(success=False, error_message="Order result is invalid.")
 
         except Exception as e:
             logger.exception("Failed to execute market buy")
+            await self.notification_repo.send_error_notification(
+                error_type="Market Buy Exception",
+                error_message=str(e),
+                details=f"Market: {market}, Amount: {amount}",
+            )
             return OrderError(success=False, error_message=str(e))
 
     async def sell_limit(
@@ -188,7 +194,6 @@ class OrderUseCase:
                 f"Executing limit sell - market: {market}, volume: {volume}, "
                 f"price: {price}"
             )
-
             order_request = OrderRequest(
                 market=market,
                 side=OrderSide.ASK,
@@ -196,18 +201,25 @@ class OrderUseCase:
                 volume=volume,
                 price=price,
             )
+            result = await self._order_repository.place_order(order_request)
 
-            result = await self.order_repository.place_order(order_request)
-
-            if result.success and result.order:
-                # Discord 알림 전송
-                await self._send_trade_notification(
-                    market=market,
+            if (
+                result.success
+                and result.order
+                and result.order.price
+                and result.order.volume
+            ):
+                total_price = result.order.price * result.order.volume
+                fee = total_price * TradingConstants.UPBIT_TRADING_FEE_RATE
+                await self.notification_repo.send_trade_notification(
+                    market=result.order.market,
                     side="SELL",
-                    price=price,
-                    volume=volume,
+                    price=float(result.order.price),
+                    volume=float(result.order.volume),
+                    total_price=float(total_price),
+                    fee=float(fee),
+                    executed_at=datetime.fromisoformat(result.order.created_at),
                 )
-
                 return LimitSellResult(
                     success=True,
                     order_uuid=result.order.uuid,
@@ -215,13 +227,24 @@ class OrderUseCase:
                     volume=str(result.order.volume),
                     price=str(result.order.price),
                 )
-            else:
+            elif result.success is False:
+                await self.notification_repo.send_error_notification(
+                    error_type="Limit Sell Failed",
+                    error_message=result.error_message or "Unknown error",
+                    details=f"Market: {market}, Volume: {volume}, Price: {price}",
+                )
                 return OrderError(
                     success=False, error_message=result.error_message or "Unknown error"
                 )
+            return OrderError(success=False, error_message="Order result is invalid.")
 
         except Exception as e:
             logger.exception("Failed to execute limit sell")
+            await self.notification_repo.send_error_notification(
+                error_type="Limit Sell Exception",
+                error_message=str(e),
+                details=f"Market: {market}, Volume: {volume}, Price: {price}",
+            )
             return OrderError(success=False, error_message=str(e))
 
     async def sell_market(
@@ -238,67 +261,55 @@ class OrderUseCase:
         """
         try:
             logger.info(f"Executing market sell - market: {market}, volume: {volume}")
-
             order_request = OrderRequest(
                 market=market,
                 side=OrderSide.ASK,
                 ord_type=OrderType.MARKET,  # 시장가 매도
                 volume=volume,
             )
+            result = await self._order_repository.place_order(order_request)
 
-            result = await self.order_repository.place_order(order_request)
-
-            if result.success and result.order:
-                # Discord 알림 전송
-                await self._send_trade_notification(
-                    market=market,
+            if result.success and result.order and result.order.volume:
+                await self.notification_repo.send_trade_notification(
+                    market=result.order.market,
                     side="SELL",
-                    volume=volume,
+                    price=0,
+                    volume=float(result.order.volume),
+                    total_price=0,
+                    fee=0,
+                    executed_at=datetime.fromisoformat(result.order.created_at),
                 )
-
                 return MarketSellResult(
                     success=True,
                     order_uuid=result.order.uuid,
                     market=result.order.market,
                     volume=str(result.order.volume),
                 )
-            else:
+            elif result.success is False:
+                await self.notification_repo.send_error_notification(
+                    error_type="Market Sell Failed",
+                    error_message=result.error_message or "Unknown error",
+                    details=f"Market: {market}, Volume: {volume}",
+                )
                 return OrderError(
                     success=False, error_message=result.error_message or "Unknown error"
                 )
-
+            return OrderError(success=False, error_message="Order result is invalid.")
         except Exception as e:
             logger.exception("Failed to execute market sell")
+            await self.notification_repo.send_error_notification(
+                error_type="Market Sell Exception",
+                error_message=str(e),
+                details=f"Market: {market}, Volume: {volume}",
+            )
             return OrderError(success=False, error_message=str(e))
 
     async def get_order(self, uuid: str) -> dict[str, Any] | OrderError:
-        """특정 주문 정보를 조회합니다.
-
-        Args:
-            uuid: 주문 UUID
-
-        Returns:
-            dict[str, Any] | OrderError: 주문 정보 또는 에러
-        """
+        """주문 정보를 조회합니다."""
         try:
-            logger.info(f"Getting order - uuid: {uuid}")
-
-            order = await self.order_repository.get_order(uuid)
-
-            return {
-                "success": True,
-                "uuid": order.uuid,
-                "market": order.market,
-                "side": order.side.value,
-                "ord_type": order.ord_type.value,
-                "state": order.state.value,
-                "price": str(order.price) if order.price else None,
-                "volume": str(order.volume) if order.volume else None,
-                "remaining_volume": str(order.remaining_volume),
-                "executed_volume": str(order.executed_volume),
-                "created_at": order.created_at,
-            }
-
+            logger.info(f"Getting order info for UUID: {uuid}")
+            order = await self._order_repository.get_order(uuid)
+            return order.model_dump()
         except Exception as e:
             logger.exception(f"Failed to get order {uuid}")
             return OrderError(success=False, error_message=str(e))
@@ -314,12 +325,23 @@ class OrderUseCase:
         """
         try:
             logger.info(f"Canceling order - uuid: {uuid}")
-
-            result = await self.order_repository.cancel_order(uuid)
-
+            result = await self._order_repository.cancel_order(uuid)
             if result.success and result.order:
-                # Discord 알림 전송
-                await self._send_order_cancel_notification(result.order)
+                # 주문 취소 알림
+                await self.notification_repo.send_info_notification(
+                    title="주문 취소",
+                    message=f"**{result.order.market}** 주문이 취소되었습니다.",
+                    fields=[
+                        ("주문 UUID", result.order.uuid, False),
+                        ("마켓", result.order.market, True),
+                        (
+                            "주문 유형",
+                            "매수" if result.order.side.value == "bid" else "매도",
+                            True,
+                        ),
+                        ("주문 상태", result.order.state.value, True),
+                    ],
+                )
 
                 return {
                     "success": True,
@@ -332,30 +354,6 @@ class OrderUseCase:
                 return OrderError(
                     success=False, error_message=result.error_message or "Unknown error"
                 )
-
         except Exception as e:
             logger.exception(f"Failed to cancel order {uuid}")
             return OrderError(success=False, error_message=str(e))
-
-    async def _send_order_cancel_notification(self, order: Any) -> None:
-        """주문 취소 알림을 Discord로 전송합니다."""
-        if not self.discord_adapter:
-            return
-
-        try:
-            await self.discord_adapter.send_info_notification(
-                title="주문 취소",
-                message=f"**{order.market}** 주문이 취소되었습니다.",
-                fields=[
-                    ("주문 UUID", order.uuid, False),
-                    ("마켓", order.market, True),
-                    (
-                        "주문 유형",
-                        "매수" if order.side.value == "bid" else "매도",
-                        True,
-                    ),
-                    ("주문 상태", order.state.value, True),
-                ],
-            )
-        except Exception:
-            logger.exception("Failed to send order cancel notification")

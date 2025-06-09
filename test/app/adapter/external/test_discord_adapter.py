@@ -1,4 +1,4 @@
-from app.adapters.external.discord.adapter import _truncate_field_value
+from app.adapters.external.discord.notification_adapter import _truncate_field_value
 
 
 class TestDiscordAdapter:

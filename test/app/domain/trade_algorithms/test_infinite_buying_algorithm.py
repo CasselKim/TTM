@@ -39,12 +39,14 @@ class TestInfiniteBuyingConfig:
         assert config.initial_buy_amount == Decimal("100000")
         assert config.add_buy_multiplier == Decimal("1.5")
         assert config.target_profit_rate == Decimal("0.10")
-        assert config.price_drop_threshold == Decimal("-0.04")
+        assert config.price_drop_threshold == Decimal("-0.025")
         assert config.force_stop_loss_rate == Decimal("-0.25")
         assert config.max_buy_rounds == 8
         assert config.max_investment_ratio == Decimal("0.30")
         assert config.min_buy_interval_minutes == 30
-        assert config.max_cycle_days == 30
+        assert config.max_cycle_days == 45
+        assert config.time_based_buy_interval_days == 3
+        assert config.enable_time_based_buying is True
 
     def test_custom_config_creation(self):
         """커스텀 설정으로 config 생성 테스트"""
@@ -510,7 +512,7 @@ class TestInfiniteBuyingAlgorithm:
 
         # 시간 설정: 최소 매수 간격과 시간 기반 매수 모두 만족
         algorithm.state.last_buy_time = datetime.now() - timedelta(minutes=31)  # 30분 초과
-        algorithm.state.last_time_based_buy_time = datetime.now() - timedelta(days=2)
+        algorithm.state.last_time_based_buy_time = datetime.now() - timedelta(days=4)
 
         # 잔액 조정 (초기 매수 후 남은 금액)
         account.balances[0].balance = Decimal("900000")  # 10만원 사용 후 90만원 남음

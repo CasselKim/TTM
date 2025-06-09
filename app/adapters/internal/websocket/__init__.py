@@ -1,1 +1,0 @@
-"""WebSocket Primary Adapters"""

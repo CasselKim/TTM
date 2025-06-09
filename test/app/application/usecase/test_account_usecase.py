@@ -12,8 +12,12 @@ def mock_account_repository():
     return AsyncMock()
 
 @pytest.fixture
-def account_usecase(mock_account_repository):
-    return AccountUseCase(account_repository=mock_account_repository)
+def mock_notification_repo():
+    return AsyncMock()
+
+@pytest.fixture
+def account_usecase(mock_account_repository, mock_notification_repo):
+    return AccountUseCase(account_repository=mock_account_repository, notification_repo=mock_notification_repo)
 
 async def test_account_usecase_get_balance(account_usecase, mock_account_repository):
     # Given

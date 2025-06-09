@@ -419,9 +419,15 @@ class InfiniteBuyingResult(BaseModel):
     # 상태 정보
     current_state: InfiniteBuyingState | None = None
     profit_rate: Decimal | None = None
+    profit_loss_amount_krw: Decimal | None = None
 
     @field_validator(
-        "trade_price", "trade_amount", "trade_volume", "profit_rate", mode="before"
+        "trade_price",
+        "trade_amount",
+        "trade_volume",
+        "profit_rate",
+        "profit_loss_amount_krw",
+        mode="before",
     )
     @classmethod
     def validate_decimal_fields(cls, v: Any) -> Decimal | None:
@@ -437,7 +443,9 @@ class InfiniteBuyingResult(BaseModel):
     @field_serializer("trade_price", "trade_amount", "trade_volume", "profit_rate")
     def serialize_decimal(self, value: Decimal | None) -> float | None:
         """Decimal을 float로 직렬화"""
-        return float(value) if value is not None else None
+        if value is None:
+            return None
+        return float(value)
 
     @classmethod
     def from_cache_json(cls, json_str: str) -> "InfiniteBuyingResult":

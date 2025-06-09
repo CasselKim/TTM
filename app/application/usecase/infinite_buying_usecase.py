@@ -20,6 +20,7 @@ from app.domain.models.ticker import Ticker
 from app.domain.models.trading import MarketData, TradingSignal
 from app.domain.repositories.account_repository import AccountRepository
 from app.domain.repositories.infinite_buying_repository import InfiniteBuyingRepository
+from app.domain.repositories.notification import NotificationRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
 from app.domain.trade_algorithms.infinite_buying import InfiniteBuyingAlgorithm
@@ -42,11 +43,13 @@ class InfiniteBuyingUsecase:
         order_repository: OrderRepository,
         ticker_repository: TickerRepository,
         infinite_buying_repository: InfiniteBuyingRepository,
+        notification_repo: NotificationRepository,
     ) -> None:
         self.account_repository = account_repository
         self.order_repository = order_repository
         self.ticker_repository = ticker_repository
         self.infinite_buying_repository = infinite_buying_repository
+        self.notification_repo = notification_repo
         self.logger = logging.getLogger(self.__class__.__name__)
 
     def _ticker_to_market_data(self, ticker: Ticker, market: MarketName) -> MarketData:
@@ -119,6 +122,15 @@ class InfiniteBuyingUsecase:
             f"목표수익률: {target_profit_rate:.1%}"
         )
 
+        await self.notification_repo.send_info_notification(
+            title="무한매수법 시작",
+            message=f"**{market}** 마켓의 무한매수법을 시작합니다.",
+            fields=[
+                ("초기 매수 금액", f"{initial_buy_amount:,.0f} KRW", True),
+                ("목표 수익률", f"{target_profit_rate:.1%}", True),
+            ],
+        )
+
         return InfiniteBuyingResult(
             success=True,
             action_taken=ActionTaken.START,
@@ -189,6 +201,11 @@ class InfiniteBuyingUsecase:
         action_msg = "강제 종료" if force_sell else "정상 종료"
 
         self.logger.info(f"무한매수법 {action_msg}: {market}")
+
+        await self.notification_repo.send_info_notification(
+            title=f"무한매수법 {action_msg}",
+            message=f"**{market}** 마켓의 무한매수법을 종료했습니다.",
+        )
 
         return InfiniteBuyingResult(
             success=True,
@@ -438,32 +455,23 @@ class InfiniteBuyingUsecase:
         signal: TradingSignal,
     ) -> InfiniteBuyingResult:
         """매도 신호 처리"""
-        # 매도 실행
-        sell_volume = await algorithm.calculate_sell_amount(
-            account, market_data, signal
-        )
+        sell_volume = algorithm.state.total_volume
+        sell_result = await self._execute_sell_order(market, sell_volume)
 
-        if sell_volume <= 0:
-            return InfiniteBuyingResult(
-                success=True,
-                action_taken=ActionTaken.HOLD,
-                message="매도 수량이 부족합니다.",
-                current_state=algorithm.state,
+        if not sell_result or not sell_result.success:
+            return sell_result or InfiniteBuyingResult(
+                success=False,
+                action_taken=ActionTaken.SELL,
+                message="매도 주문 실행에 실패했습니다.",
             )
 
-        # 실거래 실행
-        sell_result = await self._execute_sell_order(market, sell_volume)
-        if sell_result is not None:  # 오류 발생한 경우
-            return sell_result
+        # 수익 실현 정보 계산
+        total_sell_amount = sell_result.trade_amount or Decimal("0")
+        profit_loss_amount = total_sell_amount - algorithm.state.total_investment
+        sell_result.profit_loss_amount_krw = profit_loss_amount
 
-        # 상태 업데이트
-        result = await algorithm.execute_sell(account, market_data, sell_volume)
-
-        # 매도 성공 시 처리
-        if result.success:
-            await self._handle_sell_success(algorithm, market, result)
-
-        return result
+        await self._handle_sell_success(algorithm, market, sell_result)
+        return sell_result
 
     async def _handle_sell_success(
         self,
@@ -471,15 +479,30 @@ class InfiniteBuyingUsecase:
         market: MarketName,
         result: InfiniteBuyingResult,
     ) -> None:
-        """매도 성공 시 후처리"""
-        # 상태 저장
+        """매도 성공 후 처리 로직"""
+        self.logger.info(
+            f"수익 실현 및 사이클 종료: {market}, "
+            f"실현 수익: {result.profit_loss_amount_krw or 0:,.0f} KRW"
+        )
+        await self.notification_repo.send_info_notification(
+            title="🎉 무한매수법 수익 실현",
+            message=f"**{market}** 마켓에서 수익을 실현하고 사이클을 종료했습니다.",
+            fields=[
+                (
+                    "실현 손익",
+                    f"{result.profit_loss_amount_krw or 0:,.2f} KRW",
+                    True,
+                ),
+                (
+                    "수익률",
+                    f"{result.profit_rate:.2%}" if result.profit_rate else "N/A",
+                    True,
+                ),
+            ],
+        )
+        # 상태 초기화 및 저장
+        algorithm.state.reset_cycle(market)
         await self.infinite_buying_repository.save_state(market, algorithm.state)
-
-        # 사이클 완료 시 로그
-        if algorithm.state.phase == InfiniteBuyingPhase.INACTIVE:
-            self.logger.info(
-                f"무한매수법 사이클 완료: {market}, 수익률: {result.profit_rate}"
-            )
 
     async def execute_infinite_buying_cycle(
         self, market: MarketName

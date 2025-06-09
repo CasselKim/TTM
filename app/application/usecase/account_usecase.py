@@ -1,10 +1,16 @@
 from app.application.dto.account_dto import AccountBalanceDTO, BalanceDTO
 from app.domain.repositories.account_repository import AccountRepository
+from app.domain.repositories.notification import NotificationRepository
 
 
 class AccountUseCase:
-    def __init__(self, account_repository: AccountRepository):
+    def __init__(
+        self,
+        account_repository: AccountRepository,
+        notification_repo: NotificationRepository,
+    ):
         self.account_repository = account_repository
+        self.notification_repo = notification_repo
 
     async def get_balance(self) -> AccountBalanceDTO:
         """계좌 잔액 정보를 조회합니다."""

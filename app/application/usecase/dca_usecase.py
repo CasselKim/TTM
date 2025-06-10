@@ -1,9 +1,3 @@
-"""
-DCA 전용 UseCase
-
-DCA 알고리즘의 실행, 조회, 종료를 담당하는 비즈니스 로직입니다.
-"""
-
 import logging
 from decimal import Decimal
 
@@ -30,10 +24,10 @@ from app.domain.types import (
     MarketName,
 )
 
+logger = logging.getLogger(__name__)
+
 
 class DcaUsecase:
-    """DCA 전용 UseCase"""
-
     def __init__(
         self,
         account_repository: AccountRepository,
@@ -47,7 +41,6 @@ class DcaUsecase:
         self.ticker_repository = ticker_repository
         self.dca_repository = dca_repository
         self.notification_repo = notification_repo
-        self.logger = logging.getLogger(self.__class__.__name__)
 
     def _ticker_to_market_data(self, ticker: Ticker, market: MarketName) -> MarketData:
         """Ticker 객체를 MarketData로 변환"""
@@ -112,7 +105,7 @@ class DcaUsecase:
         if not state_saved:
             raise StateSaveError()
 
-        self.logger.info(
+        logger.info(
             f"DCA 시작: {market}, 초기금액: {initial_buy_amount:,.0f}원, "
             f"목표수익률: {target_profit_rate:.1%}"
         )
@@ -186,16 +179,16 @@ class DcaUsecase:
                 )
 
                 if sell_result.success:
-                    self.logger.info(f"강제 매도 완료: {market}")
+                    logger.info(f"강제 매도 완료: {market}")
                 else:
-                    self.logger.warning(f"강제 매도 실패: {sell_result.message}")
+                    logger.warning(f"강제 매도 실패: {sell_result.message}")
 
         # 데이터 삭제
         await self.dca_repository.clear_market_data(market)
 
         action_msg = "강제 종료" if force_sell else "정상 종료"
 
-        self.logger.info(f"DCA {action_msg}: {market}")
+        logger.info(f"DCA {action_msg}: {market}")
 
         await self.notification_repo.send_info_notification(
             title=f"DCA {action_msg}",
@@ -261,7 +254,7 @@ class DcaUsecase:
                 )
 
         except Exception as e:
-            self.logger.error(f"DCA 사이클 실행 실패: {market}, 오류: {e}")
+            logger.error(f"DCA 사이클 실행 실패: {market}, 오류: {e}")
             return DcaResult(
                 success=False,
                 action_taken=ActionTaken.HOLD,
@@ -286,7 +279,7 @@ class DcaUsecase:
             ticker = await self.ticker_repository.get_ticker(market)
             current_price = ticker.trade_price
         except Exception as e:
-            self.logger.warning(f"현재가 조회 실패 ({market}): {e}")
+            logger.warning(f"현재가 조회 실패 ({market}): {e}")
             current_price = None
 
         # 매수 회차 정보는 DcaState의 buying_rounds를 사용

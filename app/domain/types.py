@@ -10,13 +10,11 @@ from typing import TYPE_CHECKING, Self
 from pydantic import BaseModel, ConfigDict, field_serializer
 
 if TYPE_CHECKING:
-    pass
-
-from app.domain.models.dca import (
-    DcaPhase,
-    DcaResult,
-    DcaState,
-)
+    from app.domain.models.dca import (
+        DcaPhase,
+        DcaResult,
+        DcaState,
+    )
 
 
 # StrEnum 정의들
@@ -85,7 +83,7 @@ class TradeStatistics(BaseModel):
         """datetime을 ISO 형식으로 직렬화"""
         return dt.isoformat()
 
-    def update_with_result(self, result: DcaResult) -> Self:
+    def update_with_result(self, result: "DcaResult") -> Self:
         """결과를 반영한 새로운 통계 객체 반환"""
         updates = {
             "total_cycles": self.total_cycles + 1,
@@ -204,7 +202,7 @@ class CycleHistoryItem(BaseModel):
     def from_state_and_result(
         cls,
         state: "DcaState",
-        result: DcaResult,
+        result: "DcaResult",
         end_time: datetime,
         status: CycleStatus,
     ) -> Self:
@@ -241,7 +239,7 @@ class DcaMarketStatus(BaseModel):
 
     market: MarketName
     status: DcaStatus
-    phase: DcaPhase
+    phase: "DcaPhase"
     cycle_id: str | None
     current_round: int
     total_investment: Decimal

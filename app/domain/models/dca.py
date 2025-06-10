@@ -1,7 +1,7 @@
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum
-from typing import TYPE_CHECKING, Any, Self
+from typing import Any, Self
 import uuid
 
 from pydantic import (
@@ -19,9 +19,7 @@ from app.domain.exceptions import (
     PriceDropThresholdError,
     ProfitRateError,
 )
-
-if TYPE_CHECKING:
-    from app.domain.types import ActionTaken
+from app.domain.types import ActionTaken
 
 
 class DcaPhase(StrEnum):
@@ -386,7 +384,7 @@ class DcaResult(BaseModel):
     model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
     success: bool  # 실행 성공 여부
-    action_taken: "ActionTaken"  # 수행된 액션
+    action_taken: ActionTaken  # 수행된 액션
     message: str  # 결과 메시지
 
     # 거래 정보 (실제 거래가 발생한 경우)

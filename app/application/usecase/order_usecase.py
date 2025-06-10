@@ -1,7 +1,7 @@
 import logging
 from datetime import datetime
 from decimal import Decimal
-from typing import Any, TYPE_CHECKING
+from typing import Any
 
 from app.application.dto.order_dto import (
     LimitBuyResult,
@@ -17,9 +17,6 @@ from app.domain.repositories.notification import NotificationRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
 from app.domain.types import MarketName
-
-if TYPE_CHECKING:
-    pass
 
 logger = logging.getLogger(__name__)
 

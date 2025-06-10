@@ -1,4 +1,3 @@
-import asyncio
 import logging
 from typing import Any
 
@@ -36,8 +35,7 @@ class DiscordBot(Bot):
         # 봇 인텐트 설정
         intents = discord.Intents.default()
         intents.message_content = True
-        intents.guilds = True
-        intents.guild_messages = True
+        intents.members = True
         super().__init__(command_prefix=command_prefix, intents=intents, **options)
 
         self.bot_token = bot_token
@@ -49,7 +47,6 @@ class DiscordBot(Bot):
         self.alert_channel: discord.TextChannel | None = None
         self.log_channel: discord.TextChannel | None = None
 
-        self._ready = asyncio.Event()
         self._setup_events()
 
     def _setup_events(self) -> None:
@@ -86,8 +83,6 @@ class DiscordBot(Bot):
                     f"로그 채널 ID {self.log_channel_id}를 찾을 수 없거나 텍스트 채널이 아닙니다."
                 )
 
-            self._ready.set()
-
         @self.event
         async def on_command_error(
             ctx: commands.Context[Any], error: commands.CommandError
@@ -106,10 +101,6 @@ class DiscordBot(Bot):
         except Exception:
             logger.exception("Discord 봇 시작 중 치명적인 오류 발생")
             raise
-
-    async def wait_until_ready(self) -> None:
-        """봇이 준비될 때까지 대기"""
-        await self._ready.wait()
 
     async def send_embed(self, embed: Embed, channel_type: str = "history") -> bool:
         """

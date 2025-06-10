@@ -1,3 +1,4 @@
+import logging
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -7,6 +8,8 @@ if TYPE_CHECKING:
     from app.application.usecase.order_usecase import OrderUseCase
     from app.application.usecase.ticker_usecase import TickerUseCase
     from resources.discord.bot import DiscordBot
+
+logger = logging.getLogger(__name__)
 
 
 class DiscordCommandAdapter:
@@ -29,10 +32,10 @@ class DiscordCommandAdapter:
         self.ui_usecase = ui_usecase
 
     async def setup_all_commands(self) -> None:
-        """봇 시작 및 슬래시 커맨드 설정"""
+        """슬래시 커맨드 설정"""
         from resources.discord.commands import setup_commands
 
-        await self.bot.wait_until_ready()
+        logger.info("명령어 설정을 시작합니다.")
         await setup_commands(
             self.bot,
             account_usecase=self.account_usecase,

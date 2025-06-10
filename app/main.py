@@ -61,13 +61,41 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
     # Startup
     if discord_bot.bot_token:
-        # 커맨드 어댑터 가져오기 및 커맨드 설정
-        command_adapter = container.command_adapter()
-        await command_adapter.setup_all_commands()
-
         # 봇 실행
+        logging.info("Discord 봇을 시작합니다.")
         bot_task = asyncio.create_task(discord_bot.start_bot())
-        await discord_bot.wait_until_ready()
+
+        try:
+            # 봇 로그인이 시작될 때까지 잠시 대기
+            await asyncio.sleep(0.1)
+
+            # 봇이 준비될 때까지 최대 60초 대기
+            logging.info("봇이 준비될 때까지 최대 60초 대기")
+            await asyncio.wait_for(discord_bot.wait_until_ready(), timeout=60.0)
+            logging.info("봇이 준비되었습니다.")
+        except asyncio.TimeoutError:
+            logging.critical(
+                "Discord 봇이 60초 내에 준비되지 않았습니다. Task를 취소합니다."
+            )
+            bot_task.cancel()
+            raise  # Lifespan을 중단하고 애플리케이션 시작 실패 처리
+
+        # 커맨드 어댑터 가져오기 및 커맨드 설정
+        logging.info("커맨드 어댑터 가져오기 및 커맨드 설정")
+        command_adapter = container.command_adapter()
+        logging.info("커맨드 어댑터 설정 완료")
+        await command_adapter.setup_all_commands()
+        logging.info("모든 커맨드 설정 완료")
+
+        # 봇 태스크가 예외와 함께 종료되었는지 확인
+        if bot_task.done():
+            logging.info("봇 태스크가 완료되었습니다.")
+            if exc := bot_task.exception():
+                logging.critical(f"Discord 봇 Task가 예외와 함께 종료되었습니다: {exc}")
+                raise exc
+            logging.info(
+                "Discord 봇 Task가 정상적으로 완료되었습니다 (예상치 못한 동작)."
+            )
 
         # 로깅 핸들러 추가
         logging.getLogger().addHandler(DiscordLoggingHandler(discord_bot))

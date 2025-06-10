@@ -1,16 +1,3 @@
-"""
-라오어의 DCA 서비스
-
-분할 매수를 통해 평균 단가를 낮추고, 목표 수익률 달성 시 전량 매도하는 투자 전략입니다.
-
-매매 로직:
-1. 초기 매수: 설정된 금액으로 첫 매수
-2. 추가 매수: 평균 단가 대비 일정 비율 이상 하락 시 추가 매수 (물타기)
-3. 익절: 평균 단가 대비 목표 수익률 달성 시 전량 매도
-4. 손절: 강제 손절 조건 달성 시 전량 매도
-5. 사이클 반복: 매도 후 새로운 사이클 시작
-"""
-
 import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
@@ -32,8 +19,6 @@ from app.domain.types import ActionTaken
 
 class DcaService:
     """
-    라오어의 DCA 서비스
-
     분할 매수를 통한 평균 단가 하락 및 목표 수익률 달성 시 익절하는 전략
     """
 

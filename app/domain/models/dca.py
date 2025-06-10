@@ -1,10 +1,3 @@
-"""
-라오어의 DCA 관련 도메인 모델
-
-DCA는 분할 매수를 통해 평균 단가를 낮추고,
-목표 수익률 달성 시 전량 매도하는 투자 전략입니다.
-"""
-
 from datetime import datetime
 from decimal import Decimal
 from enum import StrEnum

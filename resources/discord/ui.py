@@ -11,6 +11,32 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
+# --- Helper Functions ---
+
+
+def is_embed_valid(embed: discord.Embed | None) -> bool:
+    """embed가 유효한지 검증"""
+    if embed is None:
+        return False
+
+    # title, description, fields 중 하나라도 있으면 유효
+    has_title = bool(embed.title and embed.title.strip())
+    has_description = bool(embed.description and embed.description.strip())
+    has_fields = bool(embed.fields and len(embed.fields) > 0)
+
+    return has_title or has_description or has_fields
+
+
+def create_fallback_embed(error_type: str) -> discord.Embed:
+    """embed 생성 실패 시 사용할 기본 embed"""
+    return discord.Embed(
+        title="❌ 데이터 조회 실패",
+        description=f"{error_type} 데이터를 불러올 수 없습니다.\n잠시 후 다시 시도해주세요.",
+        color=0xFF0000,
+        timestamp=datetime.now(),
+    )
+
+
 # --- Embeds ---
 
 
@@ -220,8 +246,17 @@ class TradeCompleteView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         try:
             user_id = str(interaction.user.id)
+            logger.info(f"DCA 상태 조회 시작 (user_id: {user_id})")
+
             embed = await self.ui_usecase.create_dca_status_embed(user_id)
+            logger.info(f"embed 생성 완료 (user_id: {user_id}), embed: {embed}")
+
+            if not is_embed_valid(embed):
+                logger.warning(f"유효하지 않은 embed 생성됨 (user_id: {user_id})")
+                embed = create_fallback_embed("DCA 상태")
+
             await interaction.followup.send(embed=embed, ephemeral=True)
+            logger.info(f"DCA 상태 조회 응답 완료 (user_id: {user_id})")
         except Exception as e:
             logger.exception(
                 f"DCA 상태 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
@@ -381,8 +416,17 @@ class BalanceButton(discord.ui.Button[Any]):
         await interaction.response.defer(ephemeral=True)
         try:
             user_id = str(interaction.user.id)
+            logger.info(f"잔고 조회 시작 (user_id: {user_id})")
+
             embed = await self.ui_usecase.create_balance_embed(user_id)
+            logger.info(f"embed 생성 완료 (user_id: {user_id}), embed: {embed}")
+
+            if not is_embed_valid(embed):
+                logger.warning(f"유효하지 않은 embed 생성됨 (user_id: {user_id})")
+                embed = create_fallback_embed("잔고")
+
             await interaction.followup.send(embed=embed, ephemeral=True)
+            logger.info(f"잔고 조회 응답 완료 (user_id: {user_id})")
         except Exception as e:
             logger.exception(
                 f"잔고 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
@@ -408,8 +452,17 @@ class DCAStatusButton(discord.ui.Button[Any]):
         await interaction.response.defer(ephemeral=True)
         try:
             user_id = str(interaction.user.id)
+            logger.info(f"DCA 상태 조회 시작 (user_id: {user_id})")
+
             embed = await self.ui_usecase.create_dca_status_embed(user_id)
+            logger.info(f"embed 생성 완료 (user_id: {user_id}), embed: {embed}")
+
+            if not is_embed_valid(embed):
+                logger.warning(f"유효하지 않은 embed 생성됨 (user_id: {user_id})")
+                embed = create_fallback_embed("DCA 상태")
+
             await interaction.followup.send(embed=embed, ephemeral=True)
+            logger.info(f"DCA 상태 조회 응답 완료 (user_id: {user_id})")
         except Exception as e:
             logger.exception(
                 f"DCA 상태 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
@@ -435,8 +488,17 @@ class ProfitButton(discord.ui.Button[Any]):
         await interaction.response.defer(ephemeral=True)
         try:
             user_id = str(interaction.user.id)
+            logger.info(f"수익률 조회 시작 (user_id: {user_id})")
+
             embed = await self.ui_usecase.create_profit_embed(user_id)
+            logger.info(f"embed 생성 완료 (user_id: {user_id}), embed: {embed}")
+
+            if not is_embed_valid(embed):
+                logger.warning(f"유효하지 않은 embed 생성됨 (user_id: {user_id})")
+                embed = create_fallback_embed("수익률")
+
             await interaction.followup.send(embed=embed, ephemeral=True)
+            logger.info(f"수익률 조회 응답 완료 (user_id: {user_id})")
         except Exception as e:
             logger.exception(
                 f"수익률 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"

@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 def is_embed_valid(embed: discord.Embed | None) -> bool:
     """embed가 유효한지 검증"""
     if embed is None:
+        logger.warning("embed가 None입니다")
         return False
 
     # title, description, fields 중 하나라도 있으면 유효
@@ -24,7 +25,21 @@ def is_embed_valid(embed: discord.Embed | None) -> bool:
     has_description = bool(embed.description and embed.description.strip())
     has_fields = bool(embed.fields and len(embed.fields) > 0)
 
-    return has_title or has_description or has_fields
+    logger.debug(
+        f"embed 검증 결과: title='{embed.title}' (valid: {has_title}), "
+        f"description='{embed.description}' (valid: {has_description}), "
+        f"fields_count={len(embed.fields) if embed.fields else 0} (valid: {has_fields})"
+    )
+
+    is_valid = has_title or has_description or has_fields
+    if not is_valid:
+        logger.warning(
+            f"embed가 유효하지 않습니다. "
+            f"title: '{embed.title}', description: '{embed.description}', "
+            f"fields: {len(embed.fields) if embed.fields else 0}개"
+        )
+
+    return is_valid
 
 
 def create_fallback_embed(error_type: str) -> discord.Embed:
@@ -249,10 +264,12 @@ class TradeCompleteView(discord.ui.View):
             logger.info(f"DCA 상태 조회 시작 (user_id: {user_id})")
 
             embed = await self.ui_usecase.create_dca_status_embed(user_id)
-            logger.info(f"embed 생성 완료 (user_id: {user_id}), embed: {embed}")
+            logger.info(f"embed 생성 완료 (user_id: {user_id})")
 
             if not is_embed_valid(embed):
-                logger.warning(f"유효하지 않은 embed 생성됨 (user_id: {user_id})")
+                logger.warning(
+                    f"유효하지 않은 DCA 상태 embed 생성됨 (user_id: {user_id})"
+                )
                 embed = create_fallback_embed("DCA 상태")
 
             await interaction.followup.send(embed=embed, ephemeral=True)
@@ -419,10 +436,10 @@ class BalanceButton(discord.ui.Button[Any]):
             logger.info(f"잔고 조회 시작 (user_id: {user_id})")
 
             embed = await self.ui_usecase.create_balance_embed(user_id)
-            logger.info(f"embed 생성 완료 (user_id: {user_id}), embed: {embed}")
+            logger.info(f"embed 생성 완료 (user_id: {user_id})")
 
             if not is_embed_valid(embed):
-                logger.warning(f"유효하지 않은 embed 생성됨 (user_id: {user_id})")
+                logger.warning(f"유효하지 않은 잔고 embed 생성됨 (user_id: {user_id})")
                 embed = create_fallback_embed("잔고")
 
             await interaction.followup.send(embed=embed, ephemeral=True)
@@ -455,10 +472,12 @@ class DCAStatusButton(discord.ui.Button[Any]):
             logger.info(f"DCA 상태 조회 시작 (user_id: {user_id})")
 
             embed = await self.ui_usecase.create_dca_status_embed(user_id)
-            logger.info(f"embed 생성 완료 (user_id: {user_id}), embed: {embed}")
+            logger.info(f"embed 생성 완료 (user_id: {user_id})")
 
             if not is_embed_valid(embed):
-                logger.warning(f"유효하지 않은 embed 생성됨 (user_id: {user_id})")
+                logger.warning(
+                    f"유효하지 않은 DCA 상태 embed 생성됨 (user_id: {user_id})"
+                )
                 embed = create_fallback_embed("DCA 상태")
 
             await interaction.followup.send(embed=embed, ephemeral=True)
@@ -491,10 +510,12 @@ class ProfitButton(discord.ui.Button[Any]):
             logger.info(f"수익률 조회 시작 (user_id: {user_id})")
 
             embed = await self.ui_usecase.create_profit_embed(user_id)
-            logger.info(f"embed 생성 완료 (user_id: {user_id}), embed: {embed}")
+            logger.info(f"embed 생성 완료 (user_id: {user_id})")
 
             if not is_embed_valid(embed):
-                logger.warning(f"유효하지 않은 embed 생성됨 (user_id: {user_id})")
+                logger.warning(
+                    f"유효하지 않은 수익률 embed 생성됨 (user_id: {user_id})"
+                )
                 embed = create_fallback_embed("수익률")
 
             await interaction.followup.send(embed=embed, ephemeral=True)

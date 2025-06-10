@@ -509,7 +509,14 @@ class ProfitButton(discord.ui.Button[Any]):
             user_id = str(interaction.user.id)
             logger.info(f"수익률 조회 시작 (user_id: {user_id})")
 
+            logger.debug(
+                f"ui_usecase.create_profit_embed 호출 시작 (user_id: {user_id})"
+            )
             embed = await self.ui_usecase.create_profit_embed(user_id)
+            logger.debug(
+                f"ui_usecase.create_profit_embed 호출 완료 (user_id: {user_id}), embed is None: {embed is None}"
+            )
+
             logger.info(f"embed 생성 완료 (user_id: {user_id})")
 
             if not is_embed_valid(embed):

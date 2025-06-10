@@ -7,8 +7,8 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from app.adapters.internal.scheduler import (
-    InfiniteBuyingScheduler,
+from app.adapters.internal.dca_scheduler import (
+    DcaScheduler,
 )
 from app.container import Container
 from common.logging import setup_logging
@@ -56,7 +56,7 @@ container.config.from_dict(
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     bot_task = None
-    infinite_buying_scheduler = None
+    dca_scheduler = None
     discord_bot = container.discord_bot()
 
     # Startup
@@ -107,23 +107,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
             title="TTM Bot 시작", message="TTM 자동매매 봇이 시작되었습니다."
         )
 
-    # 무한매수법 스케줄러 시작
-    if os.getenv("ENABLE_INFINITE_BUYING_SCHEDULER", "true").lower() == "true":
-        infinite_buying_usecase = container.infinite_buying_usecase()
+    # DCA 스케줄러 시작
+    if os.getenv("ENABLE_DCA_SCHEDULER", "true").lower() == "true":
+        dca_usecase = container.dca_usecase()
 
-        infinite_buying_scheduler = InfiniteBuyingScheduler(
-            infinite_buying_usecase=infinite_buying_usecase,
-            interval_seconds=float(os.getenv("INFINITE_BUYING_INTERVAL_SECONDS", "30")),
+        dca_scheduler = DcaScheduler(
+            dca_usecase=dca_usecase,
+            interval_seconds=float(os.getenv("DCA_INTERVAL_SECONDS", "30")),
             enabled=True,
         )
-        await infinite_buying_scheduler.start()
+        await dca_scheduler.start()
 
     yield
 
     # Shutdown
-    # 무한매수법 스케줄러 종료
-    if infinite_buying_scheduler:
-        await infinite_buying_scheduler.stop()
+    # DCA 스케줄러 종료
+    if dca_scheduler:
+        await dca_scheduler.stop()
 
     if discord_bot.bot_token:
         # 종료 알림

@@ -1,7 +1,7 @@
 from .discord_command import DiscordCommandAdapter
-from .scheduler import InfiniteBuyingScheduler
+from .dca_scheduler import DcaScheduler
 
 __all__ = [
     "DiscordCommandAdapter",
-    "InfiniteBuyingScheduler",
+    "DcaScheduler",
 ]

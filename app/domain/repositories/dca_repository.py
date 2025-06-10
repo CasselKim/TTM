@@ -1,37 +1,37 @@
 """
-무한매수법 데이터 저장을 위한 레포지토리 인터페이스
+DCA 데이터 저장을 위한 레포지토리 인터페이스
 """
 
 from abc import ABC, abstractmethod
 from typing import Any
 
-from app.domain.models.infinite_buying import (
-    InfiniteBuyingConfig,
-    InfiniteBuyingState,
+from app.domain.models.dca import (
+    DcaConfig,
+    DcaState,
 )
 
 
-class InfiniteBuyingRepository(ABC):
-    """무한매수법 데이터 레포지토리 추상 인터페이스"""
+class DcaRepository(ABC):
+    """DCA 데이터 레포지토리 추상 인터페이스"""
 
     @abstractmethod
-    async def save_config(self, market: str, config: InfiniteBuyingConfig) -> bool:
-        """무한매수법 설정을 저장합니다."""
+    async def save_config(self, market: str, config: DcaConfig) -> bool:
+        """DCA 설정을 저장합니다."""
         pass
 
     @abstractmethod
-    async def get_config(self, market: str) -> InfiniteBuyingConfig | None:
-        """무한매수법 설정을 조회합니다."""
+    async def get_config(self, market: str) -> DcaConfig | None:
+        """DCA 설정을 조회합니다."""
         pass
 
     @abstractmethod
-    async def save_state(self, market: str, state: InfiniteBuyingState) -> bool:
-        """현재 무한매수법 상태를 저장합니다."""
+    async def save_state(self, market: str, state: DcaState) -> bool:
+        """현재 DCA 상태를 저장합니다."""
         pass
 
     @abstractmethod
-    async def get_state(self, market: str) -> InfiniteBuyingState | None:
-        """현재 무한매수법 상태를 조회합니다."""
+    async def get_state(self, market: str) -> DcaState | None:
+        """현재 DCA 상태를 조회합니다."""
         pass
 
     @abstractmethod
@@ -51,7 +51,7 @@ class InfiniteBuyingRepository(ABC):
 
     @abstractmethod
     async def get_active_markets(self) -> list[str]:
-        """현재 활성화된 무한매수법 마켓 목록을 반환합니다."""
+        """현재 활성화된 DCA 마켓 목록을 반환합니다."""
         pass
 
     @abstractmethod

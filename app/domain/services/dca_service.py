@@ -1,5 +1,5 @@
 """
-라오어의 무한매수법 서비스
+라오어의 DCA 서비스
 
 분할 매수를 통해 평균 단가를 낮추고, 목표 수익률 달성 시 전량 매도하는 투자 전략입니다.
 
@@ -18,40 +18,40 @@ from decimal import Decimal
 from app.domain.constants import AlgorithmConstants
 from app.domain.enums import TradingAction
 from app.domain.models.account import Account, Balance, Currency
-from app.domain.models.infinite_buying import (
+from app.domain.models.dca import (
     BuyingRound,
     BuyType,
-    InfiniteBuyingConfig,
-    InfiniteBuyingPhase,
-    InfiniteBuyingResult,
-    InfiniteBuyingState,
+    DcaConfig,
+    DcaPhase,
+    DcaResult,
+    DcaState,
 )
 from app.domain.models.trading import MarketData, TradingSignal
 from app.domain.types import ActionTaken
 
 
-class InfiniteBuyingService:
+class DcaService:
     """
-    라오어의 무한매수법 서비스
+    라오어의 DCA 서비스
 
     분할 매수를 통한 평균 단가 하락 및 목표 수익률 달성 시 익절하는 전략
     """
 
-    def __init__(self, config: InfiniteBuyingConfig) -> None:
+    def __init__(self, config: DcaConfig) -> None:
         self.config = config
-        self.state = InfiniteBuyingState(market="")
+        self.state = DcaState(market="")
         self.logger = logging.getLogger(self.__class__.__name__)
 
     async def analyze_signal(
         self, account: Account, market_data: MarketData
     ) -> TradingSignal:
         """
-        무한매수법 신호 분석
+        DCA 신호 분석
 
         현재 상태에 따라 매수/매도/홀드 신호를 생성합니다.
         """
         # 초기 매수 단계 확인
-        if self.state.phase == InfiniteBuyingPhase.INITIAL_BUY:
+        if self.state.phase == DcaPhase.INITIAL_BUY:
             return await self._analyze_initial_buy_signal(account)
 
         # 비활성 상태 확인 (이전 로직 유지)
@@ -80,7 +80,7 @@ class InfiniteBuyingService:
         return TradingSignal(
             action=TradingAction.HOLD,
             confidence=AlgorithmConstants.MAX_CONFIDENCE,
-            reason=f"무한매수법 대기 중 (평균단가: {self.state.average_price:,.0f}, 현재가: {market_data.current_price:,.0f}, 수익률: {current_profit_rate:.2%})",
+            reason=f"DCA 대기 중 (평균단가: {self.state.average_price:,.0f}, 현재가: {market_data.current_price:,.0f}, 수익률: {current_profit_rate:.2%})",
         )
 
     async def calculate_buy_amount(
@@ -90,14 +90,13 @@ class InfiniteBuyingService:
         min_order_amount: Decimal,
     ) -> Decimal:
         """
-        무한매수법 매수 금액 계산
+        DCA 매수 금액 계산
         """
         if signal.action != TradingAction.BUY:
             return Decimal("0")
 
         available_krw = self._get_available_krw_balance(account)
 
-        # 초기 매수인지 추가 매수인지 확인
         if self.state.current_round == 0:
             # 초기 매수
             buy_amount = min(self.config.initial_buy_amount, available_krw)
@@ -134,7 +133,7 @@ class InfiniteBuyingService:
                 return Decimal("0")
 
         self.logger.info(
-            f"무한매수법 매수 금액 계산: {self.state.current_round + 1}회차, "
+            f"DCA 매수 금액 계산: {self.state.current_round + 1}회차, "
             f"매수금액 {buy_amount:,.0f}원 (사용가능: {available_krw:,.0f}원)"
         )
 
@@ -144,7 +143,7 @@ class InfiniteBuyingService:
         self, account: Account, market_data: MarketData, signal: TradingSignal
     ) -> Decimal:
         """
-        무한매수법 매도 수량 계산 (전량 매도)
+        DCA 매도 수량 계산 (전량 매도)
         """
         if signal.action != TradingAction.SELL:
             return Decimal("0")
@@ -157,7 +156,7 @@ class InfiniteBuyingService:
         available_volume = target_balance.balance - target_balance.locked
 
         self.logger.info(
-            f"무한매수법 매도 수량 계산: 전량 매도 {available_volume} "
+            f"DCA 매도 수량 계산: 전량 매도 {available_volume} "
             f"(평균단가: {self.state.average_price:,.0f})"
         )
 
@@ -168,7 +167,7 @@ class InfiniteBuyingService:
         market_data: MarketData,
         buy_amount: Decimal,
         buy_type: BuyType = BuyType.INITIAL,
-    ) -> InfiniteBuyingResult:
+    ) -> DcaResult:
         """
         매수 실행 및 상태 업데이트
         """
@@ -192,12 +191,12 @@ class InfiniteBuyingService:
                 self.state.reset_cycle(market_data.market)
 
             self.state.add_buying_round(new_round, self.config)
-            self.state.phase = InfiniteBuyingPhase.ACCUMULATING
+            self.state.phase = DcaPhase.ACCUMULATING
 
-            result = InfiniteBuyingResult(
+            result = DcaResult(
                 success=True,
                 action_taken=ActionTaken.BUY,
-                message=f"무한매수법 매수 실행: {new_round.round_number}회차",
+                message=f"DCA 매수 실행: {new_round.round_number}회차",
                 trade_price=current_price,
                 trade_amount=buy_amount,
                 trade_volume=buy_volume,
@@ -206,7 +205,7 @@ class InfiniteBuyingService:
             )
 
             self.logger.info(
-                f"무한매수법 매수 실행: {new_round.round_number}회차, "
+                f"DCA 매수 실행: {new_round.round_number}회차, "
                 f"매수가 {current_price:,.0f}원, 매수량 {buy_volume:.8f}, "
                 f"평균단가 {self.state.average_price:,.0f}원"
             )
@@ -214,14 +213,14 @@ class InfiniteBuyingService:
             return result
 
         except Exception as e:
-            self.logger.error(f"무한매수법 매수 실행 실패: {e}")
+            self.logger.error(f"DCA 매수 실행 실패: {e}")
             raise
 
     async def execute_sell(
         self,
         market_data: MarketData,
         sell_volume: Decimal,
-    ) -> InfiniteBuyingResult:
+    ) -> DcaResult:
         """
         매도 실행 및 상태 업데이트
         """
@@ -232,10 +231,10 @@ class InfiniteBuyingService:
 
             # 결과 생성
             profit_loss_amount = sell_amount - self.state.total_investment
-            result = InfiniteBuyingResult(
+            result = DcaResult(
                 success=True,
                 action_taken=ActionTaken.SELL,
-                message=f"무한매수법 매도 실행: 수익률 {current_profit_rate:.2%}",
+                message=f"DCA 매도 실행: 수익률 {current_profit_rate:.2%}",
                 trade_price=current_price,
                 trade_amount=sell_amount,
                 trade_volume=sell_volume,
@@ -245,7 +244,7 @@ class InfiniteBuyingService:
             )
 
             # 상태 리셋 (사이클 종료)
-            self.state.phase = InfiniteBuyingPhase.INACTIVE
+            self.state.phase = DcaPhase.INACTIVE
             self.state.current_round = 0
             self.state.total_investment = Decimal("0")
             self.state.total_volume = Decimal("0")
@@ -253,7 +252,7 @@ class InfiniteBuyingService:
             self.state.buying_rounds = []
 
             self.logger.info(
-                f"무한매수법 매도 실행: 매도가 {current_price:,.0f}원, "
+                f"DCA 매도 실행: 매도가 {current_price:,.0f}원, "
                 f"매도량 {sell_volume:.8f}, 수익률 {current_profit_rate:.2%}, "
                 f"실현손익 {profit_loss_amount:,.0f}원"
             )
@@ -261,7 +260,7 @@ class InfiniteBuyingService:
             return result
 
         except Exception as e:
-            self.logger.error(f"무한매수법 매도 실행 실패: {e}")
+            self.logger.error(f"DCA 매도 실행 실패: {e}")
             raise
 
     async def _analyze_initial_buy_signal(self, account: Account) -> TradingSignal:
@@ -280,7 +279,7 @@ class InfiniteBuyingService:
         return TradingSignal(
             action=TradingAction.BUY,
             confidence=AlgorithmConstants.MAX_CONFIDENCE,
-            reason="무한매수법 초기 매수 신호",
+            reason="DCA 초기 매수 신호",
         )
 
     def _calculate_current_profit_rate(self, current_price: Decimal) -> Decimal:

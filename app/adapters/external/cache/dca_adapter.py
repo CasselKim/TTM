@@ -1,5 +1,5 @@
 """
-Cache를 사용한 무한매수법 데이터 저장 어댑터
+Cache를 사용한 DCA 데이터 저장 어댑터
 """
 
 import logging
@@ -7,47 +7,47 @@ from typing import Any
 
 from app.adapters.external.cache.client import CacheClient
 from app.adapters.external.cache.config import CacheConfig
-from app.domain.models.infinite_buying import (
-    InfiniteBuyingConfig,
-    InfiniteBuyingState,
+from app.domain.models.dca import (
+    DcaConfig,
+    DcaState,
 )
-from app.domain.repositories.infinite_buying_repository import InfiniteBuyingRepository
+from app.domain.repositories.dca_repository import DcaRepository
 
 logger = logging.getLogger(__name__)
 
 
-class CacheInfiniteBuyingRepository(InfiniteBuyingRepository):
-    """Cache 기반 무한매수법 데이터 저장소"""
+class CacheDcaRepository(DcaRepository):
+    """Cache 기반 DCA 데이터 저장소"""
 
-    KEY_CONFIG = "infinite_buying:config"
-    KEY_STATE = "infinite_buying:state"
+    KEY_CONFIG = "dca:config"
+    KEY_STATE = "dca:state"
 
     def __init__(self, config: CacheConfig):
         self.client = CacheClient(config)
 
-    async def save_config(self, market: str, config: InfiniteBuyingConfig) -> bool:
-        """무한매수법 설정을 저장합니다."""
+    async def save_config(self, market: str, config: DcaConfig) -> bool:
+        """DCA 설정을 저장합니다."""
         value = config.to_cache_json()
         return await self.client.hset(self.KEY_CONFIG, market, value)
 
-    async def get_config(self, market: str) -> InfiniteBuyingConfig | None:
-        """무한매수법 설정을 조회합니다."""
+    async def get_config(self, market: str) -> DcaConfig | None:
+        """DCA 설정을 조회합니다."""
         data = await self.client.hget(self.KEY_CONFIG, market)
         if not data:
             return None
-        return InfiniteBuyingConfig.from_cache_json(data)
+        return DcaConfig.from_cache_json(data)
 
-    async def save_state(self, market: str, state: InfiniteBuyingState) -> bool:
-        """무한매수법 상태를 저장합니다."""
+    async def save_state(self, market: str, state: DcaState) -> bool:
+        """DCA 상태를 저장합니다."""
         value = state.to_cache_json()
         return await self.client.hset(self.KEY_STATE, market, value)
 
-    async def get_state(self, market: str) -> InfiniteBuyingState | None:
-        """무한매수법 상태를 조회합니다."""
+    async def get_state(self, market: str) -> DcaState | None:
+        """DCA 상태를 조회합니다."""
         data = await self.client.hget(self.KEY_STATE, market)
         if not data:
             return None
-        return InfiniteBuyingState.from_cache_json(data)
+        return DcaState.from_cache_json(data)
 
     async def clear_market_data(self, market: str) -> bool:
         """마켓의 모든 데이터를 삭제합니다."""

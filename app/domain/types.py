@@ -12,16 +12,16 @@ from pydantic import BaseModel, ConfigDict, field_serializer
 if TYPE_CHECKING:
     pass
 
-from app.domain.models.infinite_buying import (
-    InfiniteBuyingPhase,
-    InfiniteBuyingResult,
-    InfiniteBuyingState,
+from app.domain.models.dca import (
+    DcaPhase,
+    DcaResult,
+    DcaState,
 )
 
 
 # StrEnum 정의들
-class InfiniteBuyingStatus(StrEnum):
-    """무한매수법 실행 상태"""
+class DcaStatus(StrEnum):
+    """DCA 실행 상태"""
 
     ACTIVE = "active"
     INACTIVE = "inactive"
@@ -48,7 +48,7 @@ class ActionTaken(StrEnum):
 
 # 타입 별칭들
 MarketName = str
-AlgorithmInstance = "InfiniteBuyingService"
+AlgorithmInstance = "DcaService"
 
 
 class TradeStatistics(BaseModel):
@@ -85,7 +85,7 @@ class TradeStatistics(BaseModel):
         """datetime을 ISO 형식으로 직렬화"""
         return dt.isoformat()
 
-    def update_with_result(self, result: InfiniteBuyingResult) -> Self:
+    def update_with_result(self, result: DcaResult) -> Self:
         """결과를 반영한 새로운 통계 객체 반환"""
         updates = {
             "total_cycles": self.total_cycles + 1,
@@ -203,8 +203,8 @@ class CycleHistoryItem(BaseModel):
     @classmethod
     def from_state_and_result(
         cls,
-        state: "InfiniteBuyingState",
-        result: InfiniteBuyingResult,
+        state: "DcaState",
+        result: DcaResult,
         end_time: datetime,
         status: CycleStatus,
     ) -> Self:
@@ -234,14 +234,14 @@ class CycleHistoryItem(BaseModel):
         return self.model_dump_json(exclude_none=True)
 
 
-class InfiniteBuyingMarketStatus(BaseModel):
-    """특정 마켓의 무한매수법 상태"""
+class DcaMarketStatus(BaseModel):
+    """특정 마켓의 DCA 상태"""
 
     model_config = ConfigDict(validate_assignment=True, arbitrary_types_allowed=True)
 
     market: MarketName
-    status: InfiniteBuyingStatus
-    phase: InfiniteBuyingPhase
+    status: DcaStatus
+    phase: DcaPhase
     cycle_id: str | None
     current_round: int
     total_investment: Decimal
@@ -285,11 +285,11 @@ class InfiniteBuyingMarketStatus(BaseModel):
         return dt.isoformat() if dt else None
 
 
-class InfiniteBuyingOverallStatus(BaseModel):
-    """무한매수법 전체 상태"""
+class DcaOverallStatus(BaseModel):
+    """DCA 전체 상태"""
 
     model_config = ConfigDict(validate_assignment=True)
 
     total_active_markets: int
     active_markets: list[MarketName]
-    statuses: dict[MarketName, InfiniteBuyingMarketStatus]
+    statuses: dict[MarketName, DcaMarketStatus]

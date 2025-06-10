@@ -1,5 +1,5 @@
-from app.domain.services.infinite_buying_service import InfiniteBuyingService
+from app.domain.services.dca_service import DcaService
 
 __all__ = [
-    "InfiniteBuyingService",
+    "DcaService",
 ]

@@ -1,15 +1,15 @@
 import logging
+from typing import Any
 
 import discord
 from discord import app_commands
 from discord.ext import commands
 
 from app.application.usecase.account_usecase import AccountUseCase
+from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.discord_ui_usecase import DiscordUIUseCase
-from app.application.usecase.infinite_buying_usecase import InfiniteBuyingUsecase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
-from resources.discord.bot import DiscordBot
 
 logger = logging.getLogger(__name__)
 
@@ -19,20 +19,21 @@ class DiscordCommandAdapter(commands.Cog):
 
     def __init__(
         self,
-        bot: DiscordBot,
+        bot: Any,
         account_usecase: AccountUseCase,
         ticker_usecase: TickerUseCase,
         order_usecase: OrderUseCase,
-        infinite_buying_usecase: InfiniteBuyingUsecase,
+        dca_usecase: DcaUsecase,
         ui_usecase: DiscordUIUseCase,
-    ):
+    ) -> None:
         super().__init__()
         self.bot = bot
         self.account_usecase = account_usecase
         self.ticker_usecase = ticker_usecase
         self.order_usecase = order_usecase
-        self.infinite_buying_usecase = infinite_buying_usecase
+        self.dca_usecase = dca_usecase
         self.ui_usecase = ui_usecase
+        self.logger = logger
 
     @app_commands.command(name="menu", description="자동매매 봇 메인 메뉴를 표시합니다")
     async def menu_command(self, interaction: discord.Interaction) -> None:

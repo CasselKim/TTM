@@ -11,8 +11,6 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-# --- Helper Functions ---
-
 
 def is_embed_valid(embed: discord.Embed | None) -> bool:
     """embed가 유효한지 검증"""
@@ -50,9 +48,6 @@ def create_fallback_embed(error_type: str) -> discord.Embed:
         color=0xFF0000,
         timestamp=datetime.now(),
     )
-
-
-# --- Embeds ---
 
 
 def create_balance_embed(balance_data: dict[str, Any]) -> discord.Embed:
@@ -240,9 +235,6 @@ def create_trade_stop_embed(stop_data: dict[str, Any]) -> discord.Embed:
     )
     embed.set_footer(text="TTM Bot • 동일 설정으로 재시작할 수 있습니다")
     return embed
-
-
-# --- Views (and related Modals/Buttons) ---
 
 
 class TradeCompleteView(discord.ui.View):

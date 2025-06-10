@@ -1,7 +1,7 @@
 from dependency_injector import containers, providers
 
-from app.adapters.external.cache.adapter import (
-    CacheInfiniteBuyingRepository,
+from app.adapters.external.cache.dca_adapter import (
+    CacheDcaRepository,
 )
 from app.adapters.external.cache.config import CacheConfig
 from app.adapters.internal.discord_command import DiscordCommandAdapter
@@ -11,7 +11,7 @@ from app.adapters.external.discord.notification_adapter import (
 from app.adapters.external.upbit.adapter import UpbitAdapter
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.discord_ui_usecase import DiscordUIUseCase
-from app.application.usecase.infinite_buying_usecase import InfiniteBuyingUsecase
+from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
 from app.domain.repositories.notification import NotificationRepository
@@ -49,11 +49,9 @@ class Container(containers.DeclarativeContainer):
     )
 
     # Repositories
-    infinite_buying_repository: providers.Singleton[CacheInfiniteBuyingRepository] = (
-        providers.Singleton(
-            CacheInfiniteBuyingRepository,
-            config=cache_config,
-        )
+    dca_repository: providers.Singleton[CacheDcaRepository] = providers.Singleton(
+        CacheDcaRepository,
+        config=cache_config,
     )
 
     # Use cases
@@ -75,19 +73,19 @@ class Container(containers.DeclarativeContainer):
         notification_repo=notification_adapter,
     )
 
-    infinite_buying_usecase = providers.Singleton(
-        InfiniteBuyingUsecase,
+    dca_usecase = providers.Singleton(
+        DcaUsecase,
         account_repository=upbit_adapter,
         order_repository=upbit_adapter,
         ticker_repository=upbit_adapter,
-        infinite_buying_repository=infinite_buying_repository,
+        dca_repository=dca_repository,
         notification_repo=notification_adapter,
     )
 
     discord_ui_usecase = providers.Singleton(
         DiscordUIUseCase,
         account_usecase=account_usecase,
-        infinite_buying_usecase=infinite_buying_usecase,
+        dca_usecase=dca_usecase,
         ticker_usecase=ticker_usecase,
     )
 
@@ -98,6 +96,6 @@ class Container(containers.DeclarativeContainer):
         account_usecase=account_usecase,
         ticker_usecase=ticker_usecase,
         order_usecase=order_usecase,
-        infinite_buying_usecase=infinite_buying_usecase,
+        dca_usecase=dca_usecase,
         ui_usecase=discord_ui_usecase,
     )

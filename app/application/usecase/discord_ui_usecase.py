@@ -11,7 +11,7 @@ from app.adapters.external.discord.ui.embeds import (
     create_trade_stop_embed,
 )
 from app.application.usecase.account_usecase import AccountUseCase
-from app.application.usecase.infinite_buying_usecase import InfiniteBuyingUsecase
+from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.ticker_usecase import TickerUseCase
 
 logger = logging.getLogger(__name__)
@@ -23,11 +23,11 @@ class DiscordUIUseCase:
     def __init__(
         self,
         account_usecase: AccountUseCase,
-        infinite_buying_usecase: InfiniteBuyingUsecase,
+        dca_usecase: DcaUsecase,
         ticker_usecase: TickerUseCase,
     ) -> None:
         self.account_usecase = account_usecase
-        self.infinite_buying_usecase = infinite_buying_usecase
+        self.dca_usecase = dca_usecase
         self.ticker_usecase = ticker_usecase
 
     async def get_balance_data(self, user_id: str) -> dict[str, Any]:
@@ -113,7 +113,7 @@ class DiscordUIUseCase:
         """DCA 상태 데이터 조회"""
         try:
             # 활성 마켓 조회
-            active_markets = await self.infinite_buying_usecase.get_active_markets()
+            active_markets = await self.dca_usecase.get_active_markets()
 
             if not active_markets:
                 return {
@@ -130,23 +130,13 @@ class DiscordUIUseCase:
 
             # 첫 번째 활성 마켓의 상태 조회 (단일 사용자 가정)
             first_market = active_markets[0]
-            market_status = (
-                await self.infinite_buying_usecase.get_infinite_buying_market_status(
-                    first_market
-                )
-            )
+            market_status = await self.dca_usecase.get_dca_market_status(first_market)
 
             # 직접 state 조회 (시간 기반 매수 정보를 위해)
-            state = (
-                await self.infinite_buying_usecase.infinite_buying_repository.get_state(
-                    first_market
-                )
-            )
+            state = await self.dca_usecase.dca_repository.get_state(first_market)
 
             # 설정 정보 조회
-            config = await self.infinite_buying_usecase.infinite_buying_repository.get_config(
-                first_market
-            )
+            config = await self.dca_usecase.dca_repository.get_config(first_market)
             max_buy_rounds = config.max_buy_rounds if config else 10
 
             # 심볼 추출 (KRW-BTC -> BTC)
@@ -295,17 +285,17 @@ class DiscordUIUseCase:
         try:
             from decimal import Decimal
 
-            # 실제 무한매수법 시작
+            # 실제 DCA 시작
             market_name = f"KRW-{symbol}"
-            result = await self.infinite_buying_usecase.start_infinite_buying(
+            result = await self.dca_usecase.start_dca(
                 market=market_name,
                 initial_buy_amount=Decimal(str(amount)),
                 max_buy_rounds=total_count,
-                # interval_hours는 현재 무한매수법에서 지원하지 않음 (가격 하락 기반)
+                # interval_hours는 현재 DCA에서 지원하지 않음 (가격 하락 기반)
             )
 
             if not result.success:
-                raise Exception(f"무한매수법 시작 실패: {result.message}")
+                raise Exception(f"DCA 시작 실패: {result.message}")
 
             logger.info(
                 f"매매 실행 성공 (user_id: {user_id}, symbol: {symbol}, "
@@ -332,7 +322,7 @@ class DiscordUIUseCase:
         """매매 중단"""
         try:
             # 활성 마켓 조회
-            active_markets = await self.infinite_buying_usecase.get_active_markets()
+            active_markets = await self.dca_usecase.get_active_markets()
 
             if not active_markets:
                 return {
@@ -346,23 +336,17 @@ class DiscordUIUseCase:
             first_market = active_markets[0]
 
             # 중단 전 상태 조회
-            market_status = (
-                await self.infinite_buying_usecase.get_infinite_buying_market_status(
-                    first_market
-                )
-            )
-            config = await self.infinite_buying_usecase.infinite_buying_repository.get_config(
-                first_market
-            )
+            market_status = await self.dca_usecase.get_dca_market_status(first_market)
+            config = await self.dca_usecase.dca_repository.get_config(first_market)
 
-            # 실제 무한매수법 중단
-            result = await self.infinite_buying_usecase.stop_infinite_buying(
+            # 실제 DCA 중단
+            result = await self.dca_usecase.stop_dca(
                 market=first_market,
                 force_sell=False,  # 강제 매도는 하지 않음
             )
 
             if not result.success:
-                logger.warning(f"무한매수법 중단 실패: {result.message}")
+                logger.warning(f"DCA 중단 실패: {result.message}")
 
             logger.info(f"매매 중단 완료 (user_id: {user_id}, market: {first_market})")
 

@@ -1,8 +1,15 @@
 """Discord UI Components (Embeds, Buttons, Modals, Views)"""
 
-import discord
+import logging
 from datetime import datetime
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+import discord
+
+if TYPE_CHECKING:
+    from app.application.usecase.discord_ui_usecase import DiscordUIUseCase
+
+logger = logging.getLogger(__name__)
 
 # --- Embeds ---
 
@@ -200,8 +207,9 @@ def create_trade_stop_embed(stop_data: dict[str, Any]) -> discord.Embed:
 class TradeCompleteView(discord.ui.View):
     """매매 완료 후 버튼 View"""
 
-    def __init__(self) -> None:
+    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(timeout=300)
+        self.ui_usecase = ui_usecase
 
     @discord.ui.button(
         label="DCA 상태 보기", style=discord.ButtonStyle.primary, emoji="📊"
@@ -210,19 +218,28 @@ class TradeCompleteView(discord.ui.View):
         self, interaction: discord.Interaction, button: discord.ui.Button[Any]
     ) -> None:
         await interaction.response.defer(ephemeral=True)
-        embed = discord.Embed(
-            title="📊 DCA 상태",
-            description="DCA 상태 조회 기능을 구현 중입니다.",
-            color=0x0099FF,
-        )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        try:
+            user_id = str(interaction.user.id)
+            embed = await self.ui_usecase.create_dca_status_embed(user_id)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.exception(
+                f"DCA 상태 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
+            )
+            embed = discord.Embed(
+                title="❌ 오류 발생",
+                description="DCA 상태 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
+                color=0xFF0000,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 class TradeModal(discord.ui.Modal):
     """매매 실행 모달"""
 
-    def __init__(self) -> None:
+    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(title="📈 자동매매 실행")
+        self.ui_usecase = ui_usecase
 
     symbol: discord.ui.TextInput[Any] = discord.ui.TextInput(
         label="코인 심볼",
@@ -266,18 +283,17 @@ class TradeModal(discord.ui.Modal):
             if interval_value <= 0:
                 raise ValueError("매수 간격은 0보다 커야 합니다.")
 
-            # TODO: DiscordUIUseCase를 통해 매매 실행 처리
-
-            embed = discord.Embed(
-                title="✅ 매매 실행 완료",
-                description=f"자동매매가 시작되었습니다!\n\n"
-                f"**코인**: {symbol_value}\n"
-                f"**매수 금액**: {amount_value:,.0f} KRW\n"
-                f"**총 횟수**: {count_value}회\n"
-                f"**매수 간격**: {interval_value}시간",
-                color=0x00FF00,
+            user_id = str(interaction.user.id)
+            trade_data = await self.ui_usecase.execute_trade(
+                user_id=user_id,
+                symbol=symbol_value,
+                amount=amount_value,
+                total_count=count_value,
+                interval_hours=interval_value,
             )
-            view = TradeCompleteView()
+
+            embed = await self.ui_usecase.create_trade_complete_embed(trade_data)
+            view = TradeCompleteView(self.ui_usecase)
             await interaction.followup.send(embed=embed, view=view, ephemeral=True)
         except ValueError as e:
             embed = discord.Embed(
@@ -286,7 +302,10 @@ class TradeModal(discord.ui.Modal):
                 color=0xFF0000,
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
-        except Exception:
+        except Exception as e:
+            logger.exception(
+                f"매매 실행 중 오류 발생 (user_id: {interaction.user.id}): {e}"
+            )
             embed = discord.Embed(
                 title="❌ 오류 발생",
                 description="매매 실행 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
@@ -298,11 +317,14 @@ class TradeModal(discord.ui.Modal):
 class ConfirmationView(discord.ui.View):
     """확인 Dialog View"""
 
-    def __init__(self, *, timeout: float = 60.0) -> None:
+    def __init__(
+        self, *, timeout: float = 60.0, ui_usecase: "DiscordUIUseCase"
+    ) -> None:
         super().__init__(timeout=timeout)
         self.confirmed: bool = False
         self.cancelled: bool = False
         self.message: discord.Message | None = None
+        self.ui_usecase = ui_usecase
 
     @discord.ui.button(label="중단 확정", style=discord.ButtonStyle.danger, emoji="⛔")
     async def confirm_button(
@@ -317,6 +339,7 @@ class ConfirmationView(discord.ui.View):
         await interaction.response.edit_message(
             content="⛔ 자동매매가 중단되었습니다.", view=self
         )
+        await self.ui_usecase.stop_trade(str(interaction.user.id))
 
     @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel_button(
@@ -348,77 +371,106 @@ class ConfirmationView(discord.ui.View):
 class BalanceButton(discord.ui.Button[Any]):
     """잔고 조회 버튼"""
 
-    def __init__(self) -> None:
+    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(
             label="잔고", style=discord.ButtonStyle.primary, emoji="💰", row=0
         )
+        self.ui_usecase = ui_usecase
 
     async def callback(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
-        embed = discord.Embed(
-            title="💰 잔고 조회",
-            description="잔고 조회 기능을 구현 중입니다.",
-            color=0x00FF00,
-        )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        try:
+            user_id = str(interaction.user.id)
+            embed = await self.ui_usecase.create_balance_embed(user_id)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.exception(
+                f"잔고 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
+            )
+            embed = discord.Embed(
+                title="❌ 오류 발생",
+                description="잔고 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
+                color=0xFF0000,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 class DCAStatusButton(discord.ui.Button[Any]):
     """DCA 상태 조회 버튼"""
 
-    def __init__(self) -> None:
+    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(
             label="DCA 상태", style=discord.ButtonStyle.secondary, emoji="📊", row=0
         )
+        self.ui_usecase = ui_usecase
 
     async def callback(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
-        embed = discord.Embed(
-            title="📊 DCA 상태",
-            description="DCA 상태 조회 기능을 구현 중입니다.",
-            color=0x0099FF,
-        )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        try:
+            user_id = str(interaction.user.id)
+            embed = await self.ui_usecase.create_dca_status_embed(user_id)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.exception(
+                f"DCA 상태 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
+            )
+            embed = discord.Embed(
+                title="❌ 오류 발생",
+                description="DCA 상태 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
+                color=0xFF0000,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 class ProfitButton(discord.ui.Button[Any]):
     """수익률 조회 버튼"""
 
-    def __init__(self) -> None:
+    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(
             label="수익률", style=discord.ButtonStyle.secondary, emoji="📈", row=0
         )
+        self.ui_usecase = ui_usecase
 
     async def callback(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
-        embed = discord.Embed(
-            title="📈 수익률",
-            description="수익률 조회 기능을 구현 중입니다.",
-            color=0xFF9900,
-        )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        try:
+            user_id = str(interaction.user.id)
+            embed = await self.ui_usecase.create_profit_embed(user_id)
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except Exception as e:
+            logger.exception(
+                f"수익률 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
+            )
+            embed = discord.Embed(
+                title="❌ 오류 발생",
+                description="수익률 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
+                color=0xFF0000,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 class TradeExecuteButton(discord.ui.Button[Any]):
     """매매 실행 버튼"""
 
-    def __init__(self) -> None:
+    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(
             label="매매 실행", style=discord.ButtonStyle.success, emoji="▶️", row=1
         )
+        self.ui_usecase = ui_usecase
 
     async def callback(self, interaction: discord.Interaction) -> None:
-        modal = TradeModal()
+        modal = TradeModal(self.ui_usecase)
         await interaction.response.send_modal(modal)
 
 
 class TradeStopButton(discord.ui.Button[Any]):
     """매매 중단 버튼"""
 
-    def __init__(self) -> None:
+    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(
             label="매매 중단", style=discord.ButtonStyle.danger, emoji="⏹️", row=1
         )
+        self.ui_usecase = ui_usecase
 
     async def callback(self, interaction: discord.Interaction) -> None:
         embed = discord.Embed(
@@ -428,17 +480,18 @@ class TradeStopButton(discord.ui.Button[Any]):
             "예약된 매수 주문들이 취소됩니다.",
             color=0xFF0000,
         )
-        view = ConfirmationView()
+        view = ConfirmationView(ui_usecase=self.ui_usecase)
         await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
 
 class MainMenuView(discord.ui.View):
     """메인 메뉴 Persistent View"""
 
-    def __init__(self) -> None:
+    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(timeout=None)
-        self.add_item(BalanceButton())
-        self.add_item(DCAStatusButton())
-        self.add_item(ProfitButton())
-        self.add_item(TradeExecuteButton())
-        self.add_item(TradeStopButton())
+        self.ui_usecase = ui_usecase
+        self.add_item(BalanceButton(ui_usecase))
+        self.add_item(DCAStatusButton(ui_usecase))
+        self.add_item(ProfitButton(ui_usecase))
+        self.add_item(TradeExecuteButton(ui_usecase))
+        self.add_item(TradeStopButton(ui_usecase))

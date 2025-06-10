@@ -30,8 +30,9 @@ logger = logging.getLogger(__name__)
 class SlashCommands(commands.Cog):
     """Slash Commands 처리 클래스"""
 
-    def __init__(self, bot: commands.Bot) -> None:
+    def __init__(self, bot: commands.Bot, ui_usecase: DiscordUIUseCase) -> None:
         self.bot = bot
+        self.ui_usecase = ui_usecase
 
     @app_commands.command(name="menu", description="자동매매 봇 메인 메뉴를 표시합니다")
     async def menu_command(self, interaction: discord.Interaction) -> None:
@@ -60,7 +61,7 @@ class SlashCommands(commands.Cog):
                 icon_url="https://via.placeholder.com/32x32/0099ff/ffffff?text=T",
             )
 
-            view = MainMenuView()
+            view = MainMenuView(self.ui_usecase)
             await interaction.response.send_message(embed=embed, view=view)
 
             logger.info(
@@ -378,7 +379,7 @@ async def setup_commands(
 
     # Slash Commands
     try:
-        await bot.add_cog(SlashCommands(bot))
+        await bot.add_cog(SlashCommands(bot, ui_usecase))
         synced = await bot.tree.sync()
         logger.info(f"Slash Commands 동기화 완료: {len(synced)}개 명령어")
         for command in synced:

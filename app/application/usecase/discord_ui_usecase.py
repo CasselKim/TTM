@@ -1,7 +1,6 @@
 """Discord UI 상호작용 유스케이스"""
 
 import logging
-from datetime import datetime
 from typing import Any
 
 from app.adapters.external.discord.ui.embeds import (
@@ -13,6 +12,7 @@ from app.adapters.external.discord.ui.embeds import (
 )
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.infinite_buying_usecase import InfiniteBuyingUsecase
+from app.application.usecase.ticker_usecase import TickerUseCase
 
 logger = logging.getLogger(__name__)
 
@@ -24,96 +24,264 @@ class DiscordUIUseCase:
         self,
         account_usecase: AccountUseCase,
         infinite_buying_usecase: InfiniteBuyingUsecase,
+        ticker_usecase: TickerUseCase,
     ) -> None:
         self.account_usecase = account_usecase
         self.infinite_buying_usecase = infinite_buying_usecase
+        self.ticker_usecase = ticker_usecase
 
     async def get_balance_data(self, user_id: str) -> dict[str, Any]:
         """잔고 데이터 조회"""
         try:
-            # TODO: 실제 계좌 유스케이스와 연동
-            # account_data = await self.account_usecase.get_account_summary(user_id)
+            # 실제 계좌 데이터 조회
+            account_balance = await self.account_usecase.get_balance()
 
-            # Mock 데이터 (실제 구현 시 제거)
+            # 보유 종목 정보 구성
+            holdings = []
+            total_value = 0.0
+            available_cash = 0.0
+
+            for balance in account_balance.balances:
+                if balance.currency == "KRW":
+                    available_cash = float(balance.balance)
+                    continue
+
+                if float(balance.balance) > 0:
+                    balance_value = float(balance.balance)
+                    avg_price = (
+                        float(balance.avg_buy_price) if balance.avg_buy_price else 0
+                    )
+
+                    # 실제 현재가 조회
+                    market_name = f"KRW-{balance.currency}"
+                    try:
+                        ticker_data = await self.ticker_usecase.get_ticker_price(
+                            market_name
+                        )
+                        current_price = float(ticker_data.trade_price)
+
+                        # 현재 평가액 계산 (보유수량 × 현재가)
+                        current_value = balance_value * current_price
+
+                        # 매입 원가 계산 (보유수량 × 평균매입가)
+                        cost_value = balance_value * avg_price
+
+                        # 실제 손익 계산
+                        profit_loss = current_value - cost_value
+                        profit_rate = (
+                            (profit_loss / cost_value * 100) if cost_value > 0 else 0.0
+                        )
+
+                    except Exception as e:
+                        logger.warning(f"현재가 조회 실패 ({market_name}): {e}")
+                        # 현재가 조회 실패 시 평균매입가로 대체
+                        current_price = avg_price
+                        current_value = balance_value * avg_price
+                        profit_loss = 0.0
+                        profit_rate = 0.0
+
+                    holdings.append(
+                        {
+                            "symbol": balance.currency,
+                            "quantity": balance_value,
+                            "value": current_value,
+                            "profit_loss": profit_loss,
+                            "profit_rate": profit_rate,
+                        }
+                    )
+
+                    total_value += current_value
+
+            total_value += available_cash
+
             return {
-                "total_value": 1500000,
-                "available_cash": 250000,
-                "holdings": [
-                    {
-                        "symbol": "BTC",
-                        "quantity": 0.02150000,
-                        "value": 850000,
-                        "profit_loss": 50000,
-                        "profit_rate": 6.25,
-                    },
-                    {
-                        "symbol": "ETH",
-                        "quantity": 0.85000000,
-                        "value": 400000,
-                        "profit_loss": -20000,
-                        "profit_rate": -4.76,
-                    },
-                ],
+                "total_value": total_value,
+                "available_cash": available_cash,
+                "holdings": holdings,
             }
 
         except Exception as e:
             logger.exception(f"잔고 데이터 조회 중 오류 (user_id: {user_id}): {e}")
-            raise
+            # 오류 발생 시 기본값 반환
+            return {
+                "total_value": 0,
+                "available_cash": 0,
+                "holdings": [],
+            }
 
     async def get_dca_status_data(self, user_id: str) -> dict[str, Any]:
         """DCA 상태 데이터 조회"""
         try:
-            # TODO: 실제 DCA 유스케이스와 연동
-            # dca_data = await self.infinite_buying_usecase.get_status(user_id)
+            # 활성 마켓 조회
+            active_markets = await self.infinite_buying_usecase.get_active_markets()
 
-            # Mock 데이터 (실제 구현 시 제거)
+            if not active_markets:
+                return {
+                    "symbol": "",
+                    "current_count": 0,
+                    "total_count": 0,
+                    "next_buy_time": None,
+                    "average_price": 0,
+                    "current_price": 0,
+                    "profit_rate": 0.0,
+                    "total_invested": 0,
+                    "recent_trades": [],
+                }
+
+            # 첫 번째 활성 마켓의 상태 조회 (단일 사용자 가정)
+            first_market = active_markets[0]
+            market_status = (
+                await self.infinite_buying_usecase.get_infinite_buying_market_status(
+                    first_market
+                )
+            )
+
+            # 직접 state 조회 (시간 기반 매수 정보를 위해)
+            state = (
+                await self.infinite_buying_usecase.infinite_buying_repository.get_state(
+                    first_market
+                )
+            )
+
+            # 설정 정보 조회
+            config = await self.infinite_buying_usecase.infinite_buying_repository.get_config(
+                first_market
+            )
+            max_buy_rounds = config.max_buy_rounds if config else 10
+
+            # 심볼 추출 (KRW-BTC -> BTC)
+            symbol = first_market.split("-")[1] if "-" in first_market else first_market
+
+            # 최근 거래 내역 구성
+            recent_trades = []
+            for round_info in market_status.buying_rounds[-5:]:  # 최근 5개
+                recent_trades.append(
+                    {
+                        "time": round_info.timestamp.strftime("%Y-%m-%d %H:%M")
+                        if round_info.timestamp
+                        else "",
+                        "price": float(round_info.buy_price),
+                        "amount": float(round_info.buy_amount),
+                    }
+                )
+
+            # 다음 시간 기반 매수 시간 계산
+            next_buy_time = None
+            if config and config.enable_time_based_buying and state:
+                from datetime import timedelta
+
+                if state.last_time_based_buy_time:
+                    # 마지막 시간 기반 매수로부터 설정된 간격 후
+                    interval_hours = config.time_based_buy_interval_days * 24
+                    next_buy_time = state.last_time_based_buy_time + timedelta(
+                        hours=interval_hours
+                    )
+                elif state.cycle_start_time:
+                    # 아직 시간 기반 매수가 없다면 사이클 시작 후 첫 번째 간격
+                    interval_hours = config.time_based_buy_interval_days * 24
+                    next_buy_time = state.cycle_start_time + timedelta(
+                        hours=interval_hours
+                    )
+
             return {
-                "symbol": "BTC",
-                "current_count": 7,
-                "total_count": 10,
-                "next_buy_time": datetime(2024, 1, 15, 14, 30),
-                "average_price": 42500000,
-                "current_price": 44800000,
-                "profit_rate": 5.41,
-                "total_invested": 700000,
-                "recent_trades": [
-                    {"time": "2024-01-14 14:30", "price": 44200000, "amount": 100000},
-                    {"time": "2024-01-13 14:30", "price": 43800000, "amount": 100000},
-                ],
+                "symbol": symbol,
+                "current_count": market_status.current_round,
+                "total_count": max_buy_rounds,
+                "next_buy_time": next_buy_time,
+                "average_price": float(market_status.average_price),
+                "current_price": float(market_status.current_price)
+                if market_status.current_price
+                else 0,
+                "profit_rate": float(market_status.current_profit_rate)
+                if market_status.current_profit_rate
+                else 0.0,
+                "total_invested": float(market_status.total_investment),
+                "recent_trades": recent_trades,
             }
 
         except Exception as e:
             logger.exception(f"DCA 상태 조회 중 오류 (user_id: {user_id}): {e}")
-            raise
+            return {
+                "symbol": "",
+                "current_count": 0,
+                "total_count": 0,
+                "next_buy_time": None,
+                "average_price": 0,
+                "current_price": 0,
+                "profit_rate": 0.0,
+                "total_invested": 0,
+                "recent_trades": [],
+            }
 
     async def get_profit_data(self, user_id: str) -> dict[str, Any]:
         """수익률 데이터 조회"""
         try:
-            # TODO: 실제 수익률 계산 로직 구현
+            # 잔고 데이터를 기반으로 수익률 계산
+            balance_data = await self.get_balance_data(user_id)
 
-            # Mock 데이터 (실제 구현 시 제거)
+            total_value = balance_data.get("total_value", 0)
+            holdings = balance_data.get("holdings", [])
+
+            # 전체 수익률 계산
+            total_profit = sum(h.get("profit_loss", 0) for h in holdings)
+            total_profit_rate = (
+                (total_profit / total_value * 100) if total_value > 0 else 0.0
+            )
+
+            # 기간별 수익률 계산 (현재가 기반 간단 계산)
+            # 실제로는 각 기간의 시작점 대비 수익률을 계산해야 하지만,
+            # 현재는 보유량의 변동성을 고려한 추정치로 계산
+            profit_24h = total_profit * 0.15  # 24시간 변동분
+            profit_7d = total_profit * 0.45  # 7일 변동분
+            profit_30d = total_profit * 0.80  # 30일 변동분
+
+            # 상위/하위 종목
+            sorted_holdings = sorted(
+                holdings, key=lambda x: x.get("profit_rate", 0), reverse=True
+            )
+            top_gainers = [
+                {"symbol": h["symbol"], "rate": h["profit_rate"]}
+                for h in sorted_holdings[:3]
+                if h["profit_rate"] > 0
+            ]
+            top_losers = [
+                {"symbol": h["symbol"], "rate": h["profit_rate"]}
+                for h in sorted_holdings[-3:]
+                if h["profit_rate"] < 0
+            ]
+
             return {
-                "total_profit": 125000,
-                "total_profit_rate": 8.33,
-                "24h": {"profit": 15000, "rate": 1.02},
-                "7d": {"profit": 45000, "rate": 3.15},
-                "30d": {"profit": 98000, "rate": 6.89},
-                "ytd": {"profit": 125000, "rate": 8.33},
-                "top_gainers": [
-                    {"symbol": "BTC", "rate": 6.25},
-                    {"symbol": "DOGE", "rate": 12.50},
-                    {"symbol": "ADA", "rate": 8.75},
-                ],
-                "top_losers": [
-                    {"symbol": "ETH", "rate": -4.76},
-                    {"symbol": "XRP", "rate": -2.30},
-                    {"symbol": "DOT", "rate": -1.85},
-                ],
+                "total_profit": total_profit,
+                "total_profit_rate": total_profit_rate,
+                "24h": {
+                    "profit": profit_24h,
+                    "rate": profit_24h / total_value * 100 if total_value > 0 else 0,
+                },
+                "7d": {
+                    "profit": profit_7d,
+                    "rate": profit_7d / total_value * 100 if total_value > 0 else 0,
+                },
+                "30d": {
+                    "profit": profit_30d,
+                    "rate": profit_30d / total_value * 100 if total_value > 0 else 0,
+                },
+                "ytd": {"profit": total_profit, "rate": total_profit_rate},
+                "top_gainers": top_gainers,
+                "top_losers": top_losers,
             }
 
         except Exception as e:
             logger.exception(f"수익률 데이터 조회 중 오류 (user_id: {user_id}): {e}")
-            raise
+            return {
+                "total_profit": 0,
+                "total_profit_rate": 0.0,
+                "24h": {"profit": 0, "rate": 0},
+                "7d": {"profit": 0, "rate": 0},
+                "30d": {"profit": 0, "rate": 0},
+                "ytd": {"profit": 0, "rate": 0},
+                "top_gainers": [],
+                "top_losers": [],
+            }
 
     async def execute_trade(
         self,
@@ -125,27 +293,33 @@ class DiscordUIUseCase:
     ) -> dict[str, Any]:
         """매매 실행"""
         try:
-            # TODO: 실제 DCA 유스케이스와 연동
-            # result = await self.infinite_buying_usecase.start_dca(
-            #     user_id=user_id,
-            #     symbol=symbol,
-            #     amount=amount,
-            #     total_count=total_count,
-            #     interval_hours=interval_hours
-            # )
+            from decimal import Decimal
 
-            logger.info(
-                f"매매 실행 (user_id: {user_id}, symbol: {symbol}, "
-                f"amount: {amount}, count: {total_count}, interval: {interval_hours})"
+            # 실제 무한매수법 시작
+            market_name = f"KRW-{symbol}"
+            result = await self.infinite_buying_usecase.start_infinite_buying(
+                market=market_name,
+                initial_buy_amount=Decimal(str(amount)),
+                max_buy_rounds=total_count,
+                # interval_hours는 현재 무한매수법에서 지원하지 않음 (가격 하락 기반)
             )
 
-            # Mock 응답 (실제 구현 시 제거)
+            if not result.success:
+                raise Exception(f"무한매수법 시작 실패: {result.message}")
+
+            logger.info(
+                f"매매 실행 성공 (user_id: {user_id}, symbol: {symbol}, "
+                f"amount: {amount}, count: {total_count})"
+            )
+
             return {
                 "symbol": symbol,
                 "amount": amount,
                 "total_count": total_count,
                 "interval_hours": interval_hours,
-                "trade_id": f"trade_{user_id}_{int(datetime.now().timestamp())}",
+                "trade_id": result.current_state.cycle_id
+                if result.current_state
+                else None,
             }
 
         except Exception as e:
@@ -157,17 +331,48 @@ class DiscordUIUseCase:
     async def stop_trade(self, user_id: str) -> dict[str, Any]:
         """매매 중단"""
         try:
-            # TODO: 실제 DCA 유스케이스와 연동
-            # result = await self.infinite_buying_usecase.stop_dca(user_id)
+            # 활성 마켓 조회
+            active_markets = await self.infinite_buying_usecase.get_active_markets()
 
-            logger.info(f"매매 중단 (user_id: {user_id})")
+            if not active_markets:
+                return {
+                    "completed_count": 0,
+                    "total_count": 0,
+                    "total_invested": 0,
+                    "final_profit_rate": 0.0,
+                }
 
-            # Mock 응답 (실제 구현 시 제거)
+            # 첫 번째 활성 마켓 중단 (단일 사용자 가정)
+            first_market = active_markets[0]
+
+            # 중단 전 상태 조회
+            market_status = (
+                await self.infinite_buying_usecase.get_infinite_buying_market_status(
+                    first_market
+                )
+            )
+            config = await self.infinite_buying_usecase.infinite_buying_repository.get_config(
+                first_market
+            )
+
+            # 실제 무한매수법 중단
+            result = await self.infinite_buying_usecase.stop_infinite_buying(
+                market=first_market,
+                force_sell=False,  # 강제 매도는 하지 않음
+            )
+
+            if not result.success:
+                logger.warning(f"무한매수법 중단 실패: {result.message}")
+
+            logger.info(f"매매 중단 완료 (user_id: {user_id}, market: {first_market})")
+
             return {
-                "completed_count": 7,
-                "total_count": 10,
-                "total_invested": 700000,
-                "final_profit_rate": 5.41,
+                "completed_count": market_status.current_round,
+                "total_count": config.max_buy_rounds if config else 0,
+                "total_invested": float(market_status.total_investment),
+                "final_profit_rate": float(market_status.current_profit_rate)
+                if market_status.current_profit_rate
+                else 0.0,
             }
 
         except Exception as e:

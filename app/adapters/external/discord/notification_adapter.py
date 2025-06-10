@@ -2,8 +2,8 @@ from datetime import datetime
 
 from app.domain.constants import DiscordConstants
 from app.domain.repositories.notification import NotificationRepository
-from resources.discord.models import Embed, EmbedField
-from resources.discord.bot import DiscordBot
+from common.discord.models import Embed, EmbedField
+from common.discord.bot import DiscordBot
 
 
 def _truncate_field_value(value: str, max_length: int = 1024) -> str:

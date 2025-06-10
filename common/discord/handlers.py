@@ -4,11 +4,11 @@ import traceback
 from datetime import datetime
 from typing import TYPE_CHECKING
 
-from resources.discord.models import Embed, EmbedField
-from resources.discord.bot import DiscordBot
+from common.discord.models import Embed, EmbedField
+from common.discord.bot import DiscordBot
 
 if TYPE_CHECKING:
-    from resources.discord.bot import DiscordBot
+    from common.discord.bot import DiscordBot
 
 
 # --- DiscordLoggingHandler (Error Logs) ---

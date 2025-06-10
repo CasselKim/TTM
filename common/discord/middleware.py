@@ -8,12 +8,12 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 
-from resources.discord.models import Embed, EmbedField
+from common.discord.models import Embed, EmbedField
 
-from resources.discord.bot import DiscordBot
+from common.discord.bot import DiscordBot
 
 if TYPE_CHECKING:
-    from resources.discord.bot import DiscordBot
+    from common.discord.bot import DiscordBot
 
 logger = logging.getLogger(__name__)
 

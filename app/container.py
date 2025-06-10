@@ -15,7 +15,7 @@ from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
 from app.domain.repositories.notification import NotificationRepository
-from resources.discord.bot import DiscordBot
+from common.discord.bot import DiscordBot
 
 
 class Container(containers.DeclarativeContainer):

@@ -39,7 +39,7 @@ class DiscordCommandAdapter(commands.Cog):
     async def menu_command(self, interaction: discord.Interaction) -> None:
         """메인 메뉴 Slash Command"""
         try:
-            from resources.discord.ui import MainMenuView
+            from common.discord.ui import MainMenuView
 
             embed = discord.Embed(
                 title="🤖 TTM 자동매매 봇",

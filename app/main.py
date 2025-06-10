@@ -12,11 +12,11 @@ from app.adapters.internal.dca_scheduler import (
 )
 from app.container import Container
 from common.logging import setup_logging
-from resources.discord.handlers import (
+from common.discord.handlers import (
     DiscordDebugLoggingHandler,
     DiscordLoggingHandler,
 )
-from resources.discord.middleware import ExceptionHandlingMiddleware
+from common.discord.middleware import ExceptionHandlingMiddleware
 
 # 환경 변수 로드
 load_dotenv()

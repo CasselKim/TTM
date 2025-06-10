@@ -5,7 +5,7 @@ import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 
-from resources.discord.models import Embed
+from common.discord.models import Embed
 
 if TYPE_CHECKING:
     from app.adapters.internal.discord_command import DiscordCommandAdapter

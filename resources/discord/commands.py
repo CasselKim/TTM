@@ -374,6 +374,8 @@ async def setup_commands(
     ui_usecase: DiscordUIUseCase,
 ) -> None:
     """봇에 모든 커맨드를 추가"""
+    logger.info("봇에 모든 커맨드를 추가")
+
     # Slash Commands
     try:
         await bot.add_cog(SlashCommands(bot))

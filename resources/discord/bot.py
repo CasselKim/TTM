@@ -1,11 +1,14 @@
 import logging
-from typing import Any
+from typing import Any, TYPE_CHECKING
 
 import discord
 from discord.ext import commands
 from discord.ext.commands import Bot
 
 from resources.discord.models import Embed
+
+if TYPE_CHECKING:
+    from app.adapters.internal.discord_command import DiscordCommandAdapter
 
 logger = logging.getLogger(__name__)
 
@@ -43,9 +46,10 @@ class DiscordBot(Bot):
         self.alert_channel_id = alert_channel_id
         self.log_channel_id = log_channel_id
 
-        self.history_channel: discord.TextChannel | None = None
-        self.alert_channel: discord.TextChannel | None = None
-        self.log_channel: discord.TextChannel | None = None
+        # 채널들은 on_ready에서 초기화됨 (not null 보장)
+        self.history_channel: discord.TextChannel
+        self.alert_channel: discord.TextChannel
+        self.log_channel: discord.TextChannel
 
         self._setup_events()
 
@@ -57,31 +61,31 @@ class DiscordBot(Bot):
             logger.info(f"Discord 봇이 로그인했습니다: {self.user}")
 
             history_channel = self.get_channel(self.channel_id)
-            if isinstance(history_channel, discord.TextChannel):
-                self.history_channel = history_channel
-                logger.info(f"히스토리 채널 연결됨: {self.history_channel.name}")
-            else:
-                logger.error(
-                    f"히스토리 채널 ID {self.channel_id}를 찾을 수 없거나 텍스트 채널이 아닙니다."
-                )
+            if not isinstance(history_channel, discord.TextChannel):
+                error_msg = f"히스토리 채널 ID {self.channel_id}를 찾을 수 없거나 텍스트 채널이 아닙니다."
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+
+            self.history_channel = history_channel
+            logger.info(f"히스토리 채널 연결됨: {self.history_channel.name}")
 
             alert_channel = self.get_channel(self.alert_channel_id)
-            if isinstance(alert_channel, discord.TextChannel):
-                self.alert_channel = alert_channel
-                logger.info(f"알림 채널 연결됨: {self.alert_channel.name}")
-            else:
-                logger.error(
-                    f"알림 채널 ID {self.alert_channel_id}를 찾을 수 없거나 텍스트 채널이 아닙니다."
-                )
+            if not isinstance(alert_channel, discord.TextChannel):
+                error_msg = f"알림 채널 ID {self.alert_channel_id}를 찾을 수 없거나 텍스트 채널이 아닙니다."
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+
+            self.alert_channel = alert_channel
+            logger.info(f"알림 채널 연결됨: {self.alert_channel.name}")
 
             log_channel = self.get_channel(self.log_channel_id)
-            if isinstance(log_channel, discord.TextChannel):
-                self.log_channel = log_channel
-                logger.info(f"로그 채널 연결됨: {self.log_channel.name}")
-            else:
-                logger.error(
-                    f"로그 채널 ID {self.log_channel_id}를 찾을 수 없거나 텍스트 채널이 아닙니다."
-                )
+            if not isinstance(log_channel, discord.TextChannel):
+                error_msg = f"로그 채널 ID {self.log_channel_id}를 찾을 수 없거나 텍스트 채널이 아닙니다."
+                logger.error(error_msg)
+                raise RuntimeError(error_msg)
+
+            self.log_channel = log_channel
+            logger.info(f"로그 채널 연결됨: {self.log_channel.name}")
 
         @self.event
         async def on_command_error(
@@ -93,6 +97,15 @@ class DiscordBot(Bot):
             else:
                 logger.error(f"명령어 처리 중 오류: {error}")
                 await ctx.send(f"오류가 발생했습니다: {error}")
+
+    async def setup_commands(self, command_adapter: "DiscordCommandAdapter") -> None:
+        """Discord Slash Commands 설정"""
+        # Slash Commands (Cog) 추가
+        await self.add_cog(command_adapter)
+        synced = await self.tree.sync()
+        logger.info(f"Slash Commands 동기화 완료: {len(synced)}개 명령어")
+        for command in synced:
+            logger.info(f"  - /{command.name}: {command.description}")
 
     async def start_bot(self) -> None:
         """봇 시작"""
@@ -121,7 +134,7 @@ class DiscordBot(Bot):
         target_channel = channel_map.get(channel_type)
 
         if not target_channel:
-            logger.error(f"{channel_type} 채널이 연결되지 않았습니다.")
+            logger.error(f"알 수 없는 채널 타입: {channel_type}")
             return False
 
         try:
@@ -151,8 +164,9 @@ class DiscordBot(Bot):
         target_channel = channel_map.get(channel_type)
 
         if not target_channel:
-            logger.error(f"{channel_type} 채널이 연결되지 않았습니다.")
+            logger.error(f"알 수 없는 채널 타입: {channel_type}")
             return False
+
         try:
             await target_channel.send(content)
             return True

@@ -7,7 +7,7 @@ from contextlib import asynccontextmanager
 from dotenv import load_dotenv
 from fastapi import FastAPI
 
-from app.adapters.internal.background.infinite_buying_scheduler import (
+from app.adapters.internal.scheduler import (
     InfiniteBuyingScheduler,
 )
 from app.container import Container
@@ -84,7 +84,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         logging.info("커맨드 어댑터 가져오기 및 커맨드 설정")
         command_adapter = container.command_adapter()
         logging.info("커맨드 어댑터 설정 완료")
-        await command_adapter.setup_all_commands()
+        await discord_bot.setup_commands(command_adapter)
         logging.info("모든 커맨드 설정 완료")
 
         # 봇 태스크가 예외와 함께 종료되었는지 확인

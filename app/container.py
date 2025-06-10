@@ -4,7 +4,7 @@ from app.adapters.external.cache.adapter import (
     CacheInfiniteBuyingRepository,
 )
 from app.adapters.external.cache.config import CacheConfig
-from app.adapters.internal.discord.command_adapter import DiscordCommandAdapter
+from app.adapters.internal.discord_command import DiscordCommandAdapter
 from app.adapters.external.discord.notification_adapter import (
     DiscordNotificationAdapter,
 )

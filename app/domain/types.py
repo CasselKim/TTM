@@ -40,18 +40,15 @@ class ActionTaken(StrEnum):
 
     START = "start"
     STOP = "stop"
-    FORCE_STOP = "force_stop"
     BUY = "buy"
     SELL = "sell"
     HOLD = "hold"
     EXECUTE = "execute"
-    BUY_FAILED = "buy_failed"
-    SELL_FAILED = "sell_failed"
 
 
 # 타입 별칭들
 MarketName = str
-AlgorithmInstance = "InfiniteBuyingAlgorithm"
+AlgorithmInstance = "InfiniteBuyingService"
 
 
 class TradeStatistics(BaseModel):

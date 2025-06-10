@@ -25,7 +25,7 @@ from app.domain.models.infinite_buying import (
     InfiniteBuyingState,
 )
 from app.domain.models.trading import MarketData, TradingSignal
-from app.domain.trade_algorithms.infinite_buying import InfiniteBuyingAlgorithm
+from app.domain.services.infinite_buying_service import InfiniteBuyingService
 from app.domain.types import ActionTaken
 
 
@@ -218,8 +218,8 @@ class TestBuyingRound:
         assert round_data.unit_cost == Decimal("0")
 
 
-class TestInfiniteBuyingAlgorithm:
-    """InfiniteBuyingAlgorithm 테스트"""
+class TestInfiniteBuyingService:
+    """InfiniteBuyingService 테스트"""
 
     @pytest.fixture
     def config(self):
@@ -237,7 +237,7 @@ class TestInfiniteBuyingAlgorithm:
     @pytest.fixture
     def algorithm(self, config):
         """테스트용 알고리즘 인스턴스"""
-        return InfiniteBuyingAlgorithm(config)
+        return InfiniteBuyingService(config)
 
     @pytest.fixture
     def account(self):
@@ -299,7 +299,7 @@ class TestInfiniteBuyingAlgorithm:
         signal = await algorithm.analyze_signal(poor_account, market_data)
 
         assert signal.action == TradingAction.HOLD
-        assert "자금 부족" in signal.reason
+        assert "초기 매수 불가" in signal.reason
 
     @pytest.mark.asyncio
     async def test_buy_amount_calculation(self, algorithm, account, market_data):
@@ -311,7 +311,7 @@ class TestInfiniteBuyingAlgorithm:
         )
 
         buy_amount = await algorithm.calculate_buy_amount(
-            account, market_data, signal, Decimal("0.5"), Decimal("5000")
+            account, signal, Decimal("5000")
         )
 
         assert buy_amount == Decimal("100000")  # initial_buy_amount
@@ -319,7 +319,7 @@ class TestInfiniteBuyingAlgorithm:
     @pytest.mark.asyncio
     async def test_execute_buy(self, algorithm, account, market_data):
         """매수 실행 테스트"""
-        result = await algorithm.execute_buy(account, market_data, Decimal("100000"))
+        result = await algorithm.execute_buy(market_data, Decimal("100000"))
 
         assert result.success
         assert result.action_taken == ActionTaken.BUY
@@ -332,7 +332,7 @@ class TestInfiniteBuyingAlgorithm:
     async def test_add_buy_signal_after_price_drop(self, algorithm, account, market_data):
         """가격 하락 후 추가 매수 신호 테스트"""
         # 먼저 초기 매수 실행
-        await algorithm.execute_buy(account, market_data, Decimal("100000"))
+        await algorithm.execute_buy(market_data, Decimal("100000"))
 
         # 가격이 5% 하락한 시장 데이터
         dropped_market_data = MarketData(
@@ -343,18 +343,18 @@ class TestInfiniteBuyingAlgorithm:
         )
 
         # 시간 간격 조건을 맞추기 위해 마지막 매수 시간을 과거로 설정
-        algorithm.state.last_buy_time = datetime.now() - timedelta(minutes=2)
+        algorithm.state.buying_rounds[-1].timestamp = datetime.now() - timedelta(minutes=2)
 
         signal = await algorithm.analyze_signal(account, dropped_market_data)
 
         assert signal.action == TradingAction.BUY
-        assert "하락 매수" in signal.reason
+        assert "가격 하락 기반 추가 매수" in signal.reason
 
     @pytest.mark.asyncio
     async def test_profit_taking_signal(self, algorithm, account, market_data):
         """익절 신호 테스트"""
         # 먼저 초기 매수 실행
-        await algorithm.execute_buy(account, market_data, Decimal("100000"))
+        await algorithm.execute_buy(market_data, Decimal("100000"))
 
         # 목표 수익률 달성 시장 데이터 (10% 상승)
         profit_market_data = MarketData(
@@ -373,7 +373,7 @@ class TestInfiniteBuyingAlgorithm:
     async def test_force_sell_signal(self, algorithm, account, market_data):
         """강제 손절 신호 테스트"""
         # 먼저 초기 매수 실행
-        await algorithm.execute_buy(account, market_data, Decimal("100000"))
+        await algorithm.execute_buy(market_data, Decimal("100000"))
 
         # 강제 손절 수준 하락 시장 데이터 (30% 하락)
         crash_market_data = MarketData(
@@ -394,7 +394,7 @@ class TestInfiniteBuyingAlgorithm:
         # 최대 회차까지 매수 진행
         algorithm.state.current_round = algorithm.config.max_buy_rounds
         algorithm.state.phase = InfiniteBuyingPhase.ACCUMULATING
-        algorithm.state.average_price = Decimal("45000000")
+        algorithm.state.average_price = Decimal("52000000")  # 현재가보다 높게 설정해서 손실 상태로 만듦
 
         signal = await algorithm.analyze_signal(account, market_data)
 
@@ -425,7 +425,7 @@ class TestInfiniteBuyingAlgorithm:
         algorithm.state.phase = InfiniteBuyingPhase.ACCUMULATING
 
         result = await algorithm.execute_sell(
-            account, market_data, Decimal("0.002")
+            market_data, Decimal("0.002")
         )
 
         assert result.success
@@ -437,7 +437,7 @@ class TestInfiniteBuyingAlgorithm:
     async def test_hold_signal_during_small_drop(self, algorithm, account, market_data):
         """작은 하락 시 홀드 신호 테스트"""
         # 먼저 초기 매수 실행
-        await algorithm.execute_buy(account, market_data, Decimal("100000"))
+        await algorithm.execute_buy(market_data, Decimal("100000"))
 
         # 작은 하락 (3%, 임계점 5% 미만)
         small_drop_market_data = MarketData(
@@ -456,7 +456,7 @@ class TestInfiniteBuyingAlgorithm:
     async def test_min_buy_interval_check(self, algorithm, account, market_data):
         """최소 매수 간격 확인 테스트"""
         # 먼저 초기 매수 실행
-        await algorithm.execute_buy(account, market_data, Decimal("100000"))
+        await algorithm.execute_buy(market_data, Decimal("100000"))
 
         # 가격이 하락했지만 시간 간격이 부족한 상황
         dropped_market_data = MarketData(
@@ -508,11 +508,11 @@ class TestInfiniteBuyingAlgorithm:
     async def test_time_based_buy_signal(self, algorithm, account, market_data):
         """시간 기반 매수 신호 테스트"""
         # 먼저 초기 매수 실행
-        await algorithm.execute_buy(account, market_data, Decimal("100000"), BuyType.INITIAL)
+        await algorithm.execute_buy(market_data, Decimal("100000"), BuyType.INITIAL)
 
         # 시간 설정: 최소 매수 간격과 시간 기반 매수 모두 만족
-        algorithm.state.last_buy_time = datetime.now() - timedelta(minutes=31)  # 30분 초과
-        algorithm.state.last_time_based_buy_time = datetime.now() - timedelta(days=4)
+        # buying_rounds의 마지막 timestamp를 과거로 설정
+        algorithm.state.buying_rounds[-1].timestamp = datetime.now() - timedelta(days=4)
 
         # 잔액 조정 (초기 매수 후 남은 금액)
         account.balances[0].balance = Decimal("900000")  # 10만원 사용 후 90만원 남음
@@ -528,18 +528,17 @@ class TestInfiniteBuyingAlgorithm:
         signal = await algorithm.analyze_signal(account, stable_market_data)
 
         assert signal.action == TradingAction.BUY
-        assert "시간 기반 매수" in signal.reason
-        assert "1일 간격" in signal.reason
+        assert "시간 기반 추가 매수" in signal.reason
 
     @pytest.mark.asyncio
     async def test_price_drop_vs_time_based_priority(self, algorithm, account, market_data):
         """가격 하락과 시간 기반 매수 우선순위 테스트"""
         # 먼저 초기 매수 실행
-        await algorithm.execute_buy(account, market_data, Decimal("100000"), BuyType.INITIAL)
+        await algorithm.execute_buy(market_data, Decimal("100000"), BuyType.INITIAL)
 
         # 시간 설정: 최소 매수 간격은 만족, 시간 기반 매수는 부족
-        algorithm.state.last_buy_time = datetime.now() - timedelta(minutes=31)  # 30분 초과
-        algorithm.state.last_time_based_buy_time = datetime.now() - timedelta(hours=12)  # 0.5일
+        # buying_rounds의 마지막 timestamp를 12시간 전으로 설정 (1일 미만)
+        algorithm.state.buying_rounds[-1].timestamp = datetime.now() - timedelta(hours=12)
 
         # 잔액 조정
         account.balances[0].balance = Decimal("900000")
@@ -554,7 +553,7 @@ class TestInfiniteBuyingAlgorithm:
         signal = await algorithm.analyze_signal(account, dropped_market_data)
 
         assert signal.action == TradingAction.BUY
-        assert "하락 매수" in signal.reason
+        assert "가격 하락 기반 추가 매수" in signal.reason
 
     @pytest.mark.asyncio
     async def test_time_based_buying_disabled(self, account, market_data):
@@ -564,13 +563,13 @@ class TestInfiniteBuyingAlgorithm:
             enable_time_based_buying=False,  # 시간 기반 매수 비활성화
             min_buy_interval_minutes=1
         )
-        algorithm = InfiniteBuyingAlgorithm(config)
+        algorithm = InfiniteBuyingService(config)
 
         # 먼저 초기 매수 실행
-        await algorithm.execute_buy(account, market_data, Decimal("100000"), BuyType.INITIAL)
+        await algorithm.execute_buy(market_data, Decimal("100000"), BuyType.INITIAL)
 
         # 시간은 충분히 지났지만 시간 기반 매수 비활성화
-        algorithm.state.last_time_based_buy_time = datetime.now() - timedelta(days=2)
+        algorithm.state.buying_rounds[-1].timestamp = datetime.now() - timedelta(days=2)
 
         stable_market_data = MarketData(
             market="KRW-BTC",
@@ -588,13 +587,12 @@ class TestInfiniteBuyingAlgorithm:
     async def test_buying_round_type_tracking(self, algorithm, account, market_data):
         """매수 회차별 타입 추적 테스트"""
         # 1. 초기 매수
-        result1 = await algorithm.execute_buy(account, market_data, Decimal("100000"), BuyType.INITIAL)
+        result1 = await algorithm.execute_buy(market_data, Decimal("100000"), BuyType.INITIAL)
         assert result1.success
         assert algorithm.state.buying_rounds[-1].buy_type == BuyType.INITIAL
 
         # 시간 경과 및 계좌 보정 (테스트용)
-        algorithm.state.last_buy_time = datetime.now() - timedelta(minutes=31)
-        algorithm.state.last_time_based_buy_time = datetime.now() - timedelta(days=2)
+        algorithm.state.buying_rounds[-1].timestamp = datetime.now() - timedelta(days=2)
         account.balances[0].balance = Decimal("900000")  # 남은 잔액
 
         # 2. 시간 기반 매수 (가격 변화 없음)
@@ -605,7 +603,7 @@ class TestInfiniteBuyingAlgorithm:
             change_rate_24h=Decimal("0.01")
         )
 
-        result2 = await algorithm.execute_buy(account, stable_market_data, Decimal("150000"), BuyType.TIME_BASED)
+        result2 = await algorithm.execute_buy(stable_market_data, Decimal("150000"), BuyType.TIME_BASED)
         assert result2.success
         assert algorithm.state.buying_rounds[-1].buy_type == BuyType.TIME_BASED
 
@@ -618,10 +616,10 @@ class TestInfiniteBuyingAlgorithm:
         )
 
         # 시간 간격 및 잔액 조정
-        algorithm.state.last_buy_time = datetime.now() - timedelta(minutes=31)
+        algorithm.state.buying_rounds[-1].timestamp = datetime.now() - timedelta(minutes=31)
         account.balances[0].balance = Decimal("800000")
 
-        result3 = await algorithm.execute_buy(account, dropped_market_data, Decimal("225000"), BuyType.PRICE_DROP)
+        result3 = await algorithm.execute_buy(dropped_market_data, Decimal("225000"), BuyType.PRICE_DROP)
         assert result3.success
         assert algorithm.state.buying_rounds[-1].buy_type == BuyType.PRICE_DROP
 
@@ -650,9 +648,7 @@ class TestInfiniteBuyingAlgorithm:
         # 매수 금액 계산 - IndexError가 발생하지 않아야 함
         buy_amount = await algorithm.calculate_buy_amount(
             account,
-            market_data,
             signal,
-            max_investment_ratio=Decimal("0.5"),
             min_order_amount=Decimal("5000"),
         )
 
@@ -662,7 +658,7 @@ class TestInfiniteBuyingAlgorithm:
         assert buy_amount > 0
 
         # 실제 매수 실행도 정상 작동해야 함
-        result = await algorithm.execute_buy(account, market_data, buy_amount)
+        result = await algorithm.execute_buy(market_data, buy_amount)
         assert result.success
         assert len(algorithm.state.buying_rounds) == 1  # 새로운 라운드가 추가됨
         assert algorithm.state.current_round == 3  # 회차가 증가함
@@ -683,7 +679,7 @@ class TestInfiniteBuyingIntegration:
             min_buy_interval_minutes=0  # 테스트용으로 즉시 매수 가능
         )
 
-        algorithm = InfiniteBuyingAlgorithm(config)
+        algorithm = InfiniteBuyingService(config)
 
         account = Account(
             balances=[
@@ -713,7 +709,7 @@ class TestInfiniteBuyingIntegration:
         signal_1 = await algorithm.analyze_signal(account, market_data_1)
         assert signal_1.action == TradingAction.BUY
 
-        result_1 = await algorithm.execute_buy(account, market_data_1, Decimal("100000"))
+        result_1 = await algorithm.execute_buy(market_data_1, Decimal("100000"))
         assert result_1.success
         assert algorithm.state.current_round == 1
 
@@ -727,9 +723,9 @@ class TestInfiniteBuyingIntegration:
         assert signal_2.action == TradingAction.BUY
 
         buy_amount_2 = await algorithm.calculate_buy_amount(
-            account, market_data_2, signal_2, Decimal("0.5"), Decimal("5000")
+            account, signal_2, Decimal("5000")
         )
-        result_2 = await algorithm.execute_buy(account, market_data_2, buy_amount_2)
+        result_2 = await algorithm.execute_buy(market_data_2, buy_amount_2)
         assert result_2.success
         assert algorithm.state.current_round == 2
 
@@ -746,7 +742,7 @@ class TestInfiniteBuyingIntegration:
         account.balances[1].balance = algorithm.state.total_volume
 
         sell_volume = await algorithm.calculate_sell_amount(account, market_data_3, signal_3)
-        result_3 = await algorithm.execute_sell(account, market_data_3, sell_volume)
+        result_3 = await algorithm.execute_sell(market_data_3, sell_volume)
 
         assert result_3.success
         assert result_3.profit_rate is not None

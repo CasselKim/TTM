@@ -1,5 +1,5 @@
 """
-라오어의 무한매수법 알고리즘
+라오어의 무한매수법 서비스
 
 분할 매수를 통해 평균 단가를 낮추고, 목표 수익률 달성 시 전량 매도하는 투자 전략입니다.
 
@@ -27,13 +27,12 @@ from app.domain.models.infinite_buying import (
     InfiniteBuyingState,
 )
 from app.domain.models.trading import MarketData, TradingSignal
-from app.domain.trade_algorithms.base import TradingAlgorithm
 from app.domain.types import ActionTaken
 
 
-class InfiniteBuyingAlgorithm(TradingAlgorithm):
+class InfiniteBuyingService:
     """
-    라오어의 무한매수법 구현
+    라오어의 무한매수법 서비스
 
     분할 매수를 통한 평균 단가 하락 및 목표 수익률 달성 시 익절하는 전략
     """
@@ -53,11 +52,11 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         """
         # 초기 매수 단계 확인
         if self.state.phase == InfiniteBuyingPhase.INITIAL_BUY:
-            return await self._analyze_initial_buy_signal(account, market_data)
+            return await self._analyze_initial_buy_signal(account)
 
         # 비활성 상태 확인 (이전 로직 유지)
         if not self.state.is_active:
-            return await self._analyze_initial_buy_signal(account, market_data)
+            return await self._analyze_initial_buy_signal(account)
 
         # 현재 수익률 계산
         current_profit_rate = self._calculate_current_profit_rate(
@@ -75,7 +74,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         # 추가 매수 확인
         should_buy, buy_reason = await self._should_add_buy(account, market_data)
         if should_buy:
-            return await self._create_add_buy_signal(account, market_data, buy_reason)
+            return await self._create_add_buy_signal(market_data, buy_reason)
 
         # 홀드
         return TradingSignal(
@@ -87,9 +86,7 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
     async def calculate_buy_amount(
         self,
         account: Account,
-        market_data: MarketData,
         signal: TradingSignal,
-        max_investment_ratio: Decimal,
         min_order_amount: Decimal,
     ) -> Decimal:
         """
@@ -168,7 +165,6 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
 
     async def execute_buy(
         self,
-        account: Account,
         market_data: MarketData,
         buy_amount: Decimal,
         buy_type: BuyType = BuyType.INITIAL,
@@ -198,109 +194,93 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
             self.state.add_buying_round(new_round, self.config)
             self.state.phase = InfiniteBuyingPhase.ACCUMULATING
 
-            # 시간 기반 매수인 경우 시간 업데이트
-            if buy_type == BuyType.TIME_BASED:
-                self.state.last_time_based_buy_time = datetime.now()
-
-            # 목표 매도 가격 업데이트
-            self.state.target_sell_price = self.state.average_price * (
-                Decimal("1") + self.config.target_profit_rate
-            )
-
-            self.logger.info(
-                f"무한매수법 {new_round.round_number}회차 매수 완료: "
-                f"가격 {current_price:,.0f}원, 금액 {buy_amount:,.0f}원, "
-                f"평균단가 {self.state.average_price:,.0f}원, "
-                f"목표가 {self.state.target_sell_price:,.0f}원"
-            )
-
-            return InfiniteBuyingResult(
+            result = InfiniteBuyingResult(
                 success=True,
                 action_taken=ActionTaken.BUY,
-                message=f"{new_round.round_number}회차 매수 완료 "
-                f"(평균단가: {self.state.average_price:,.0f}원)",
+                message=f"무한매수법 매수 실행: {new_round.round_number}회차",
                 trade_price=current_price,
                 trade_amount=buy_amount,
                 trade_volume=buy_volume,
                 current_state=self.state,
+                profit_rate=self._calculate_current_profit_rate(current_price),
             )
 
-        except Exception as e:
-            self.logger.exception("무한매수법 매수 실행 중 오류")
-            return InfiniteBuyingResult(
-                success=False,
-                action_taken=ActionTaken.BUY_FAILED,
-                message=f"매수 실행 실패: {e!s}",
-                current_state=self.state,
+            self.logger.info(
+                f"무한매수법 매수 실행: {new_round.round_number}회차, "
+                f"매수가 {current_price:,.0f}원, 매수량 {buy_volume:.8f}, "
+                f"평균단가 {self.state.average_price:,.0f}원"
             )
+
+            return result
+
+        except Exception as e:
+            self.logger.error(f"무한매수법 매수 실행 실패: {e}")
+            raise
 
     async def execute_sell(
         self,
-        account: Account,
         market_data: MarketData,
         sell_volume: Decimal,
-        *,
-        is_force_sell: bool = False,
     ) -> InfiniteBuyingResult:
         """
-        매도 실행 및 사이클 완료
+        매도 실행 및 상태 업데이트
         """
         try:
             current_price = market_data.current_price
-            sell_amount = sell_volume * current_price  # 수수료는 실제 거래에서 적용
+            sell_amount = sell_volume * current_price
+            current_profit_rate = self._calculate_current_profit_rate(current_price)
 
-            # 수익률 계산 및 사이클 완료
-            profit_rate = self.state.complete_cycle(current_price, sell_volume)
-
-            action_taken = ActionTaken.FORCE_STOP if is_force_sell else ActionTaken.SELL
-            message = (
-                f"무한매수법 사이클 완료 ({'손절' if is_force_sell else '익절'}): "
-                f"수익률 {profit_rate:.2%}, 매도가 {current_price:,.0f}원"
-            )
-
-            self.logger.info(message)
-
-            return InfiniteBuyingResult(
+            # 결과 생성
+            profit_loss_amount = sell_amount - self.state.total_investment
+            result = InfiniteBuyingResult(
                 success=True,
-                action_taken=action_taken,
-                message=message,
+                action_taken=ActionTaken.SELL,
+                message=f"무한매수법 매도 실행: 수익률 {current_profit_rate:.2%}",
                 trade_price=current_price,
                 trade_amount=sell_amount,
                 trade_volume=sell_volume,
                 current_state=self.state,
-                profit_rate=profit_rate,
+                profit_rate=current_profit_rate,
+                profit_loss_amount_krw=profit_loss_amount,
             )
+
+            # 상태 리셋 (사이클 종료)
+            self.state.phase = InfiniteBuyingPhase.INACTIVE
+            self.state.current_round = 0
+            self.state.total_investment = Decimal("0")
+            self.state.total_volume = Decimal("0")
+            self.state.average_price = Decimal("0")
+            self.state.buying_rounds = []
+
+            self.logger.info(
+                f"무한매수법 매도 실행: 매도가 {current_price:,.0f}원, "
+                f"매도량 {sell_volume:.8f}, 수익률 {current_profit_rate:.2%}, "
+                f"실현손익 {profit_loss_amount:,.0f}원"
+            )
+
+            return result
 
         except Exception as e:
-            self.logger.exception("무한매수법 매도 실행 중 오류")
-            return InfiniteBuyingResult(
-                success=False,
-                action_taken=ActionTaken.SELL_FAILED,
-                message=f"매도 실행 실패: {e!s}",
-                current_state=self.state,
-            )
+            self.logger.error(f"무한매수법 매도 실행 실패: {e}")
+            raise
 
-    # Private methods
-
-    async def _analyze_initial_buy_signal(
-        self, account: Account, market_data: MarketData
-    ) -> TradingSignal:
-        """초기 매수 신호 분석"""
+    async def _analyze_initial_buy_signal(self, account: Account) -> TradingSignal:
+        """
+        초기 매수 신호 분석
+        """
         available_krw = self._get_available_krw_balance(account)
 
         if available_krw < self.config.initial_buy_amount:
             return TradingSignal(
                 action=TradingAction.HOLD,
-                confidence=Decimal("0.5"),
-                reason=f"초기 매수 자금 부족 (필요: {self.config.initial_buy_amount:,.0f}원, "
-                f"보유: {available_krw:,.0f}원)",
+                confidence=AlgorithmConstants.MAX_CONFIDENCE,
+                reason=f"초기 매수 불가: 필요금액 {self.config.initial_buy_amount:,.0f}원, 보유금액 {available_krw:,.0f}원",
             )
 
         return TradingSignal(
             action=TradingAction.BUY,
             confidence=AlgorithmConstants.MAX_CONFIDENCE,
-            reason=f"무한매수법 초기 매수 신호 "
-            f"(매수금액: {self.config.initial_buy_amount:,.0f}원)",
+            reason="무한매수법 초기 매수 신호",
         )
 
     def _calculate_current_profit_rate(self, current_price: Decimal) -> Decimal:
@@ -310,21 +290,29 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         return (current_price - self.state.average_price) / self.state.average_price
 
     async def _should_force_sell(self, current_profit_rate: Decimal) -> bool:
-        """강제 손절 조건 확인"""
-        # 손실률이 강제 손절선을 넘었거나
-        if current_profit_rate <= self.config.force_stop_loss_rate:
-            return True
+        """
+        강제 손절 조건 확인
 
-        # 최대 회차에 도달했거나
+        Args:
+            current_profit_rate: 현재 수익률
+
+        Returns:
+            bool: 강제 손절 여부
+        """
+        # 최대 회차 도달 시 강제 손절
         if self.state.current_round >= self.config.max_buy_rounds:
+            self.logger.warning(
+                f"최대 회차 도달: 현재 {self.state.current_round}회차, "
+                f"최대 {self.config.max_buy_rounds}회차"
+            )
             return True
 
-        # 최대 사이클 기간을 초과한 경우
-        if (
-            self.state.cycle_start_time
-            and datetime.now() - self.state.cycle_start_time
-            > timedelta(days=self.config.max_cycle_days)
-        ):
+        # 최대 손실률 초과
+        if current_profit_rate <= self.config.force_stop_loss_rate:
+            self.logger.warning(
+                f"최대 손실률 초과: 현재 {current_profit_rate:.2%}, "
+                f"한계 {self.config.force_stop_loss_rate:.2%}"
+            )
             return True
 
         return False
@@ -336,76 +324,82 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
     async def _should_add_buy(
         self, account: Account, market_data: MarketData
     ) -> tuple[bool, str]:
-        """추가 매수 조건 확인 - 하이브리드 DCA 방식"""
-        # 최대 회차 확인
-        if self.state.current_round >= self.config.max_buy_rounds:
-            return False, "max_rounds"
+        """
+        추가 매수 조건 확인
 
-        # 최소 매수 간격 확인 (모든 매수에 공통 적용)
-        if (
-            self.state.last_buy_time
-            and datetime.now() - self.state.last_buy_time
-            < timedelta(minutes=self.config.min_buy_interval_minutes)
-        ):
-            return False, "min_interval"
+        Returns:
+            tuple[bool, str]: (추가 매수 여부, 사유)
+        """
+        current_price = market_data.current_price
 
-        # 사용 가능한 자금 확인
+        # 사용 가능한 KRW 확인
         available_krw = self._get_available_krw_balance(account)
-        if self.state.buying_rounds:
-            next_buy_amount = (
-                self.state.buying_rounds[-1].buy_amount * self.config.add_buy_multiplier
-            )
-            if available_krw < next_buy_amount:
-                return False, "insufficient_funds"
+        if available_krw < self.config.initial_buy_amount:
+            return False, "사용 가능한 KRW 부족"
 
-        # 1. 시간 기반 매수 조건 확인
+        # 시간 기반 매수 조건
         if await self._should_time_based_buy():
-            return True, "time_based"
+            return True, "시간 기반 추가 매수"
 
-        # 2. 가격 하락 기반 매수 조건 확인
+        # 가격 하락 기반 매수 조건
         if await self._should_price_drop_buy(market_data):
-            return True, "price_drop"
+            drop_rate = (
+                self.state.average_price - current_price
+            ) / self.state.average_price
+            return True, f"가격 하락 기반 추가 매수 (하락률: {drop_rate:.2%})"
 
-        return False, "no_trigger"
+        return False, "추가 매수 조건 미충족"
 
     async def _should_time_based_buy(self) -> bool:
-        """시간 기반 매수 조건 확인"""
+        """
+        시간 기반 추가 매수 조건 확인
+
+        Returns:
+            bool: 시간 기반 매수 여부
+        """
         if not self.config.enable_time_based_buying:
             return False
 
-        # 첫 매수 후 시간 기반 매수 시작
-        if self.state.current_round == 0:
+        if not self.state.buying_rounds:
             return False
 
-        # 마지막 시간 기반 매수로부터 1일 경과 확인
-        last_time_buy = (
-            self.state.last_time_based_buy_time or self.state.cycle_start_time
-        )
-        if not last_time_buy:
-            return True
+        last_buy_time = self.state.buying_rounds[-1].timestamp
+        time_diff = datetime.now() - last_buy_time
 
-        time_since_last = datetime.now() - last_time_buy
-        return time_since_last >= timedelta(
-            days=self.config.time_based_buy_interval_days
-        )
+        return time_diff >= timedelta(days=self.config.time_based_buy_interval_days)
 
     async def _should_price_drop_buy(self, market_data: MarketData) -> bool:
-        """가격 하락 기반 매수 조건 확인"""
-        if self.state.average_price == 0:
-            return False
+        """
+        가격 하락 기반 추가 매수 조건 확인
 
-        price_drop_rate = (
-            market_data.current_price - self.state.average_price
+        Args:
+            market_data: 시장 데이터
+
+        Returns:
+            bool: 가격 하락 기반 매수 여부
+        """
+        current_price = market_data.current_price
+
+        # 최소 매수 간격 확인
+        if self.state.buying_rounds:
+            last_buy_time = self.state.buying_rounds[-1].timestamp
+            time_diff = datetime.now() - last_buy_time
+            if time_diff < timedelta(minutes=self.config.min_buy_interval_minutes):
+                return False
+
+        # 평균 단가 대비 하락률 계산
+        drop_rate = (
+            self.state.average_price - current_price
         ) / self.state.average_price
 
-        return price_drop_rate <= self.config.price_drop_threshold
+        return drop_rate >= abs(self.config.price_drop_threshold)
 
     def _create_force_sell_signal(self, current_profit_rate: Decimal) -> TradingSignal:
         """강제 손절 신호 생성"""
         return TradingSignal(
             action=TradingAction.SELL,
             confidence=AlgorithmConstants.MAX_CONFIDENCE,
-            reason=f"무한매수법 강제 손절 (손실률: {current_profit_rate:.2%})",
+            reason=f"강제 손절: 수익률 {current_profit_rate:.2%}",
         )
 
     def _create_profit_taking_signal(
@@ -415,25 +409,22 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         return TradingSignal(
             action=TradingAction.SELL,
             confidence=AlgorithmConstants.MAX_CONFIDENCE,
-            reason=f"무한매수법 목표 수익률 달성 (수익률: {current_profit_rate:.2%})",
+            reason=f"목표 수익률 달성: {current_profit_rate:.2%}",
         )
 
     async def _create_add_buy_signal(
-        self, account: Account, market_data: MarketData, buy_reason: str
+        self, market_data: MarketData, buy_reason: str
     ) -> TradingSignal:
         """추가 매수 신호 생성"""
-        if buy_reason == BuyType.TIME_BASED:
-            reason = f"무한매수법 {self.state.current_round + 1}회차 시간 기반 매수 (1일 간격)"
-        else:  # price_drop
-            drop_rate = (
-                market_data.current_price - self.state.average_price
-            ) / self.state.average_price
-            reason = f"무한매수법 {self.state.current_round + 1}회차 하락 매수 (하락률: {drop_rate:.2%})"
+        current_price = market_data.current_price
+        drop_rate = (
+            self.state.average_price - current_price
+        ) / self.state.average_price
 
         return TradingSignal(
             action=TradingAction.BUY,
             confidence=AlgorithmConstants.MAX_CONFIDENCE,
-            reason=reason,
+            reason=f"{buy_reason} (평균단가: {self.state.average_price:,.0f}, 현재가: {current_price:,.0f}, 하락률: {drop_rate:.2%})",
         )
 
     def _get_available_krw_balance(self, account: Account) -> Decimal:
@@ -447,11 +438,11 @@ class InfiniteBuyingAlgorithm(TradingAlgorithm):
         self, account: Account, market: str
     ) -> Balance | None:
         """대상 통화 잔액 조회"""
-        # market 형식: "KRW-BTC" -> target_currency는 "BTC"
-        target_currency_str = market.split("-")[1]
-        target_currency = Currency(target_currency_str)
+        # 마켓에서 대상 통화 추출 (예: KRW-BTC -> BTC)
+        target_currency = market.split("-")[1]
+        currency = Currency(target_currency)
 
         for balance in account.balances:
-            if balance.currency == target_currency:
+            if balance.currency == currency:
                 return balance
         return None

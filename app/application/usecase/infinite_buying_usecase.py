@@ -23,7 +23,7 @@ from app.domain.repositories.infinite_buying_repository import InfiniteBuyingRep
 from app.domain.repositories.notification import NotificationRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
-from app.domain.trade_algorithms.infinite_buying import InfiniteBuyingAlgorithm
+from app.domain.services.infinite_buying_service import InfiniteBuyingService
 from app.domain.types import (
     ActionTaken,
     BuyingRoundInfo,
@@ -100,7 +100,7 @@ class InfiniteBuyingUsecase:
         )
 
         # 알고리즘 인스턴스 생성 (초기 상태 설정용)
-        algorithm = InfiniteBuyingAlgorithm(config)
+        algorithm = InfiniteBuyingService(config)
 
         # 상태를 첫 매수 대기 상태로 설정 (cycle_id 자동 생성)
         algorithm.state.reset_cycle(market)
@@ -163,7 +163,7 @@ class InfiniteBuyingUsecase:
             )
 
         # 임시 알고리즘 인스턴스 생성
-        algorithm = InfiniteBuyingAlgorithm(config)
+        algorithm = InfiniteBuyingService(config)
         algorithm.state = state
 
         # 강제 매도인 경우 현재 보유량 전량 매도
@@ -187,7 +187,7 @@ class InfiniteBuyingUsecase:
             if target_balance and target_balance.balance > 0:
                 # 전량 매도 실행
                 sell_result = await algorithm.execute_sell(
-                    account, market_data, target_balance.balance, is_force_sell=True
+                    market_data, target_balance.balance
                 )
 
                 if sell_result.success:
@@ -408,7 +408,7 @@ class InfiniteBuyingUsecase:
 
     async def _handle_buy_signal(
         self,
-        algorithm: InfiniteBuyingAlgorithm,
+        algorithm: InfiniteBuyingService,
         market: MarketName,
         account: Account,
         market_data: MarketData,
@@ -418,9 +418,7 @@ class InfiniteBuyingUsecase:
         # 매수 실행
         buy_amount = await algorithm.calculate_buy_amount(
             account,
-            market_data,
             signal,
-            max_investment_ratio=Decimal("0.5"),
             min_order_amount=Decimal("5000"),
         )
 
@@ -438,7 +436,7 @@ class InfiniteBuyingUsecase:
             return buy_result
 
         # 상태 업데이트
-        result = await algorithm.execute_buy(account, market_data, buy_amount)
+        result = await algorithm.execute_buy(market_data, buy_amount)
 
         # 상태 저장
         if result.success:
@@ -448,11 +446,8 @@ class InfiniteBuyingUsecase:
 
     async def _handle_sell_signal(
         self,
-        algorithm: InfiniteBuyingAlgorithm,
+        algorithm: InfiniteBuyingService,
         market: MarketName,
-        account: Account,
-        market_data: MarketData,
-        signal: TradingSignal,
     ) -> InfiniteBuyingResult:
         """매도 신호 처리"""
         sell_volume = algorithm.state.total_volume
@@ -475,7 +470,7 @@ class InfiniteBuyingUsecase:
 
     async def _handle_sell_success(
         self,
-        algorithm: InfiniteBuyingAlgorithm,
+        algorithm: InfiniteBuyingService,
         market: MarketName,
         result: InfiniteBuyingResult,
     ) -> None:
@@ -528,7 +523,7 @@ class InfiniteBuyingUsecase:
             )
 
         # 임시 알고리즘 인스턴스 생성
-        algorithm = InfiniteBuyingAlgorithm(config)
+        algorithm = InfiniteBuyingService(config)
         algorithm.state = state
 
         # 계좌 정보 조회
@@ -547,9 +542,7 @@ class InfiniteBuyingUsecase:
                 algorithm, market, account, market_data, signal
             )
         elif signal.action == TradingAction.SELL:
-            return await self._handle_sell_signal(
-                algorithm, market, account, market_data, signal
-            )
+            return await self._handle_sell_signal(algorithm, market)
 
         # HOLD 신호
         return InfiniteBuyingResult(

@@ -1,12 +1,12 @@
 import logging
 import traceback
-from datetime import datetime
 from typing import TYPE_CHECKING, Callable, Awaitable, Any
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
+from common.utils.timezone import now_kst
 
 from common.discord.models import Embed, EmbedField
 
@@ -49,7 +49,7 @@ class ExceptionHandlingMiddleware(BaseHTTPMiddleware):
                     title="🚨 HTTP Exception",
                     description=f"**[{request.method}]** `{request.url}`",
                     color=0xFF0000,
-                    timestamp=datetime.now(),
+                    timestamp=now_kst(),
                     fields=[
                         EmbedField(name="Error", value=str(e), inline=False),
                         EmbedField(

@@ -8,6 +8,7 @@ from app.domain.constants import DiscordConstants
 from app.domain.repositories.notification import NotificationRepository
 from common.discord.bot import DiscordBot
 from common.discord.models import Embed, EmbedField
+from common.utils.timezone import now_kst, to_kst
 
 
 def _truncate_field_value(
@@ -81,11 +82,13 @@ class DiscordNotificationAdapter(NotificationRepository):
         emoji = "📈" if side == "BUY" else "📉"
         action = "매수" if side == "BUY" else "매도"
 
+        executed_kst = to_kst(executed_at)
+
         embed = Embed(
             title=f"{emoji} {market} {action} 체결",
             description=f"**{market}** 거래가 체결되었습니다.",
             color=color,
-            timestamp=executed_at,
+            timestamp=executed_kst,
             fields=[
                 EmbedField(name="체결 가격", value=f"{price:,.0f} KRW", inline=True),
                 EmbedField(
@@ -104,7 +107,7 @@ class DiscordNotificationAdapter(NotificationRepository):
                 EmbedField(name="거래 유형", value=action, inline=True),
                 EmbedField(
                     name="체결 시간",
-                    value=executed_at.strftime("%Y-%m-%d %H:%M:%S"),
+                    value=executed_kst.strftime("%Y-%m-%d %H:%M:%S"),
                     inline=True,
                 ),
             ],
@@ -127,7 +130,7 @@ class DiscordNotificationAdapter(NotificationRepository):
             title=f"⚠️ 에러 발생: {error_type}",
             description=error_message,
             color=DiscordConstants.COLOR_ERROR,
-            timestamp=datetime.now(),
+            timestamp=now_kst(),
         )
         if details:
             embed.fields.append(
@@ -148,7 +151,7 @@ class DiscordNotificationAdapter(NotificationRepository):
             title=f"ℹ️ {title}",
             description=message,
             color=DiscordConstants.COLOR_INFO,
-            timestamp=datetime.now(),
+            timestamp=now_kst(),
             fields=[
                 EmbedField(name=name, value=_truncate_field_value(value), inline=inline)
                 for name, value, inline in fields or []

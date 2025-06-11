@@ -13,6 +13,7 @@ from app.adapters.external.discord.ui.embeds import (
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.ticker_usecase import TickerUseCase
+from common.utils.timezone import to_kst
 
 logger = logging.getLogger(__name__)
 
@@ -147,7 +148,7 @@ class DiscordUIUseCase:
             for round_info in market_status.buying_rounds[-5:]:  # 최근 5개
                 recent_trades.append(
                     {
-                        "time": round_info.timestamp.strftime("%Y-%m-%d %H:%M")
+                        "time": to_kst(round_info.timestamp).strftime("%Y-%m-%d %H:%M")
                         if round_info.timestamp
                         else "",
                         "price": float(round_info.buy_price),

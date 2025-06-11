@@ -28,6 +28,16 @@ from app.domain.constants import (
     DCA_DEFAULT_AVERAGE_PRICE,
     DCA_DEFAULT_LAST_BUY_PRICE,
     DCA_DEFAULT_TARGET_SELL_PRICE,
+    DCA_DEFAULT_ADD_BUY_MULTIPLIER,
+    DCA_DEFAULT_TARGET_PROFIT_RATE,
+    DCA_DEFAULT_PRICE_DROP_THRESHOLD,
+    DCA_DEFAULT_FORCE_STOP_LOSS_RATE,
+    DCA_DEFAULT_MAX_BUY_ROUNDS,
+    DCA_DEFAULT_MAX_INVESTMENT_RATIO,
+    DCA_DEFAULT_MIN_BUY_INTERVAL_MINUTES,
+    DCA_DEFAULT_MAX_CYCLE_DAYS,
+    DCA_DEFAULT_TIME_BASED_BUY_INTERVAL_HOURS,
+    DCA_DEFAULT_ENABLE_TIME_BASED_BUYING,
 )
 
 
@@ -50,24 +60,34 @@ class DcaConfig(BaseModel):
 
     # 기본 매수 설정
     initial_buy_amount: int  # 초기 매수 금액 (KRW)
-    add_buy_multiplier: Decimal = Decimal("1.5")  # 추가 매수 배수
+    add_buy_multiplier: Decimal = DCA_DEFAULT_ADD_BUY_MULTIPLIER  # 추가 매수 배수
 
     # 수익/손실 기준
-    target_profit_rate: Decimal = Decimal("0.10")  # 목표 수익률 (10%)
-    price_drop_threshold: Decimal = Decimal("-0.025")  # 추가 매수 트리거 하락률 (-2.5%)
-    force_stop_loss_rate: Decimal = Decimal("-0.25")  # 강제 손절률 (-25%)
+    target_profit_rate: Decimal = DCA_DEFAULT_TARGET_PROFIT_RATE  # 목표 수익률
+    price_drop_threshold: Decimal = (
+        DCA_DEFAULT_PRICE_DROP_THRESHOLD  # 추가 매수 트리거 하락률
+    )
+    force_stop_loss_rate: Decimal = DCA_DEFAULT_FORCE_STOP_LOSS_RATE  # 강제 손절률
 
     # 리스크 관리
-    max_buy_rounds: int = 8  # 최대 매수 회차
-    max_investment_ratio: Decimal = Decimal("0.30")  # 전체 자산 대비 최대 투자 비율
+    max_buy_rounds: int = DCA_DEFAULT_MAX_BUY_ROUNDS  # 최대 매수 회차
+    max_investment_ratio: Decimal = (
+        DCA_DEFAULT_MAX_INVESTMENT_RATIO  # 전체 자산 대비 최대 투자 비율
+    )
 
     # 시간 관리
-    min_buy_interval_minutes: int = 30  # 최소 매수 간격 (분)
-    max_cycle_days: int = 45  # 최대 사이클 기간 (일)
+    min_buy_interval_minutes: int = (
+        DCA_DEFAULT_MIN_BUY_INTERVAL_MINUTES  # 최소 매수 간격 (분)
+    )
+    max_cycle_days: int = DCA_DEFAULT_MAX_CYCLE_DAYS  # 최대 사이클 기간 (일)
 
     # 하이브리드 DCA 설정 (시간 단위)
-    time_based_buy_interval_hours: int = 72  # 시간 기반 매수 간격 (시간)
-    enable_time_based_buying: bool = True  # 시간 기반 매수 활성화
+    time_based_buy_interval_hours: int = (
+        DCA_DEFAULT_TIME_BASED_BUY_INTERVAL_HOURS  # 시간 기반 매수 간격 (시간)
+    )
+    enable_time_based_buying: bool = (
+        DCA_DEFAULT_ENABLE_TIME_BASED_BUYING  # 시간 기반 매수 활성화
+    )
 
     @field_validator(
         "add_buy_multiplier",
@@ -194,23 +214,23 @@ class DcaState(BaseModel):
 
     # 기본 상태
     market: str  # 거래 시장 (예: "KRW-BTC")
-    phase: DcaPhase = DcaPhase.INACTIVE
+    phase: DcaPhase = DCA_DEFAULT_PHASE
     cycle_id: str = Field(default_factory=lambda: str(uuid.uuid4())[:8])
 
     # 매수 정보
-    current_round: int = 0  # 현재 매수 회차
-    total_investment: int = 0  # 총 투자 금액
-    total_volume: Decimal = Decimal("0")  # 총 보유 수량
-    average_price: Decimal = Decimal("0")  # 평균 매수 단가
+    current_round: int = DCA_DEFAULT_CURRENT_ROUND  # 현재 매수 회차
+    total_investment: int = DCA_DEFAULT_TOTAL_INVESTMENT  # 총 투자 금액
+    total_volume: Decimal = DCA_DEFAULT_TOTAL_VOLUME  # 총 보유 수량
+    average_price: Decimal = DCA_DEFAULT_AVERAGE_PRICE  # 평균 매수 단가
 
     # 최근 거래 정보
-    last_buy_price: Decimal = Decimal("0")  # 마지막 매수 가격
+    last_buy_price: Decimal = DCA_DEFAULT_LAST_BUY_PRICE  # 마지막 매수 가격
     last_buy_time: datetime | None = None  # 마지막 매수 시점
     last_time_based_buy_time: datetime | None = None  # 마지막 시간 기반 매수 시점
 
     # 사이클 정보
     cycle_start_time: datetime | None = None  # 사이클 시작 시점
-    target_sell_price: Decimal = Decimal("0")  # 목표 매도 가격
+    target_sell_price: Decimal = DCA_DEFAULT_TARGET_SELL_PRICE  # 목표 매도 가격
 
     # 매수 히스토리
     buying_rounds: list[BuyingRound] = Field(default_factory=list)  # 매수 회차별 정보

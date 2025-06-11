@@ -7,9 +7,7 @@ from fastapi.responses import JSONResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from common.utils.timezone import now_kst
-
 from common.discord.models import Embed, EmbedField
-
 from common.discord.bot import DiscordBot
 
 if TYPE_CHECKING:

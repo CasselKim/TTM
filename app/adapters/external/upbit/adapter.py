@@ -3,7 +3,8 @@ from decimal import Decimal
 
 from app.adapters.external.upbit.client import UpbitClient
 from app.adapters.external.upbit.exceptions import UpbitAPIException
-from app.domain.models.account import Account, Balance, Currency
+from app.domain.models.account import Account, Balance
+from app.domain.enums import Currency
 from app.domain.models.order import Order, OrderRequest, OrderResult
 from app.domain.models.ticker import Ticker
 from app.domain.repositories.account_repository import AccountRepository

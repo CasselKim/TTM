@@ -1,5 +1,6 @@
 import logging
 from decimal import Decimal
+from typing import Any
 
 from app.domain.enums import TradingAction
 from app.domain.exceptions import ConfigSaveError, StateSaveError
@@ -12,7 +13,7 @@ from app.domain.models.ticker import Ticker
 from app.domain.models.trading import MarketData, TradingSignal
 from app.domain.repositories.account_repository import AccountRepository
 from app.domain.repositories.dca_repository import DcaRepository
-from app.domain.repositories.notification import NotificationRepository
+from app.domain.repositories.notification_repository import NotificationRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
 from app.domain.services.dca_service import DcaService
@@ -23,7 +24,11 @@ from app.domain.models.status import (
     MarketName,
 )
 from app.domain.models.order import OrderRequest
-from app.domain.constants import DcaConstants
+from app.domain.constants import (
+    DCA_DEFAULT_TARGET_PROFIT_RATE,
+    DCA_DEFAULT_PRICE_DROP_THRESHOLD,
+    DCA_DEFAULT_MAX_BUY_ROUNDS,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -55,10 +60,14 @@ class DcaUsecase:
     async def start_dca(
         self,
         market: MarketName,
-        initial_buy_amount: Decimal,
-        target_profit_rate: Decimal = DcaConstants.DEFAULT_TARGET_PROFIT_RATE,
-        price_drop_threshold: Decimal = DcaConstants.DEFAULT_PRICE_DROP_THRESHOLD,
-        max_buy_rounds: int = DcaConstants.DEFAULT_MAX_BUY_ROUNDS,
+        initial_buy_amount: int,
+        target_profit_rate: Decimal = DCA_DEFAULT_TARGET_PROFIT_RATE,
+        price_drop_threshold: Decimal = DCA_DEFAULT_PRICE_DROP_THRESHOLD,
+        max_buy_rounds: int = DCA_DEFAULT_MAX_BUY_ROUNDS,
+        *,
+        time_based_buy_interval_hours: int | None = None,
+        enable_time_based_buying: bool | None = None,
+        add_buy_multiplier: Decimal | None = None,
     ) -> DcaResult:
         """
         DCA 시작
@@ -69,6 +78,9 @@ class DcaUsecase:
             target_profit_rate: 목표 수익률 (기본 10%)
             price_drop_threshold: 추가 매수 트리거 하락률 (기본 -5%)
             max_buy_rounds: 최대 매수 회차 (기본 10회)
+            time_based_buy_interval_hours: 시간 기반 매수 간격 (시간 단위)
+            enable_time_based_buying: 시간 기반 매수 활성화 여부
+            add_buy_multiplier: 추가 매수 곱수 (기본 1.1)
 
         Returns:
             DcaResult: 시작 결과
@@ -83,12 +95,29 @@ class DcaUsecase:
             )
 
         # 설정 생성
-        config = DcaConfig(
-            initial_buy_amount=initial_buy_amount,
-            target_profit_rate=target_profit_rate,
-            price_drop_threshold=price_drop_threshold,
-            max_buy_rounds=max_buy_rounds,
-        )
+        config_kwargs: dict[str, Any] = {
+            "initial_buy_amount": initial_buy_amount,
+            "target_profit_rate": target_profit_rate,
+            "price_drop_threshold": price_drop_threshold,
+            "max_buy_rounds": max_buy_rounds,
+        }
+
+        # 시간 기반 매수 설정이 지정된 경우 적용
+        if time_based_buy_interval_hours is not None:
+            config_kwargs["time_based_buy_interval_hours"] = (
+                time_based_buy_interval_hours
+            )
+            # 별도 지정이 없으면 활성화 처리
+            if enable_time_based_buying is None:
+                enable_time_based_buying = True
+
+        if enable_time_based_buying is not None:
+            config_kwargs["enable_time_based_buying"] = enable_time_based_buying
+
+        if add_buy_multiplier is not None:
+            config_kwargs["add_buy_multiplier"] = add_buy_multiplier
+
+        config = DcaConfig(**config_kwargs)
 
         # 알고리즘 인스턴스 생성 (초기 상태 설정용)
         algorithm = DcaService(config)
@@ -290,7 +319,7 @@ class DcaUsecase:
                 BuyingRoundInfo(
                     round_number=buy_round.round_number,
                     buy_price=buy_round.buy_price,
-                    buy_amount=buy_round.buy_amount,
+                    buy_amount=Decimal(str(buy_round.buy_amount)),
                     buy_volume=buy_round.buy_volume,
                     timestamp=buy_round.timestamp,
                 )
@@ -303,11 +332,12 @@ class DcaUsecase:
 
         if current_price and state.total_volume > 0:
             current_value = state.total_volume * current_price
-            profit_loss_amount = current_value - state.total_investment
-            if state.total_investment > 0:
-                current_profit_rate = (
-                    profit_loss_amount / state.total_investment
-                ) * 100
+            # int → Decimal 형 변환 후 연산(타입 오류 방지)
+            total_inv_dec = Decimal(str(state.total_investment))
+            profit_loss_amount = current_value - total_inv_dec
+
+            if total_inv_dec > 0:
+                current_profit_rate = (profit_loss_amount / total_inv_dec) * 100
 
         return DcaMarketStatus(
             market=market,
@@ -356,7 +386,9 @@ class DcaUsecase:
             )
 
         # 실제 주문 실행 (시장가 매수)
-        order_request = OrderRequest.create_market_buy(market, buy_amount)
+        from decimal import Decimal as _D
+
+        order_request = OrderRequest.create_market_buy(market, _D(str(buy_amount)))
         order_result = await self.order_repository.place_order(order_request)
 
         if not order_result.success:

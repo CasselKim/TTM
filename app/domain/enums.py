@@ -1,5 +1,3 @@
-"""도메인 Enum 정의"""
-
 from enum import StrEnum
 
 
@@ -24,22 +22,6 @@ class TradingAction(StrEnum):
     BUY = "BUY"  # 매수
     SELL = "SELL"  # 매도
     HOLD = "HOLD"  # 보유
-
-
-class OrderStatus(StrEnum):
-    """주문 상태"""
-
-    WAIT = "wait"  # 대기
-    DONE = "done"  # 체결 완료
-    CANCEL = "cancel"  # 취소
-    PARTIAL = "partial"  # 부분 체결
-
-
-class MarketWarning(StrEnum):
-    """마켓 경고 타입"""
-
-    NONE = "NONE"  # 해당 사항 없음
-    CAUTION = "CAUTION"  # 투자유의
 
 
 class DcaStatus(StrEnum):
@@ -76,3 +58,32 @@ class ActionTaken(StrEnum):
     SELL = "sell"
     HOLD = "hold"
     EXECUTE = "execute"
+
+
+# ==========================================================
+# Currency Enum
+# ==========================================================
+
+
+class Currency(StrEnum):
+    """지원 통화"""
+
+    KRW = "KRW"  # 원화
+    BTC = "BTC"  # 비트코인
+    ETH = "ETH"  # 이더리움
+    XRP = "XRP"  # 리플
+    DOGE = "DOGE"  # 도지코인
+
+
+# ==========================================================
+# OrderState Enum
+# ==========================================================
+
+
+class OrderState(StrEnum):
+    """주문 상태"""
+
+    WAIT = "wait"  # 대기
+    WATCH = "watch"  # 모니터링 중
+    DONE = "done"  # 완료(체결)
+    CANCEL = "cancel"  # 취소

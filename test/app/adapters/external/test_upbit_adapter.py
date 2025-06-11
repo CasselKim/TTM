@@ -3,7 +3,8 @@ from unittest.mock import Mock, patch
 from app.adapters.external.upbit.adapter import UpbitAdapter
 from app.adapters.external.upbit.exceptions import UpbitAPIException
 from decimal import Decimal
-from app.domain.models.account import Account, Balance, Currency
+from app.domain.models.account import Account, Balance
+from app.domain.enums import Currency
 from app.domain.models.ticker import Ticker, ChangeType, MarketState, MarketWarning
 
 pytestmark = pytest.mark.asyncio

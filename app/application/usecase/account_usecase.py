@@ -1,6 +1,6 @@
 from app.application.dto.account_dto import AccountBalanceDTO, BalanceDTO
 from app.domain.repositories.account_repository import AccountRepository
-from app.domain.repositories.notification import NotificationRepository
+from app.domain.repositories.notification_repository import NotificationRepository
 
 
 class AccountUseCase:

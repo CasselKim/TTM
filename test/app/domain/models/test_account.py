@@ -1,5 +1,6 @@
 from decimal import Decimal
-from app.domain.models.account import Account, Balance, Currency
+from app.domain.models.account import Account, Balance
+from app.domain.enums import Currency
 
 def test_account_total_balance_krw():
     # Given

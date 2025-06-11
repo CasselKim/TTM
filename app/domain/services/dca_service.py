@@ -2,9 +2,17 @@ import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
-from app.domain.constants import AlgorithmConstants
+from app.domain.constants import (
+    ALGORITHM_MAX_CONFIDENCE,
+    DCA_DEFAULT_PHASE,
+    DCA_DEFAULT_CURRENT_ROUND,
+    DCA_DEFAULT_TOTAL_INVESTMENT,
+    DCA_DEFAULT_TOTAL_VOLUME,
+    DCA_DEFAULT_AVERAGE_PRICE,
+)
 from app.domain.enums import TradingAction
-from app.domain.models.account import Account, Balance, Currency
+from app.domain.models.account import Account, Balance
+from app.domain.enums import Currency
 from app.domain.models.dca import (
     BuyingRound,
     BuyType,
@@ -63,7 +71,7 @@ class DcaService:
         # 홀드
         return TradingSignal(
             action=TradingAction.HOLD,
-            confidence=AlgorithmConstants.MAX_CONFIDENCE,
+            confidence=ALGORITHM_MAX_CONFIDENCE,
             reason=f"DCA 대기 중 (평균단가: {self.state.average_price:,.0f}, 현재가: {market_data.current_price:,.0f}, 수익률: {current_profit_rate:.2%})",
         )
 
@@ -72,18 +80,21 @@ class DcaService:
         account: Account,
         signal: TradingSignal,
         min_order_amount: Decimal,
-    ) -> Decimal:
+    ) -> int:
         """
         DCA 매수 금액 계산
         """
         if signal.action != TradingAction.BUY:
-            return Decimal("0")
+            return 0
 
         available_krw = self._get_available_krw_balance(account)
 
+        # Decimal → int로 비교를 위해 Decimal -> int 캐스팅
+        available_krw_int = int(available_krw)
+
         if self.state.current_round == 0:
             # 초기 매수
-            buy_amount = min(self.config.initial_buy_amount, available_krw)
+            buy_amount = min(self.config.initial_buy_amount, available_krw_int)
         else:
             # 추가 매수: 이전 매수 금액의 배수
             if not self.state.buying_rounds:
@@ -93,15 +104,15 @@ class DcaService:
                     f"데이터 불일치 감지: current_round={self.state.current_round}이지만 "
                     "buying_rounds가 비어있습니다. 초기 매수 금액으로 계산합니다."
                 )
-                buy_amount = min(self.config.initial_buy_amount, available_krw)
+                buy_amount = min(self.config.initial_buy_amount, available_krw_int)
             else:
                 last_round = self.state.buying_rounds[-1]
-                buy_amount = last_round.buy_amount * self.config.add_buy_multiplier
-                buy_amount = min(buy_amount, available_krw)
+                buy_amount = int(last_round.buy_amount * self.config.add_buy_multiplier)
+                buy_amount = min(buy_amount, available_krw_int)
 
         # 최소 주문 금액 확인
-        if buy_amount < min_order_amount:
-            return Decimal("0")
+        if Decimal(buy_amount) < min_order_amount:
+            return 0
 
         # 총 투자 한도 확인 (전체 KRW 잔액 대비)
         total_krw = sum(
@@ -111,14 +122,15 @@ class DcaService:
         )
         max_total_investment = total_krw * self.config.max_investment_ratio
 
-        if self.state.total_investment + buy_amount > max_total_investment:
-            buy_amount = max_total_investment - self.state.total_investment
-            if buy_amount < min_order_amount:
-                return Decimal("0")
+        total_investment_decimal = Decimal(str(self.state.total_investment))
+        if total_investment_decimal + Decimal(buy_amount) > max_total_investment:
+            buy_amount = int(max_total_investment - total_investment_decimal)
+            if Decimal(buy_amount) < min_order_amount:
+                return 0
 
         self.logger.info(
             f"DCA 매수 금액 계산: {self.state.current_round + 1}회차, "
-            f"매수금액 {buy_amount:,.0f}원 (사용가능: {available_krw:,.0f}원)"
+            f"매수금액 {buy_amount}원 (사용가능: {available_krw:,.0f}원)"
         )
 
         return buy_amount
@@ -149,7 +161,7 @@ class DcaService:
     async def execute_buy(
         self,
         market_data: MarketData,
-        buy_amount: Decimal,
+        buy_amount: int,
         buy_type: BuyType = BuyType.INITIAL,
     ) -> DcaResult:
         """
@@ -157,7 +169,9 @@ class DcaService:
         """
         try:
             current_price = market_data.current_price
-            buy_volume = buy_amount / current_price  # 수수료는 실제 거래에서 적용
+            buy_volume = (
+                Decimal(str(buy_amount)) / current_price
+            )  # 수수료는 실제 거래에서 적용
 
             # 새로운 매수 회차 생성
             new_round = BuyingRound(
@@ -210,7 +224,7 @@ class DcaService:
         """
         try:
             current_price = market_data.current_price
-            sell_amount = sell_volume * current_price
+            sell_amount = int(sell_volume * current_price)
             current_profit_rate = self._calculate_current_profit_rate(current_price)
 
             # 결과 생성
@@ -228,11 +242,11 @@ class DcaService:
             )
 
             # 상태 리셋 (사이클 종료)
-            self.state.phase = DcaPhase.INACTIVE
-            self.state.current_round = 0
-            self.state.total_investment = Decimal("0")
-            self.state.total_volume = Decimal("0")
-            self.state.average_price = Decimal("0")
+            self.state.phase = DCA_DEFAULT_PHASE
+            self.state.current_round = DCA_DEFAULT_CURRENT_ROUND
+            self.state.total_investment = DCA_DEFAULT_TOTAL_INVESTMENT
+            self.state.total_volume = DCA_DEFAULT_TOTAL_VOLUME
+            self.state.average_price = DCA_DEFAULT_AVERAGE_PRICE
             self.state.buying_rounds = []
 
             self.logger.info(
@@ -256,13 +270,13 @@ class DcaService:
         if available_krw < self.config.initial_buy_amount:
             return TradingSignal(
                 action=TradingAction.HOLD,
-                confidence=AlgorithmConstants.MAX_CONFIDENCE,
+                confidence=ALGORITHM_MAX_CONFIDENCE,
                 reason=f"초기 매수 불가: 필요금액 {self.config.initial_buy_amount:,.0f}원, 보유금액 {available_krw:,.0f}원",
             )
 
         return TradingSignal(
             action=TradingAction.BUY,
-            confidence=AlgorithmConstants.MAX_CONFIDENCE,
+            confidence=ALGORITHM_MAX_CONFIDENCE,
             reason="DCA 초기 매수 신호",
         )
 
@@ -349,7 +363,8 @@ class DcaService:
         last_buy_time = self.state.buying_rounds[-1].timestamp
         time_diff = datetime.now() - last_buy_time
 
-        return time_diff >= timedelta(days=self.config.time_based_buy_interval_days)
+        interval_hours: int = self.config.time_based_buy_interval_hours
+        return time_diff >= timedelta(hours=interval_hours)
 
     async def _should_price_drop_buy(self, market_data: MarketData) -> bool:
         """
@@ -381,7 +396,7 @@ class DcaService:
         """강제 손절 신호 생성"""
         return TradingSignal(
             action=TradingAction.SELL,
-            confidence=AlgorithmConstants.MAX_CONFIDENCE,
+            confidence=ALGORITHM_MAX_CONFIDENCE,
             reason=f"강제 손절: 수익률 {current_profit_rate:.2%}",
         )
 
@@ -391,7 +406,7 @@ class DcaService:
         """익절 신호 생성"""
         return TradingSignal(
             action=TradingAction.SELL,
-            confidence=AlgorithmConstants.MAX_CONFIDENCE,
+            confidence=ALGORITHM_MAX_CONFIDENCE,
             reason=f"목표 수익률 달성: {current_profit_rate:.2%}",
         )
 
@@ -406,7 +421,7 @@ class DcaService:
 
         return TradingSignal(
             action=TradingAction.BUY,
-            confidence=AlgorithmConstants.MAX_CONFIDENCE,
+            confidence=ALGORITHM_MAX_CONFIDENCE,
             reason=f"{buy_reason} (평균단가: {self.state.average_price:,.0f}, 현재가: {current_price:,.0f}, 하락률: {drop_rate:.2%})",
         )
 

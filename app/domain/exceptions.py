@@ -47,26 +47,3 @@ class MaxInvestmentRatioError(DcaConfigError):
 
     def __init__(self) -> None:
         super().__init__("최대 투자 비율은 0과 1 사이여야 합니다")
-
-
-class InsufficientLockAmountError(ValueError):
-    """잠금 금액 부족 오류"""
-
-    def __init__(self, amount: str, available: str) -> None:
-        super().__init__(
-            f"잠금 금액({amount})이 사용 가능 잔액({available})보다 큽니다"
-        )
-
-
-class InsufficientUnlockAmountError(ValueError):
-    """잠금 해제 금액 부족 오류"""
-
-    def __init__(self, amount: str, locked: str) -> None:
-        super().__init__(f"해제 금액({amount})이 잠긴 금액({locked})보다 큽니다")
-
-
-class UnsupportedAlgorithmError(ValueError):
-    """지원하지 않는 알고리즘 오류"""
-
-    def __init__(self, algorithm_type: str) -> None:
-        super().__init__(f"지원하지 않는 알고리즘 타입: {algorithm_type}")

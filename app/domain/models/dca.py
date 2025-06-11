@@ -20,6 +20,15 @@ from app.domain.exceptions import (
     ProfitRateError,
 )
 from app.domain.enums import ActionTaken, DcaPhase
+from app.domain.constants import (
+    DCA_DEFAULT_PHASE,
+    DCA_DEFAULT_CURRENT_ROUND,
+    DCA_DEFAULT_TOTAL_INVESTMENT,
+    DCA_DEFAULT_TOTAL_VOLUME,
+    DCA_DEFAULT_AVERAGE_PRICE,
+    DCA_DEFAULT_LAST_BUY_PRICE,
+    DCA_DEFAULT_TARGET_SELL_PRICE,
+)
 
 
 class BuyType(StrEnum):
@@ -34,11 +43,13 @@ class DcaConfig(BaseModel):
     """DCA 설정"""
 
     model_config = ConfigDict(
-        validate_assignment=True, use_enum_values=True, arbitrary_types_allowed=True
+        validate_assignment=True,
+        use_enum_values=True,
+        arbitrary_types_allowed=True,
     )
 
     # 기본 매수 설정
-    initial_buy_amount: Decimal  # 초기 매수 금액 (KRW)
+    initial_buy_amount: int  # 초기 매수 금액 (KRW)
     add_buy_multiplier: Decimal = Decimal("1.5")  # 추가 매수 배수
 
     # 수익/손실 기준
@@ -54,12 +65,11 @@ class DcaConfig(BaseModel):
     min_buy_interval_minutes: int = 30  # 최소 매수 간격 (분)
     max_cycle_days: int = 45  # 최대 사이클 기간 (일)
 
-    # 하이브리드 DCA 설정
-    time_based_buy_interval_days: int = 3  # 시간 기반 매수 간격 (일)
+    # 하이브리드 DCA 설정 (시간 단위)
+    time_based_buy_interval_hours: int = 72  # 시간 기반 매수 간격 (시간)
     enable_time_based_buying: bool = True  # 시간 기반 매수 활성화
 
     @field_validator(
-        "initial_buy_amount",
         "add_buy_multiplier",
         "target_profit_rate",
         "price_drop_threshold",
@@ -77,12 +87,11 @@ class DcaConfig(BaseModel):
         raise ValueError(f"Cannot convert {type(v)} to Decimal")
 
     @field_serializer(
-        "initial_buy_amount",
-        "add_buy_multiplier",
         "target_profit_rate",
         "price_drop_threshold",
         "force_stop_loss_rate",
         "max_investment_ratio",
+        "add_buy_multiplier",
     )
     def serialize_decimal(self, value: Decimal) -> float:
         """Decimal을 float로 직렬화"""
@@ -110,11 +119,11 @@ class DcaConfig(BaseModel):
         """캐시 저장용 JSON 문자열 반환"""
         return self.model_dump_json(exclude_none=True)
 
-    def calculate_next_buy_amount(self, current_round: int) -> Decimal:
+    def calculate_next_buy_amount(self, current_round: int) -> int:
         """다음 매수 금액 계산"""
         if current_round == 0:
             return self.initial_buy_amount
-        return self.initial_buy_amount * (self.add_buy_multiplier**current_round)
+        return int(self.initial_buy_amount * (self.add_buy_multiplier**current_round))
 
 
 class BuyingRound(BaseModel):
@@ -124,12 +133,12 @@ class BuyingRound(BaseModel):
 
     round_number: int  # 회차 번호 (1부터 시작)
     buy_price: Decimal  # 매수 가격
-    buy_amount: Decimal  # 매수 금액 (KRW)
+    buy_amount: int  # 매수 금액 (KRW)
     buy_volume: Decimal  # 매수 수량 (코인)
     timestamp: datetime  # 매수 시점
     buy_type: BuyType = BuyType.PRICE_DROP  # 매수 타입
 
-    @field_validator("buy_price", "buy_amount", "buy_volume", mode="before")
+    @field_validator("buy_price", "buy_volume", mode="before")
     @classmethod
     def validate_decimal_fields(cls, v: Any) -> Decimal:
         """Decimal 필드 역직렬화 처리"""
@@ -149,7 +158,7 @@ class BuyingRound(BaseModel):
             return v
         raise ValueError(f"Cannot convert {type(v)} to datetime")
 
-    @field_serializer("buy_price", "buy_amount", "buy_volume")
+    @field_serializer("buy_price", "buy_volume")
     def serialize_decimal(self, value: Decimal) -> float:
         """Decimal을 float로 직렬화"""
         return float(value)
@@ -164,7 +173,7 @@ class BuyingRound(BaseModel):
         """단위당 비용 (수수료 포함)"""
         if self.buy_volume == 0:
             return Decimal("0")
-        return self.buy_amount / self.buy_volume
+        return Decimal(str(self.buy_amount)) / self.buy_volume
 
     @classmethod
     def from_cache_json(cls, json_str: str) -> "BuyingRound":
@@ -190,7 +199,7 @@ class DcaState(BaseModel):
 
     # 매수 정보
     current_round: int = 0  # 현재 매수 회차
-    total_investment: Decimal = Decimal("0")  # 총 투자 금액
+    total_investment: int = 0  # 총 투자 금액
     total_volume: Decimal = Decimal("0")  # 총 보유 수량
     average_price: Decimal = Decimal("0")  # 평균 매수 단가
 
@@ -207,7 +216,6 @@ class DcaState(BaseModel):
     buying_rounds: list[BuyingRound] = Field(default_factory=list)  # 매수 회차별 정보
 
     @field_validator(
-        "total_investment",
         "total_volume",
         "average_price",
         "last_buy_price",
@@ -238,7 +246,6 @@ class DcaState(BaseModel):
         raise ValueError(f"Cannot convert {type(v)} to datetime")
 
     @field_serializer(
-        "total_investment",
         "total_volume",
         "average_price",
         "last_buy_price",
@@ -284,7 +291,7 @@ class DcaState(BaseModel):
 
         # 평균 단가 계산
         if self.total_volume > 0:
-            self.average_price = self.total_investment / self.total_volume
+            self.average_price = Decimal(str(self.total_investment)) / self.total_volume
 
         # 목표 판매 가격 설정
         self.target_sell_price = self.average_price * (
@@ -331,23 +338,23 @@ class DcaState(BaseModel):
     def reset_cycle(self, market: str) -> None:
         """사이클 초기화"""
         self.market = market
-        self.phase = DcaPhase.INACTIVE
+        self.phase = DCA_DEFAULT_PHASE
         self.cycle_id = str(uuid.uuid4())[:8]
-        self.current_round = 0
-        self.total_investment = Decimal("0")
-        self.total_volume = Decimal("0")
-        self.average_price = Decimal("0")
-        self.last_buy_price = Decimal("0")
+        self.current_round = DCA_DEFAULT_CURRENT_ROUND
+        self.total_investment = DCA_DEFAULT_TOTAL_INVESTMENT
+        self.total_volume = DCA_DEFAULT_TOTAL_VOLUME
+        self.average_price = DCA_DEFAULT_AVERAGE_PRICE
+        self.last_buy_price = DCA_DEFAULT_LAST_BUY_PRICE
         self.last_buy_time = None
         self.last_time_based_buy_time = None
         self.cycle_start_time = None
-        self.target_sell_price = Decimal("0")
+        self.target_sell_price = DCA_DEFAULT_TARGET_SELL_PRICE
         self.buying_rounds = []
 
     def complete_cycle(self, sell_price: Decimal, sell_volume: Decimal) -> Decimal:
         """사이클 완료 및 수익 계산"""
         sell_amount = sell_price * sell_volume
-        profit_amount = sell_amount - self.total_investment
+        profit_amount = sell_amount - Decimal(str(self.total_investment))
 
         # 상태 초기화
         self.reset_cycle(self.market)
@@ -379,17 +386,16 @@ class DcaResult(BaseModel):
 
     # 거래 정보 (실제 거래가 발생한 경우)
     trade_price: Decimal | None = None
-    trade_amount: Decimal | None = None
+    trade_amount: int | None = None
     trade_volume: Decimal | None = None
 
     # 상태 정보
     current_state: DcaState | None = None
     profit_rate: Decimal | None = None
-    profit_loss_amount_krw: Decimal | None = None
+    profit_loss_amount_krw: int | None = None
 
     @field_validator(
         "trade_price",
-        "trade_amount",
         "trade_volume",
         "profit_rate",
         "profit_loss_amount_krw",
@@ -406,7 +412,7 @@ class DcaResult(BaseModel):
             return v
         raise ValueError(f"Cannot convert {type(v)} to Decimal")
 
-    @field_serializer("trade_price", "trade_amount", "trade_volume", "profit_rate")
+    @field_serializer("trade_price", "trade_volume", "profit_rate")
     def serialize_decimal(self, value: Decimal | None) -> float | None:
         """Decimal을 float로 직렬화"""
         return float(value) if value is not None else None

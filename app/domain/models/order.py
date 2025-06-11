@@ -1,17 +1,9 @@
 from decimal import Decimal
-from enum import StrEnum
 from typing import Any, Self
 
 from pydantic import BaseModel, ConfigDict, field_serializer, field_validator
 
-from app.domain.enums import OrderSide, OrderType
-
-
-class OrderState(StrEnum):
-    WAIT = "wait"
-    WATCH = "watch"
-    DONE = "done"
-    CANCEL = "cancel"
+from app.domain.enums import OrderSide, OrderType, OrderState
 
 
 class Order(BaseModel):

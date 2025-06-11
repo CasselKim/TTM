@@ -10,10 +10,10 @@ from app.application.dto.order_dto import (
     MarketSellResult,
     OrderError,
 )
-from app.domain.constants import TradingConstants
+from app.domain.constants import TRADING_UPBIT_TRADING_FEE_RATE
 from app.domain.enums import OrderSide, OrderType
 from app.domain.models.order import OrderRequest
-from app.domain.repositories.notification import NotificationRepository
+from app.domain.repositories.notification_repository import NotificationRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
 from app.domain.models.status import MarketName
@@ -69,7 +69,7 @@ class OrderUseCase:
             ):
                 # 거래 성공 알림
                 total_price = result.order.price * result.order.volume
-                fee = total_price * TradingConstants.UPBIT_TRADING_FEE_RATE
+                fee = total_price * TRADING_UPBIT_TRADING_FEE_RATE
                 await self.notification_repo.send_trade_notification(
                     market=result.order.market,
                     side="BUY",
@@ -135,7 +135,7 @@ class OrderUseCase:
             if result.success and result.order and result.order.price:
                 # 거래 성공 알림
                 total_price = result.order.price
-                fee = total_price * TradingConstants.UPBIT_TRADING_FEE_RATE
+                fee = total_price * TRADING_UPBIT_TRADING_FEE_RATE
                 await self.notification_repo.send_trade_notification(
                     market=result.order.market,
                     side="BUY",
@@ -207,7 +207,7 @@ class OrderUseCase:
                 and result.order.volume
             ):
                 total_price = result.order.price * result.order.volume
-                fee = total_price * TradingConstants.UPBIT_TRADING_FEE_RATE
+                fee = total_price * TRADING_UPBIT_TRADING_FEE_RATE
                 await self.notification_repo.send_trade_notification(
                     market=result.order.market,
                     side="SELL",

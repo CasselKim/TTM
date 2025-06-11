@@ -4,8 +4,14 @@ import logging
 
 import discord
 
-from app.domain.constants import DiscordConstants
-from app.domain.repositories.notification import NotificationRepository
+from app.domain.constants import (
+    DISCORD_EMBED_FIELD_MAX_LENGTH,
+    DISCORD_ADMIN_USER_IDS,
+    DISCORD_COLOR_SUCCESS,
+    DISCORD_COLOR_ERROR,
+    DISCORD_COLOR_INFO,
+)
+from app.domain.repositories.notification_repository import NotificationRepository
 from common.discord.bot import DiscordBot
 from common.discord.models import Embed, EmbedField
 from common.utils.timezone import now_kst, to_kst
@@ -13,7 +19,7 @@ from common.utils.timezone import now_kst, to_kst
 
 def _truncate_field_value(
     value: str,
-    max_length: int = DiscordConstants.EMBED_FIELD_MAX_LENGTH,
+    max_length: int = DISCORD_EMBED_FIELD_MAX_LENGTH,
 ) -> str:
     """Discord embed 필드 값을 최대 길이로 제한"""
     if len(value) <= max_length:
@@ -50,14 +56,14 @@ class DiscordNotificationAdapter(NotificationRepository):
 
     async def _notify_admins(self, embed: discord.Embed) -> bool:
         """관리자들에게 DM으로 알림을 전송하고, 전체 성공 여부 반환"""
-        if not DiscordConstants.ADMIN_USER_IDS:
+        if not DISCORD_ADMIN_USER_IDS:
             return True
 
         # 병렬 전송으로 성능 최적화
         results = await asyncio.gather(
             *[
                 self._safe_send_dm(admin_id, embed)
-                for admin_id in DiscordConstants.ADMIN_USER_IDS
+                for admin_id in DISCORD_ADMIN_USER_IDS
             ],
             return_exceptions=False,
         )
@@ -74,11 +80,7 @@ class DiscordNotificationAdapter(NotificationRepository):
         executed_at: datetime,
     ) -> bool:
         """거래 체결 알림 전송"""
-        color = (
-            DiscordConstants.COLOR_SUCCESS
-            if side == "BUY"
-            else DiscordConstants.COLOR_ERROR
-        )
+        color = DISCORD_COLOR_SUCCESS if side == "BUY" else DISCORD_COLOR_ERROR
         emoji = "📈" if side == "BUY" else "📉"
         action = "매수" if side == "BUY" else "매도"
 
@@ -129,7 +131,7 @@ class DiscordNotificationAdapter(NotificationRepository):
         embed = Embed(
             title=f"⚠️ 에러 발생: {error_type}",
             description=error_message,
-            color=DiscordConstants.COLOR_ERROR,
+            color=DISCORD_COLOR_ERROR,
             timestamp=now_kst(),
         )
         if details:
@@ -150,7 +152,7 @@ class DiscordNotificationAdapter(NotificationRepository):
         embed = Embed(
             title=f"ℹ️ {title}",
             description=message,
-            color=DiscordConstants.COLOR_INFO,
+            color=DISCORD_COLOR_INFO,
             timestamp=now_kst(),
             fields=[
                 EmbedField(name=name, value=_truncate_field_value(value), inline=inline)

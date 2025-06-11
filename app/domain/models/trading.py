@@ -8,32 +8,13 @@ from decimal import Decimal
 
 from pydantic import BaseModel
 
-from app.domain.constants import TradingConstants
 from app.domain.enums import TradingAction
-from app.domain.models.account import Currency
-from app.domain.models.enums import TradingMode
-
-
-class TradingConfig(BaseModel):
-    """거래 설정 (Value Object)"""
-
-    mode: TradingMode
-    target_currency: Currency  # 거래 대상 통화 (예: BTC, ETH)
-    base_currency: Currency = Currency.KRW  # 기준 통화
-    max_investment_ratio: Decimal = (
-        TradingConstants.DEFAULT_MAX_INVESTMENT_RATIO
-    )  # 최대 투자 비율
-    min_order_amount: Decimal = (
-        TradingConstants.DEFAULT_MIN_ORDER_AMOUNT
-    )  # 최소 주문 금액 (KRW)
-    stop_loss_ratio: Decimal = TradingConstants.DEFAULT_STOP_LOSS_RATIO  # 손절 비율
-    take_profit_ratio: Decimal = TradingConstants.DEFAULT_TAKE_PROFIT_RATIO  # 익절 비율
 
 
 class MarketData(BaseModel):
     """시장 데이터 (Value Object)"""
 
-    market: str  # 예: "KRW-BTC"
+    market: str  # "KRW-BTC"
     current_price: Decimal
     volume_24h: Decimal
     change_rate_24h: Decimal

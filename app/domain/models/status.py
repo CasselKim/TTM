@@ -179,7 +179,7 @@ class CycleHistoryItem(BaseModel):
             start_time=state.cycle_start_time or datetime.now(),
             end_time=end_time,
             status=status,
-            total_investment=state.total_investment,
+            total_investment=Decimal(str(state.total_investment)),
             total_volume=state.total_volume,
             average_price=state.average_price,
             sell_price=result.trade_price if result.success else None,
@@ -208,7 +208,7 @@ class DcaMarketStatus(BaseModel):
     phase: DcaPhase
     cycle_id: str | None
     current_round: int
-    total_investment: Decimal
+    total_investment: int
     total_volume: Decimal
     average_price: Decimal
     target_sell_price: Decimal
@@ -229,7 +229,6 @@ class DcaMarketStatus(BaseModel):
     recent_history: list[CycleHistoryItem]
 
     @field_serializer(
-        "total_investment",
         "total_volume",
         "average_price",
         "target_sell_price",
@@ -247,13 +246,3 @@ class DcaMarketStatus(BaseModel):
     def serialize_datetime(self, dt: datetime | None) -> str | None:
         """datetime을 ISO 형식으로 직렬화"""
         return dt.isoformat() if dt else None
-
-
-class DcaOverallStatus(BaseModel):
-    """DCA 전체 상태"""
-
-    model_config = ConfigDict(validate_assignment=True)
-
-    total_active_markets: int
-    active_markets: list[MarketName]
-    statuses: dict[MarketName, DcaMarketStatus]

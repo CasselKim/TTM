@@ -14,7 +14,7 @@ from app.application.usecase.discord_ui_usecase import DiscordUIUseCase
 from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
-from app.domain.repositories.notification import NotificationRepository
+from app.domain.repositories.notification_repository import NotificationRepository
 from common.discord.bot import DiscordBot
 
 

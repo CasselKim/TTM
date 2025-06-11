@@ -3,7 +3,8 @@ import pytest
 from unittest.mock import Mock, AsyncMock
 from app.application.dto.account_dto import AccountBalanceDTO
 from app.application.usecase.account_usecase import AccountUseCase
-from app.domain.models.account import Account, Balance, Currency
+from app.domain.models.account import Account, Balance
+from app.domain.enums import Currency
 
 pytestmark = pytest.mark.asyncio
 

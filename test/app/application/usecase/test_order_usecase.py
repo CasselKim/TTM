@@ -10,8 +10,8 @@ from app.application.dto.order_dto import (
     OrderError,
 )
 from app.application.usecase.order_usecase import OrderUseCase
-from app.domain.enums import OrderSide, OrderType
-from app.domain.models.order import Order, OrderRequest, OrderResult, OrderState
+from app.domain.enums import OrderSide, OrderType, OrderState
+from app.domain.models.order import Order, OrderRequest, OrderResult
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
 

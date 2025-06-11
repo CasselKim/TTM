@@ -163,13 +163,13 @@ class DiscordUIUseCase:
 
                 if state.last_time_based_buy_time:
                     # 마지막 시간 기반 매수로부터 설정된 간격 후
-                    interval_hours = config.time_based_buy_interval_days * 24
+                    interval_hours = config.time_based_buy_interval_hours
                     next_buy_time = state.last_time_based_buy_time + timedelta(
                         hours=interval_hours
                     )
                 elif state.cycle_start_time:
                     # 아직 시간 기반 매수가 없다면 사이클 시작 후 첫 번째 간격
-                    interval_hours = config.time_based_buy_interval_days * 24
+                    interval_hours = config.time_based_buy_interval_hours
                     next_buy_time = state.cycle_start_time + timedelta(
                         hours=interval_hours
                     )
@@ -278,21 +278,19 @@ class DiscordUIUseCase:
         self,
         user_id: str,
         symbol: str,
-        amount: float,
+        amount: int,
         total_count: int,
         interval_hours: int,
     ) -> dict[str, Any]:
         """매매 실행"""
         try:
-            from decimal import Decimal
-
             # 실제 DCA 시작
             market_name = f"KRW-{symbol}"
             result = await self.dca_usecase.start_dca(
                 market=market_name,
-                initial_buy_amount=Decimal(str(amount)),
+                initial_buy_amount=amount,
                 max_buy_rounds=total_count,
-                # interval_hours는 현재 DCA에서 지원하지 않음 (가격 하락 기반)
+                time_based_buy_interval_hours=interval_hours,
             )
 
             if not result.success:

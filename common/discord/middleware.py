@@ -22,13 +22,6 @@ class ExceptionHandlingMiddleware(BaseHTTPMiddleware):
     """전역 예외 처리 미들웨어"""
 
     def __init__(self, app: Any, discord_bot: "DiscordBot") -> None:
-        """
-        예외 처리 미들웨어 초기화
-
-        Args:
-            app: FastAPI 애플리케이션
-            discord_bot: Discord 봇
-        """
         super().__init__(app)
         self.discord_bot = discord_bot
 
@@ -63,7 +56,6 @@ class ExceptionHandlingMiddleware(BaseHTTPMiddleware):
             except Exception as discord_error:
                 logger.error(f"Discord 에러 알림 전송 실패: {discord_error}")
 
-            # 클라이언트에게 일반적인 에러 응답 반환
             return JSONResponse(
                 status_code=500,
                 content={

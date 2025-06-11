@@ -9,12 +9,11 @@ from app.domain.models.dca import (
     BuyingRound,
     BuyType,
     DcaConfig,
-    DcaPhase,
     DcaResult,
     DcaState,
 )
 from app.domain.models.trading import MarketData, TradingSignal
-from app.domain.types import ActionTaken
+from app.domain.enums import ActionTaken, DcaPhase
 
 
 class DcaService:

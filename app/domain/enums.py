@@ -40,3 +40,39 @@ class MarketWarning(StrEnum):
 
     NONE = "NONE"  # 해당 사항 없음
     CAUTION = "CAUTION"  # 투자유의
+
+
+class DcaStatus(StrEnum):
+    """DCA 실행 상태"""
+
+    ACTIVE = "active"
+    INACTIVE = "inactive"
+
+
+class DcaPhase(StrEnum):
+    """DCA 단계"""
+
+    INACTIVE = "inactive"  # 비활성 상태
+    INITIAL_BUY = "initial_buy"  # 초기 매수 단계
+    ACCUMULATING = "accumulating"  # 추가 매수(물타기) 단계
+    PROFIT_TAKING = "profit_taking"  # 익절 대기 단계
+    FORCE_SELLING = "force_selling"  # 강제 손절 단계
+
+
+class CycleStatus(StrEnum):
+    """사이클 상태"""
+
+    COMPLETED = "completed"
+    FAILED = "failed"
+    FORCE_STOPPED = "force_stopped"
+
+
+class ActionTaken(StrEnum):
+    """수행된 액션"""
+
+    START = "start"
+    STOP = "stop"
+    BUY = "buy"
+    SELL = "sell"
+    HOLD = "hold"
+    EXECUTE = "execute"

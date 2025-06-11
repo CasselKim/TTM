@@ -16,7 +16,7 @@ from app.domain.models.order import OrderRequest
 from app.domain.repositories.notification import NotificationRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
-from app.domain.types import MarketName
+from app.domain.models.status import MarketName
 
 logger = logging.getLogger(__name__)
 

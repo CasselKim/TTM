@@ -1,52 +1,18 @@
-"""
-도메인 전체에서 사용되는 공통 타입 정의
-"""
+"""DCA 상태 관련 모델들"""
 
 from datetime import datetime
 from decimal import Decimal
-from enum import StrEnum
 from typing import TYPE_CHECKING, Self
 
 from pydantic import BaseModel, ConfigDict, field_serializer
 
+from app.domain.enums import CycleStatus, DcaPhase, DcaStatus
+
 if TYPE_CHECKING:
-    from app.domain.models.dca import (
-        DcaPhase,
-        DcaResult,
-        DcaState,
-    )
-
-
-# StrEnum 정의들
-class DcaStatus(StrEnum):
-    """DCA 실행 상태"""
-
-    ACTIVE = "active"
-    INACTIVE = "inactive"
-
-
-class CycleStatus(StrEnum):
-    """사이클 상태"""
-
-    COMPLETED = "completed"
-    FAILED = "failed"
-    FORCE_STOPPED = "force_stopped"
-
-
-class ActionTaken(StrEnum):
-    """수행된 액션"""
-
-    START = "start"
-    STOP = "stop"
-    BUY = "buy"
-    SELL = "sell"
-    HOLD = "hold"
-    EXECUTE = "execute"
-
+    from app.domain.models.dca import DcaResult, DcaState
 
 # 타입 별칭들
 MarketName = str
-AlgorithmInstance = "DcaService"
 
 
 class TradeStatistics(BaseModel):
@@ -239,7 +205,7 @@ class DcaMarketStatus(BaseModel):
 
     market: MarketName
     status: DcaStatus
-    phase: "DcaPhase"
+    phase: DcaPhase
     cycle_id: str | None
     current_round: int
     total_investment: Decimal

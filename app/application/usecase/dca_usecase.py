@@ -16,11 +16,10 @@ from app.domain.repositories.notification import NotificationRepository
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
 from app.domain.services.dca_service import DcaService
-from app.domain.types import (
-    ActionTaken,
+from app.domain.enums import ActionTaken, DcaStatus
+from app.domain.models.status import (
     BuyingRoundInfo,
     DcaMarketStatus,
-    DcaStatus,
     MarketName,
 )
 

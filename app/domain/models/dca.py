@@ -19,17 +19,7 @@ from app.domain.exceptions import (
     PriceDropThresholdError,
     ProfitRateError,
 )
-from app.domain.types import ActionTaken
-
-
-class DcaPhase(StrEnum):
-    """DCA 단계"""
-
-    INACTIVE = "inactive"  # 비활성 상태
-    INITIAL_BUY = "initial_buy"  # 초기 매수 단계
-    ACCUMULATING = "accumulating"  # 추가 매수(물타기) 단계
-    PROFIT_TAKING = "profit_taking"  # 익절 대기 단계
-    FORCE_SELLING = "force_selling"  # 강제 손절 단계
+from app.domain.enums import ActionTaken, DcaPhase
 
 
 class BuyType(StrEnum):
@@ -429,11 +419,3 @@ class DcaResult(BaseModel):
     def to_cache_json(self) -> str:
         """캐시 저장용 JSON 문자열 반환"""
         return self.model_dump_json(exclude_none=True)
-
-
-def rebuild_models() -> None:
-    """모델 재빌드 (Pydantic 캐시 갱신용)"""
-    DcaConfig.model_rebuild()
-    DcaState.model_rebuild()
-    DcaResult.model_rebuild()
-    BuyingRound.model_rebuild()

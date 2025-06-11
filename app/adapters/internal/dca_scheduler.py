@@ -9,7 +9,8 @@ import logging
 
 from app.application.usecase.dca_usecase import DcaUsecase
 from app.domain.models.dca import DcaResult
-from app.domain.types import ActionTaken, MarketName
+from app.domain.enums import ActionTaken
+from app.domain.models.status import MarketName
 
 logger = logging.getLogger(__name__)
 

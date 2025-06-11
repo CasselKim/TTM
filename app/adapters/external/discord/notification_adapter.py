@@ -1,4 +1,5 @@
 from datetime import datetime
+import asyncio
 import logging
 
 import discord
@@ -24,6 +25,42 @@ class DiscordNotificationAdapter(NotificationRepository):
 
     def __init__(self, bot: "DiscordBot"):
         self.bot = bot
+
+    async def _safe_send_embed(self, embed: Embed, channel: str) -> bool:
+        """Embed 전송 시 예외를 처리하고 성공 여부를 반환"""
+        try:
+            return await self.bot.send_embed(embed, channel)
+        except Exception:
+            logging.exception("Discord %s 채널 embed 전송 실패", channel)
+            return False
+
+    async def _safe_send_dm(self, admin_id: int, embed: discord.Embed) -> bool:
+        """관리자에게 DM 전송 (예외 처리 포함)"""
+        try:
+            user = self.bot.get_user(admin_id) or await self.bot.fetch_user(admin_id)
+            if user is None:
+                logging.warning("Discord 관리자 ID %s 를 찾을 수 없습니다.", admin_id)
+                return False
+            await user.send(embed=embed)
+            return True
+        except Exception:
+            logging.exception("Discord 관리자(%s) DM 전송 실패", admin_id)
+            return False
+
+    async def _notify_admins(self, embed: discord.Embed) -> bool:
+        """관리자들에게 DM으로 알림을 전송하고, 전체 성공 여부 반환"""
+        if not DiscordConstants.ADMIN_USER_IDS:
+            return True
+
+        # 병렬 전송으로 성능 최적화
+        results = await asyncio.gather(
+            *[
+                self._safe_send_dm(admin_id, embed)
+                for admin_id in DiscordConstants.ADMIN_USER_IDS
+            ],
+            return_exceptions=False,
+        )
+        return all(results)
 
     async def send_trade_notification(
         self,
@@ -74,27 +111,11 @@ class DiscordNotificationAdapter(NotificationRepository):
         )
 
         # 히스토리 채널 전송
-        history_success = await self.bot.send_embed(embed, "history")
+        history_success = await self._safe_send_embed(embed, "history")
 
         # 관리자 DM 전송
-        dm_success = True
-        if DiscordConstants.ADMIN_USER_IDS:
-            discord_embed = discord.Embed.from_dict(embed.to_discord_dict())
-            for admin_id in DiscordConstants.ADMIN_USER_IDS:
-                try:
-                    user = self.bot.get_user(admin_id) or await self.bot.fetch_user(
-                        admin_id
-                    )
-                    if user is None:
-                        logging.warning(
-                            "Discord 관리자 ID %s 를 찾을 수 없습니다.", admin_id
-                        )
-                        dm_success = False
-                        continue
-                    await user.send(embed=discord_embed)
-                except Exception:
-                    logging.exception("Discord 관리자(%s) DM 전송 실패", admin_id)
-                    dm_success = False
+        discord_embed = discord.Embed.from_dict(embed.to_discord_dict())
+        dm_success = await self._notify_admins(discord_embed)
 
         return history_success and dm_success
 
@@ -114,7 +135,7 @@ class DiscordNotificationAdapter(NotificationRepository):
                     name="상세 정보", value=_truncate_field_value(details), inline=False
                 )
             )
-        return await self.bot.send_embed(embed, "alert")
+        return await self._safe_send_embed(embed, "alert")
 
     async def send_info_notification(
         self,
@@ -133,4 +154,4 @@ class DiscordNotificationAdapter(NotificationRepository):
                 for name, value, inline in fields or []
             ],
         )
-        return await self.bot.send_embed(embed, "history")
+        return await self._safe_send_embed(embed, "history")

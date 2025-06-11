@@ -22,6 +22,7 @@ from app.domain.models.status import (
     DcaMarketStatus,
     MarketName,
 )
+from app.domain.models.order import OrderRequest
 
 logger = logging.getLogger(__name__)
 
@@ -353,7 +354,20 @@ class DcaUsecase:
                 current_state=algorithm.state,
             )
 
-        # 매수 실행
+        # 실제 주문 실행 (시장가 매수)
+        order_request = OrderRequest.create_market_buy(market, buy_amount)
+        order_result = await self.order_repository.place_order(order_request)
+
+        if not order_result.success:
+            # 주문 실패 시 상태 변경 없이 실패 반환
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.HOLD,
+                message=order_result.error_message or "주문 실패",
+                current_state=algorithm.state,
+            )
+
+        # 주문 성공 시 상태 업데이트
         result = await algorithm.execute_buy(market_data, buy_amount)
 
         # 상태 저장
@@ -390,7 +404,19 @@ class DcaUsecase:
                 current_state=algorithm.state,
             )
 
-        # 매도 실행
+        # 실제 주문 실행 (시장가 매도)
+        order_request = OrderRequest.create_market_sell(market, sell_volume)
+        order_result = await self.order_repository.place_order(order_request)
+
+        if not order_result.success:
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.HOLD,
+                message=order_result.error_message or "주문 실패",
+                current_state=algorithm.state,
+            )
+
+        # 주문 성공 시 상태 업데이트
         result = await algorithm.execute_sell(market_data, sell_volume)
 
         # 상태 저장

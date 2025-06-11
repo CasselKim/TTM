@@ -6,6 +6,7 @@ DCA 알고리즘을 백그라운드에서 주기적으로 실행하는 스케줄
 
 import asyncio
 import logging
+from app.domain.constants import DcaConstants
 
 from app.application.usecase.dca_usecase import DcaUsecase
 from app.domain.models.dca import DcaResult
@@ -21,7 +22,7 @@ class DcaScheduler:
     def __init__(
         self,
         dca_usecase: DcaUsecase,
-        interval_seconds: float = 30.0,
+        interval_seconds: float = DcaConstants.DEFAULT_SCHEDULER_INTERVAL_SECONDS,
         enabled: bool = True,
     ) -> None:
         self.dca_usecase = dca_usecase

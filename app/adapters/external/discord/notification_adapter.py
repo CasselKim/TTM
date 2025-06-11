@@ -1,12 +1,18 @@
 from datetime import datetime
+import logging
+
+import discord
 
 from app.domain.constants import DiscordConstants
 from app.domain.repositories.notification import NotificationRepository
-from common.discord.models import Embed, EmbedField
 from common.discord.bot import DiscordBot
+from common.discord.models import Embed, EmbedField
 
 
-def _truncate_field_value(value: str, max_length: int = 1024) -> str:
+def _truncate_field_value(
+    value: str,
+    max_length: int = DiscordConstants.EMBED_FIELD_MAX_LENGTH,
+) -> str:
     """Discord embed 필드 값을 최대 길이로 제한"""
     if len(value) <= max_length:
         return value
@@ -66,7 +72,31 @@ class DiscordNotificationAdapter(NotificationRepository):
                 ),
             ],
         )
-        return await self.bot.send_embed(embed, "history")
+
+        # 히스토리 채널 전송
+        history_success = await self.bot.send_embed(embed, "history")
+
+        # 관리자 DM 전송
+        dm_success = True
+        if DiscordConstants.ADMIN_USER_IDS:
+            discord_embed = discord.Embed.from_dict(embed.to_discord_dict())
+            for admin_id in DiscordConstants.ADMIN_USER_IDS:
+                try:
+                    user = self.bot.get_user(admin_id) or await self.bot.fetch_user(
+                        admin_id
+                    )
+                    if user is None:
+                        logging.warning(
+                            "Discord 관리자 ID %s 를 찾을 수 없습니다.", admin_id
+                        )
+                        dm_success = False
+                        continue
+                    await user.send(embed=discord_embed)
+                except Exception:
+                    logging.exception("Discord 관리자(%s) DM 전송 실패", admin_id)
+                    dm_success = False
+
+        return history_success and dm_success
 
     async def send_error_notification(
         self, error_type: str, error_message: str, details: str | None = None

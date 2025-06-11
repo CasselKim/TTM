@@ -23,6 +23,7 @@ from app.domain.models.status import (
     MarketName,
 )
 from app.domain.models.order import OrderRequest
+from app.domain.constants import DcaConstants
 
 logger = logging.getLogger(__name__)
 
@@ -55,9 +56,9 @@ class DcaUsecase:
         self,
         market: MarketName,
         initial_buy_amount: Decimal,
-        target_profit_rate: Decimal = Decimal("0.10"),
-        price_drop_threshold: Decimal = Decimal("-0.05"),
-        max_buy_rounds: int = 10,
+        target_profit_rate: Decimal = DcaConstants.DEFAULT_TARGET_PROFIT_RATE,
+        price_drop_threshold: Decimal = DcaConstants.DEFAULT_PRICE_DROP_THRESHOLD,
+        max_buy_rounds: int = DcaConstants.DEFAULT_MAX_BUY_ROUNDS,
     ) -> DcaResult:
         """
         DCA 시작

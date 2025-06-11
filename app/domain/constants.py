@@ -53,6 +53,13 @@ class DiscordConstants:
     EMOJI_ERROR = "❌"
     EMOJI_TIMEOUT = "⏰"
 
+    # Discord embed 필드 최대 길이
+    EMBED_FIELD_MAX_LENGTH = 1024
+
+    # Discord 관리자 사용자 ID 목록 (DM 용)
+    # 실제 운영 시 .env 또는 설정 파일에서 주입하도록 하며, 여기서는 기본값을 빈 리스트로 둡니다.
+    ADMIN_USER_IDS: list[int] = []
+
 
 class AlgorithmConstants:
     """거래 알고리즘 관련 상수"""
@@ -67,3 +74,19 @@ class NetworkConstants:
 
     # Upbit API
     UPBIT_API_BASE_URL = "https://api.upbit.com/v1"
+
+
+class DcaConstants:
+    """DCA 관련 상수"""
+
+    # 기본 목표 수익률 (10%)
+    DEFAULT_TARGET_PROFIT_RATE = Decimal("0.10")
+
+    # 추가 매수 트리거 하락률 (-5%)
+    DEFAULT_PRICE_DROP_THRESHOLD = Decimal("-0.05")
+
+    # 최대 매수 회차 (10회)
+    DEFAULT_MAX_BUY_ROUNDS = 10
+
+    # DCA 스케줄러 기본 실행 주기 (초)
+    DEFAULT_SCHEDULER_INTERVAL_SECONDS = 30.0

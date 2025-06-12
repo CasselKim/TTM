@@ -7,17 +7,15 @@ from decimal import Decimal
 import discord
 
 from common.utils.timezone import now_kst
-from app.domain.constants import (
-    DCA_DEFAULT_ADD_BUY_MULTIPLIER,
-    DCA_DEFAULT_TARGET_PROFIT_RATE,
-    DCA_DEFAULT_PRICE_DROP_THRESHOLD,
-    DCA_DEFAULT_FORCE_STOP_LOSS_RATE,
-)
+from app.domain.models.dca import DcaConfig
 
 if TYPE_CHECKING:
     from app.application.usecase.discord_ui_usecase import DiscordUIUseCase
 
 logger = logging.getLogger(__name__)
+
+# 기본값을 모델에서 가져오기
+_DEFAULT_CONFIG = DcaConfig.model_construct(initial_buy_amount=0)
 
 
 def is_embed_valid(embed: discord.Embed | None) -> bool:
@@ -135,28 +133,28 @@ class TradeModal(discord.ui.Modal):
         placeholder="예: 1.5",
         max_length=5,
         style=discord.TextStyle.short,
-        default=str(DCA_DEFAULT_ADD_BUY_MULTIPLIER),
+        default=str(_DEFAULT_CONFIG.add_buy_multiplier),
     )
     target_profit_rate: discord.ui.TextInput[Any] = discord.ui.TextInput(
         label="목표 수익률 (%)",
         placeholder="예: 10 (10%)",
         max_length=6,
         style=discord.TextStyle.short,
-        default=str(DCA_DEFAULT_TARGET_PROFIT_RATE * 100),
+        default=str(_DEFAULT_CONFIG.target_profit_rate * 100),
     )
     price_drop_threshold: discord.ui.TextInput[Any] = discord.ui.TextInput(
         label="추가 매수 트리거 하락률 (%)",
         placeholder="예: -2.5 (-2.5%)",
         max_length=6,
         style=discord.TextStyle.short,
-        default=str(DCA_DEFAULT_PRICE_DROP_THRESHOLD * 100),
+        default=str(_DEFAULT_CONFIG.price_drop_threshold * 100),
     )
     force_stop_loss_rate: discord.ui.TextInput[Any] = discord.ui.TextInput(
         label="강제 손절률 (%)",
         placeholder="예: -25 (-25%)",
         max_length=6,
         style=discord.TextStyle.short,
-        default=str(DCA_DEFAULT_FORCE_STOP_LOSS_RATE * 100),
+        default=str(_DEFAULT_CONFIG.force_stop_loss_rate * 100),
     )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:

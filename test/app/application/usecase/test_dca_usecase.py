@@ -125,9 +125,16 @@ def sample_ticker():
 def sample_config():
     return DcaConfig(
         initial_buy_amount=100000,
+        add_buy_multiplier=Decimal("1.5"),
         target_profit_rate=Decimal("0.1"),
         price_drop_threshold=Decimal("-0.05"),
+        force_stop_loss_rate=Decimal("-0.25"),
         max_buy_rounds=10,
+        max_investment_ratio=Decimal("0.30"),
+        min_buy_interval_minutes=30,
+        max_cycle_days=45,
+        time_based_buy_interval_hours=72,
+        enable_time_based_buying=True,
     )
 
 

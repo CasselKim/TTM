@@ -25,11 +25,6 @@ from app.domain.models.status import (
     MarketName,
 )
 from app.domain.models.order import OrderRequest
-from app.domain.constants import (
-    DCA_DEFAULT_TARGET_PROFIT_RATE,
-    DCA_DEFAULT_PRICE_DROP_THRESHOLD,
-    DCA_DEFAULT_MAX_BUY_ROUNDS,
-)
 
 logger = logging.getLogger(__name__)
 
@@ -69,14 +64,17 @@ class DcaUsecase:
         self,
         market: MarketName,
         initial_buy_amount: int,
-        target_profit_rate: Decimal = DCA_DEFAULT_TARGET_PROFIT_RATE,
-        price_drop_threshold: Decimal = DCA_DEFAULT_PRICE_DROP_THRESHOLD,
-        max_buy_rounds: int = DCA_DEFAULT_MAX_BUY_ROUNDS,
+        target_profit_rate: Decimal = Decimal("0.10"),
+        price_drop_threshold: Decimal = Decimal("-0.025"),
+        max_buy_rounds: int = 8,
         *,
-        time_based_buy_interval_hours: int | None = None,
-        enable_time_based_buying: bool | None = None,
-        add_buy_multiplier: Decimal | None = None,
-        force_stop_loss_rate: Decimal | None = None,
+        time_based_buy_interval_hours: int | None = 72,
+        enable_time_based_buying: bool = True,
+        add_buy_multiplier: Decimal = Decimal("1.5"),
+        force_stop_loss_rate: Decimal = Decimal("-0.25"),
+        max_investment_ratio: Decimal = Decimal("0.30"),
+        min_buy_interval_minutes: int = 30,
+        max_cycle_days: int = 45,
     ) -> DcaResult:
         """
         DCA 시작 및 초기 매수 실행
@@ -109,23 +107,14 @@ class DcaUsecase:
             "target_profit_rate": target_profit_rate,
             "price_drop_threshold": price_drop_threshold,
             "max_buy_rounds": max_buy_rounds,
+            "add_buy_multiplier": add_buy_multiplier,
+            "force_stop_loss_rate": force_stop_loss_rate,
+            "max_investment_ratio": max_investment_ratio,
+            "min_buy_interval_minutes": min_buy_interval_minutes,
+            "max_cycle_days": max_cycle_days,
+            "time_based_buy_interval_hours": time_based_buy_interval_hours,
+            "enable_time_based_buying": enable_time_based_buying,
         }
-
-        if time_based_buy_interval_hours is not None:
-            config_kwargs["time_based_buy_interval_hours"] = (
-                time_based_buy_interval_hours
-            )
-            if enable_time_based_buying is None:
-                enable_time_based_buying = True
-
-        if enable_time_based_buying is not None:
-            config_kwargs["enable_time_based_buying"] = enable_time_based_buying
-
-        if add_buy_multiplier is not None:
-            config_kwargs["add_buy_multiplier"] = add_buy_multiplier
-
-        if force_stop_loss_rate is not None:
-            config_kwargs["force_stop_loss_rate"] = force_stop_loss_rate
 
         config = DcaConfig(**config_kwargs)
         state = DcaState(market=market)

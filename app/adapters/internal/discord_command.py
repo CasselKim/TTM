@@ -41,7 +41,7 @@ class DiscordCommandAdapter(commands.Cog):
         self.ui_usecase = ui_usecase
 
     @app_commands.command(
-        name="Balance", description="현재 보유 자산 현황을 확인합니다"
+        name="balance", description="현재 보유 자산 현황을 확인합니다"
     )
     async def balance_command(self, interaction: discord.Interaction) -> None:
         """잔고 조회 Slash Command"""
@@ -71,7 +71,7 @@ class DiscordCommandAdapter(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(
-        name="DCA_status", description="자동매매 진행 상황을 확인합니다"
+        name="dca_status", description="자동매매 진행 상황을 확인합니다"
     )
     async def dca_status_command(self, interaction: discord.Interaction) -> None:
         """DCA 상태 조회 Slash Command"""
@@ -102,7 +102,7 @@ class DiscordCommandAdapter(commands.Cog):
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
 
-    @app_commands.command(name="Profit", description="투자 수익률을 분석합니다")
+    @app_commands.command(name="profit", description="투자 수익률을 분석합니다")
     async def profit_command(self, interaction: discord.Interaction) -> None:
         """수익률 조회 Slash Command"""
         await interaction.response.defer(ephemeral=True)
@@ -140,7 +140,7 @@ class DiscordCommandAdapter(commands.Cog):
             await interaction.followup.send(embed=embed, ephemeral=True)
 
     @app_commands.command(
-        name="Trade_start", description="새로운 자동매매를 시작합니다"
+        name="trade_start", description="새로운 자동매매를 시작합니다"
     )
     async def trade_execute_command(self, interaction: discord.Interaction) -> None:
         """매매 실행 Slash Command"""
@@ -160,7 +160,7 @@ class DiscordCommandAdapter(commands.Cog):
             await interaction.response.send_message(embed=embed, ephemeral=True)
 
     @app_commands.command(
-        name="Trade_stop", description="진행 중인 자동매매를 중단합니다"
+        name="trade_stop", description="진행 중인 자동매매를 중단합니다"
     )
     async def trade_stop_command(self, interaction: discord.Interaction) -> None:
         """매매 중단 Slash Command"""
@@ -174,7 +174,7 @@ class DiscordCommandAdapter(commands.Cog):
                 embed = discord.Embed(
                     title="ℹ️ 진행중인 DCA 없음",
                     description="현재 진행중인 DCA가 없습니다.\n\n"
-                    "새로운 DCA를 시작하려면 `/Trade_start` 커맨드를 사용하세요.",
+                    "새로운 DCA를 시작하려면 `/trade_start` 커맨드를 사용하세요.",
                     color=0x808080,
                 )
                 await interaction.followup.send(embed=embed, ephemeral=True)

@@ -4,11 +4,6 @@ from decimal import Decimal
 
 from app.domain.constants import (
     ALGORITHM_MAX_CONFIDENCE,
-    DCA_DEFAULT_PHASE,
-    DCA_DEFAULT_CURRENT_ROUND,
-    DCA_DEFAULT_TOTAL_INVESTMENT,
-    DCA_DEFAULT_TOTAL_VOLUME,
-    DCA_DEFAULT_AVERAGE_PRICE,
 )
 from app.domain.enums import TradingAction
 from app.domain.models.account import Account, Balance
@@ -253,11 +248,11 @@ class DcaService:
             )
 
             # 상태 리셋 (사이클 종료)
-            state.phase = DCA_DEFAULT_PHASE
-            state.current_round = DCA_DEFAULT_CURRENT_ROUND
-            state.total_investment = DCA_DEFAULT_TOTAL_INVESTMENT
-            state.total_volume = DCA_DEFAULT_TOTAL_VOLUME
-            state.average_price = DCA_DEFAULT_AVERAGE_PRICE
+            state.phase = DcaPhase.INACTIVE
+            state.current_round = 0
+            state.total_investment = 0
+            state.total_volume = Decimal("0")
+            state.average_price = Decimal("0")
             state.buying_rounds = []
 
             logger.info(

@@ -436,6 +436,14 @@ class DcaUsecase:
                         "current_round": market_status.current_round,
                         "max_rounds": config.max_buy_rounds,
                         "total_investment": float(market_status.total_investment),
+                        "total_volume": (
+                            float(market_status.total_volume)
+                            if isinstance(
+                                getattr(market_status, "total_volume", None),
+                                (int, float, Decimal),
+                            )
+                            else 0.0
+                        ),
                         "average_price": float(market_status.average_price),
                         "current_profit_rate": float(market_status.current_profit_rate)
                         if market_status.current_profit_rate

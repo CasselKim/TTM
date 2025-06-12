@@ -379,6 +379,10 @@ class DiscordUIUseCase:
                     "max_rounds": summary["max_rounds"],
                     "total_investment": summary["total_investment"],
                     "profit_rate": summary["current_profit_rate"],
+                    "executed_count": summary["current_round"],
+                    "total_count": summary["max_rounds"],
+                    "total_volume": summary.get("total_volume", 0),
+                    "total_krw": summary["total_investment"],
                 }
                 dca_list.append(dca_info)
 

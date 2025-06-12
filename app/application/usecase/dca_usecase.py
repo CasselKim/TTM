@@ -10,7 +10,7 @@ from app.domain.models.dca import (
     DcaResult,
     DcaState,
 )
-from app.domain.models.ticker import Ticker
+
 from app.domain.models.trading import MarketData, TradingSignal
 from app.domain.repositories.account_repository import AccountRepository
 from app.domain.repositories.dca_repository import DcaRepository
@@ -57,52 +57,13 @@ class DcaUsecase:
         """계좌 정보와 시장 데이터를 조회합니다."""
         account = await self.account_repository.get_account_balance()
         ticker = await self.ticker_repository.get_ticker(market)
-        market_data = self._ticker_to_market_data(ticker, market)
-        return account, market_data
-
-    async def _create_dca_instance(
-        self, market: MarketName
-    ) -> tuple[DcaConfig, DcaState] | None:
-        """설정과 상태를 로드합니다."""
-        config = await self.dca_repository.get_config(market)
-        state = await self.dca_repository.get_state(market)
-
-        if not config or not state:
-            return None
-
-        return config, state
-
-    def _create_error_result(
-        self, action: ActionTaken, message: str, state: DcaState | None = None
-    ) -> DcaResult:
-        return DcaResult(
-            success=False,
-            action_taken=action,
-            message=message,
-            current_state=state,
-        )
-
-    async def _send_dca_notification(
-        self,
-        title: str,
-        message: str,
-        fields: list[tuple[str, str, bool]] | None = None,
-    ) -> None:
-        """DCA 관련 알림을 발송합니다."""
-        await self.notification_repo.send_info_notification(
-            title=title,
-            message=message,
-            fields=fields or [],
-        )
-
-    def _ticker_to_market_data(self, ticker: Ticker, market: MarketName) -> MarketData:
-        """Ticker 객체를 MarketData로 변환"""
-        return MarketData(
+        market_data = MarketData(
             market=market,
             current_price=ticker.trade_price,
             volume_24h=ticker.acc_trade_volume_24h,
             change_rate_24h=ticker.signed_change_rate,
         )
+        return account, market_data
 
     async def start(
         self,
@@ -134,8 +95,11 @@ class DcaUsecase:
         """
         existing_state = await self.dca_repository.get_state(market)
         if existing_state and existing_state.is_active:
-            return self._create_error_result(
-                ActionTaken.START, f"{market} DCA가 이미 실행 중입니다."
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.START,
+                message=f"{market} DCA가 이미 실행 중입니다.",
+                current_state=None,
             )
 
         config_kwargs: dict[str, Any] = {
@@ -170,119 +134,109 @@ class DcaUsecase:
         if not state_saved:
             raise StateSaveError()
 
-        try:
-            account, market_data = await self._get_account_and_market_data(market)
+        account, market_data = await self._get_account_and_market_data(market)
 
-            order_request = OrderRequest.create_market_buy(
-                market, Decimal(str(initial_buy_amount))
-            )
-            order_result = await self.order_repository.place_order(order_request)
+        order_request = OrderRequest.create_market_buy(
+            market, Decimal(str(initial_buy_amount))
+        )
+        order_result = await self.order_repository.place_order(order_request)
 
-            if not order_result.success:
-                await self.dca_repository.clear_market_data(market)
-                return self._create_error_result(
-                    ActionTaken.START, f"초기 매수 실패: {order_result.error_message}"
-                )
-
-            await self.dca_service.execute_buy(
-                market_data, initial_buy_amount, config, state
-            )
-            await self.dca_repository.save_state(market, state)
-
-            logger.info(
-                f"DCA 시작 및 초기 매수 완료: {market}, 금액: {initial_buy_amount:,.0f}원"
-            )
-
-            await self._send_dca_notification(
-                title="DCA 시작",
-                message=f"**{market}** 마켓의 DCA를 시작하고 초기 매수를 완료했습니다.",
-                fields=[
-                    ("초기 매수 금액", f"{initial_buy_amount:,.0f} KRW", True),
-                    ("목표 수익률", f"{target_profit_rate:.1%}", True),
-                    ("매수가", f"{market_data.current_price:,.0f} KRW", True),
-                ],
-            )
-
-            return DcaResult(
-                success=True,
-                action_taken=ActionTaken.START,
-                message=f"{market} DCA가 시작되고 초기 매수가 완료되었습니다.",
-                current_state=state,
-            )
-
-        except Exception as e:
+        if not order_result.success:
             await self.dca_repository.clear_market_data(market)
-            logger.error(f"DCA 시작 중 오류: {market}, {e}")
-            return self._create_error_result(
-                ActionTaken.START, f"DCA 시작 중 오류 발생: {str(e)}"
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.START,
+                message=f"초기 매수 실패: {order_result.error_message}",
+                current_state=None,
             )
+
+        await self.dca_service.execute_buy(
+            market_data, initial_buy_amount, config, state
+        )
+        await self.dca_repository.save_state(market, state)
+
+        logger.info(
+            f"DCA 시작 및 초기 매수 완료: {market}, 금액: {initial_buy_amount:,.0f}원"
+        )
+
+        await self.notification_repo.send_info_notification(
+            title="DCA 시작",
+            message=f"**{market}** 마켓의 DCA를 시작하고 초기 매수를 완료했습니다.",
+            fields=[
+                ("초기 매수 금액", f"{initial_buy_amount:,.0f} KRW", True),
+                ("목표 수익률", f"{target_profit_rate:.1%}", True),
+                ("매수가", f"{market_data.current_price:,.0f} KRW", True),
+            ],
+        )
+
+        return DcaResult(
+            success=True,
+            action_taken=ActionTaken.START,
+            message=f"{market} DCA가 시작되고 초기 매수가 완료되었습니다.",
+            current_state=state,
+        )
 
     async def stop(self, market: MarketName, *, force_sell: bool = False) -> DcaResult:
         """DCA 종료 및 보유 포지션 정리"""
-        dca_data = await self._create_dca_instance(market)
-        if not dca_data:
-            return self._create_error_result(
-                ActionTaken.STOP, f"{market} DCA가 실행 중이 아닙니다."
+        config = await self.dca_repository.get_config(market)
+        state = await self.dca_repository.get_state(market)
+
+        if not config or not state:
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.STOP,
+                message=f"{market} DCA가 실행 중이 아닙니다.",
+                current_state=None,
             )
 
-        config, state = dca_data
         if not state.is_active:
-            return self._create_error_result(
-                ActionTaken.STOP, f"{market} DCA가 실행 중이 아닙니다."
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.STOP,
+                message=f"{market} DCA가 실행 중이 아닙니다.",
+                current_state=state,
             )
 
-        try:
-            account, market_data = await self._get_account_and_market_data(market)
+        account, market_data = await self._get_account_and_market_data(market)
 
-            # 대상 통화 잔고 조회 (인라인화)
-            target_currency = market.split("-")[1]
-            target_balance = None
-            for balance in account.balances:
-                if balance.currency == target_currency:
-                    target_balance = balance
-                    break
+        target_currency = market.split("-")[1]
+        target_balance = next(
+            (b for b in account.balances if b.currency == target_currency),
+            None,
+        )
 
-            if target_balance and target_balance.balance > 0:
-                order_request = OrderRequest.create_market_sell(
-                    market, target_balance.balance
+        if target_balance and target_balance.balance > 0:
+            order_request = OrderRequest.create_market_sell(
+                market, target_balance.balance
+            )
+            order_result = await self.order_repository.place_order(order_request)
+
+            if order_result.success:
+                sell_result = await self.dca_service.execute_sell(
+                    market_data, target_balance.balance, state
                 )
-                order_result = await self.order_repository.place_order(order_request)
 
-                if order_result.success:
-                    sell_result = await self.dca_service.execute_sell(
-                        market_data, target_balance.balance, state
-                    )
+                profit_rate = sell_result.profit_rate or Decimal("0")
+                profit_amount = sell_result.profit_loss_amount_krw or Decimal("0")
 
-                    logger.info(
-                        f"DCA 종료 매도 완료: {market}, 수량: {target_balance.balance}"
-                    )
+                logger.info(
+                    "DCA 종료 매도 완료: %s, 수량: %s", market, target_balance.balance
+                )
 
-                    profit_rate = (
-                        sell_result.profit_rate
-                        if sell_result.profit_rate
-                        else Decimal("0")
-                    )
-                    profit_amount = (
-                        sell_result.profit_loss_amount_krw
-                        if sell_result.profit_loss_amount_krw
-                        else Decimal("0")
-                    )
-
-                    await self._send_dca_notification(
-                        title="DCA 종료",
-                        message=f"**{market}** 마켓의 DCA를 종료하고 보유 포지션을 매도했습니다.",
-                        fields=[
-                            ("매도 수량", f"{target_balance.balance:.8f}", True),
-                            ("매도가", f"{market_data.current_price:,.0f} KRW", True),
-                            ("수익률", f"{profit_rate:.2%}", True),
-                            ("손익", f"{profit_amount:,.0f} KRW", True),
-                        ],
-                    )
-                else:
-                    logger.warning(f"DCA 종료 매도 실패: {order_result.error_message}")
-
-        except Exception as e:
-            logger.error(f"DCA 종료 중 매도 오류: {market}, {e}")
+                await self.notification_repo.send_info_notification(
+                    title="DCA 종료",
+                    message=(
+                        f"**{market}** 마켓의 DCA를 종료하고 보유 포지션을 매도했습니다."
+                    ),
+                    fields=[
+                        ("매도 수량", f"{target_balance.balance:.8f}", True),
+                        ("매도가", f"{market_data.current_price:,.0f} KRW", True),
+                        ("수익률", f"{profit_rate:.2%}", True),
+                        ("손익", f"{profit_amount:,.0f} KRW", True),
+                    ],
+                )
+            else:
+                logger.warning("DCA 종료 매도 실패: %s", order_result.error_message)
 
         await self.dca_repository.clear_market_data(market)
 
@@ -296,137 +250,165 @@ class DcaUsecase:
             current_state=state,
         )
 
-    async def run(self, market: MarketName) -> DcaResult:
-        """
-        DCA 사이클 실행 (스케줄러에서 호출)
+    async def _create_dca_instance(
+        self, market: MarketName
+    ) -> tuple[DcaConfig, DcaState] | None:
+        """설정과 상태를 함께 조회"""
+        config = await self.dca_repository.get_config(market)
+        state = await self.dca_repository.get_state(market)
+        if not config or not state:
+            return None
+        return config, state
 
-        Args:
-            market: 거래 시장
-
-        Returns:
-            DcaResult: 사이클 실행 결과
-        """
-        dca_data = await self._create_dca_instance(market)
-        if not dca_data:
-            return self._create_error_result(
-                ActionTaken.HOLD, f"{market} DCA가 실행 중이 아닙니다."
-            )
-
-        config, state = dca_data
-
-        try:
-            account, market_data = await self._get_account_and_market_data(market)
-            signal = await self.dca_service.analyze_signal(
-                account, market_data, config, state
-            )
-
-            if signal.action == TradingAction.BUY:
-                return await self._handle_buy_signal(
-                    config, state, market, account, market_data, signal
-                )
-            elif signal.action == TradingAction.SELL:
-                return await self._handle_sell_signal(config, state, market)
-            else:
-                return DcaResult(
-                    success=True,
-                    action_taken=ActionTaken.HOLD,
-                    message=signal.reason,
-                    current_state=state,
-                )
-
-        except Exception as e:
-            logger.error(f"DCA 사이클 실행 실패: {market}, 오류: {e}")
-            return self._create_error_result(
-                ActionTaken.HOLD,
-                f"DCA 사이클 실행 중 오류 발생: {str(e)}",
-                state,
-            )
+    async def _send_dca_notification(
+        self,
+        title: str,
+        message: str,
+        fields: list[tuple[str, str, bool]] | None = None,
+    ) -> None:
+        """알림 전송 래퍼"""
+        fields = fields or []
+        await self.notification_repo.send_info_notification(
+            title=title,
+            message=message,
+            fields=fields,
+        )
 
     async def _handle_buy_signal(
         self,
-        config: DcaConfig,
-        state: DcaState,
         market: MarketName,
         account: Account,
         market_data: MarketData,
         signal: TradingSignal,
+        config: DcaConfig,
+        state: DcaState,
     ) -> DcaResult:
-        """매수 신호 처리"""
+        """BUY 신호 처리"""
+        # 최소 주문 금액은 거래소 기준값(5,000 KRW)으로 고정
+        min_order_amount = Decimal("5000")
         buy_amount = await self.dca_service.calculate_buy_amount(
             account,
             signal,
-            Decimal("5000"),
+            min_order_amount,
             config,
             state,
         )
 
         if buy_amount <= 0:
-            return self._create_error_result(
-                ActionTaken.HOLD,
-                "매수 조건 미충족 (자금 부족 또는 기타 제약)",
-                state,
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.HOLD,
+                message="매수 조건 미충족 (자금 부족 또는 기타 제약)",
+                current_state=state,
             )
 
         order_request = OrderRequest.create_market_buy(market, Decimal(str(buy_amount)))
         order_result = await self.order_repository.place_order(order_request)
 
         if not order_result.success:
-            return self._create_error_result(
-                ActionTaken.HOLD,
-                order_result.error_message or "주문 실패",
-                state,
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.HOLD,
+                message=order_result.error_message or "주문 실패",
+                current_state=state,
             )
 
         result = await self.dca_service.execute_buy(
-            market_data, buy_amount, config, state
+            market_data,
+            buy_amount,
+            config,
+            state,
         )
         await self.dca_repository.save_state(market, state)
         return result
 
-    async def _handle_sell_signal(
-        self,
-        config: DcaConfig,
-        state: DcaState,
-        market: MarketName,
-    ) -> DcaResult:
-        """매도 신호 처리"""
+    async def run(self, market: MarketName) -> DcaResult:
+        """
+        DCA 사이클 실행 (스케줄러에서 호출)
+        """
+        config = await self.dca_repository.get_config(market)
+        state = await self.dca_repository.get_state(market)
+
+        if not config or not state:
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.HOLD,
+                message=f"{market} DCA가 실행 중이 아닙니다.",
+                current_state=None,
+            )
+
         account, market_data = await self._get_account_and_market_data(market)
-
-        sell_signal = TradingSignal(
-            action=TradingAction.SELL, confidence=Decimal("1.0"), reason="DCA 매도 신호"
-        )
-        sell_volume = await self.dca_service.calculate_sell_amount(
-            account, market_data, sell_signal, state
+        signal = await self.dca_service.analyze_signal(
+            account, market_data, config, state
         )
 
-        if sell_volume <= 0:
-            return self._create_error_result(ActionTaken.HOLD, "매도 수량 없음", state)
-
-        order_request = OrderRequest.create_market_sell(market, sell_volume)
-        order_result = await self.order_repository.place_order(order_request)
-
-        if not order_result.success:
-            return self._create_error_result(
-                ActionTaken.HOLD,
-                order_result.error_message or "주문 실패",
+        if signal.action == TradingAction.BUY:
+            return await self._handle_buy_signal(
+                market,
+                account,
+                market_data,
+                signal,
+                config,
                 state,
             )
 
-        result = await self.dca_service.execute_sell(market_data, sell_volume, state)
-        await self.dca_repository.save_state(market, state)
-
-        if result.success and result.profit_rate and result.profit_rate > 0:
-            await self._send_dca_notification(
-                title="🎉 DCA 수익 실현",
-                message=f"**{market}** 수익률 {result.profit_rate:.2%} 달성",
-                fields=[
-                    ("매도가", f"{result.trade_price:,.0f} KRW", True),
-                    ("매도 수량", f"{result.trade_volume:.8f}", True),
-                    ("실현손익", f"{result.profit_loss_amount_krw:,.0f} KRW", True),
-                ],
+        if signal.action == TradingAction.SELL:
+            sell_signal = TradingSignal(
+                action=TradingAction.SELL,
+                confidence=Decimal("1.0"),
+                reason="DCA 매도 신호",
+            )
+            sell_volume = await self.dca_service.calculate_sell_amount(
+                account, market_data, sell_signal, state
             )
 
-        return result
+            if sell_volume <= 0:
+                return DcaResult(
+                    success=False,
+                    action_taken=ActionTaken.HOLD,
+                    message="매도 수량 없음",
+                    current_state=state,
+                )
+
+            order_request = OrderRequest.create_market_sell(market, sell_volume)
+            order_result = await self.order_repository.place_order(order_request)
+
+            if not order_result.success:
+                return DcaResult(
+                    success=False,
+                    action_taken=ActionTaken.HOLD,
+                    message=order_result.error_message or "주문 실패",
+                    current_state=state,
+                )
+
+            result = await self.dca_service.execute_sell(
+                market_data, sell_volume, state
+            )
+            await self.dca_repository.save_state(market, state)
+
+            if result.success and result.profit_rate and result.profit_rate > 0:
+                await self.notification_repo.send_info_notification(
+                    title="🎉 DCA 수익 실현",
+                    message=f"**{market}** 수익률 {result.profit_rate:.2%} 달성",
+                    fields=[
+                        ("매도가", f"{result.trade_price:,.0f} KRW", True),
+                        ("매도 수량", f"{result.trade_volume:.8f}", True),
+                        (
+                            "실현손익",
+                            f"{result.profit_loss_amount_krw:,.0f} KRW",
+                            True,
+                        ),
+                    ],
+                )
+
+            return result
+
+        return DcaResult(
+            success=True,
+            action_taken=ActionTaken.HOLD,
+            message=signal.reason,
+            current_state=state,
+        )
 
     async def get_active_markets(self) -> list[MarketName]:
         """활성 마켓 목록 조회"""
@@ -434,21 +416,21 @@ class DcaUsecase:
 
     async def get_active_dca_summary(self) -> list[dict[str, Any]]:
         """진행중인 DCA 요약 정보 조회"""
-        try:
-            active_markets = await self.get_active_markets()
-            dca_summaries = []
+        active_markets = await self.get_active_markets()
+        dca_summaries: list[dict[str, Any]] = []
 
-            for market in active_markets:
-                try:
-                    market_status = await self.get_dca_market_status(market)
-                    config = await self.dca_repository.get_config(market)
+        for market in active_markets:
+            try:
+                market_status = await self.get_dca_market_status(market)
+                config = await self.dca_repository.get_config(market)
 
-                    if not market_status or not config:
-                        continue
+                if not market_status or not config:
+                    continue
 
-                    symbol = market.split("-")[1] if "-" in market else market
+                symbol = market.split("-")[1] if "-" in market else market
 
-                    summary = {
+                dca_summaries.append(
+                    {
                         "market": market,
                         "symbol": symbol,
                         "current_round": market_status.current_round,
@@ -462,18 +444,12 @@ class DcaUsecase:
                         if hasattr(market_status, "cycle_id")
                         else "unknown",
                     }
+                )
 
-                    dca_summaries.append(summary)
+            except ValueError as e:
+                logger.warning("DCA 요약 조회 실패 (%s): %s", market, e)
 
-                except Exception as e:
-                    logger.warning(f"DCA 요약 조회 실패 ({market}): {e}")
-                    continue
-
-            return dca_summaries
-
-        except Exception as e:
-            logger.exception(f"활성 DCA 요약 조회 중 오류: {e}")
-            return []
+        return dca_summaries
 
     async def get_dca_market_status(self, market: MarketName) -> DcaMarketStatus:
         """특정 마켓의 DCA 상세 상태 조회"""

@@ -390,10 +390,6 @@ class DcaState(BaseModel):
         """캐시 저장용 JSON 문자열 반환"""
         return self.model_dump_json(exclude_none=True)
 
-    def copy_with_updates(self, **kwargs: Any) -> "DcaState":
-        """특정 필드만 업데이트된 새 인스턴스 생성"""
-        return self.model_copy(update=kwargs)
-
 
 class DcaResult(BaseModel):
     """DCA 실행 결과"""

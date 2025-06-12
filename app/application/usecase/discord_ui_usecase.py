@@ -362,6 +362,88 @@ class DiscordUIUseCase:
             logger.exception(f"매매 중단 중 오류 (user_id: {user_id}): {e}")
             raise
 
+    async def get_active_dca_list(self, user_id: str) -> list[dict[str, Any]]:
+        """진행중인 DCA 목록 조회"""
+        try:
+            dca_summaries = await self.dca_usecase.get_active_dca_summary()
+
+            # UI용 데이터 형태로 변환
+            dca_list = []
+            for summary in dca_summaries:
+                dca_info = {
+                    "market": summary["market"],
+                    "symbol": summary["symbol"],
+                    "display_name": f"{summary['symbol']} ({summary['current_round']}/{summary['max_rounds']}회)",
+                    "description": f"투자: {summary['total_investment']:,.0f}원 | 수익률: {summary['current_profit_rate']:.2f}%",
+                    "current_round": summary["current_round"],
+                    "max_rounds": summary["max_rounds"],
+                    "total_investment": summary["total_investment"],
+                    "profit_rate": summary["current_profit_rate"],
+                }
+                dca_list.append(dca_info)
+
+            return dca_list
+
+        except Exception as e:
+            logger.exception(f"DCA 목록 조회 중 오류 (user_id: {user_id}): {e}")
+            return []
+
+    async def stop_selected_dca(
+        self, user_id: str, market: str, force_sell: bool = False
+    ) -> dict[str, Any]:
+        """선택된 DCA 중단"""
+        try:
+            # 중단 전 상태 조회
+            market_status = await self.dca_usecase.get_dca_market_status(market)
+            config = await self.dca_usecase.dca_repository.get_config(market)
+
+            if not market_status or not config:
+                raise Exception(f"{market} DCA를 찾을 수 없습니다.")
+
+            # 심볼 추출
+            symbol = market.split("-")[1] if "-" in market else market
+
+            # 실제 DCA 중단
+            result = await self.dca_usecase.stop_dca(
+                market=market,
+                force_sell=force_sell,
+            )
+
+            if not result.success:
+                raise Exception(f"DCA 중단 실패: {result.message}")
+
+            action_type = "강제매도" if force_sell else "중단"
+            logger.info(
+                f"DCA {action_type} 완료 (user_id: {user_id}, market: {market})"
+            )
+
+            return {
+                "symbol": symbol,
+                "market": market,
+                "action_type": action_type,
+                "completed_count": market_status.current_round,
+                "total_count": config.max_buy_rounds,
+                "total_invested": float(market_status.total_investment),
+                "final_profit_rate": float(market_status.current_profit_rate)
+                if market_status.current_profit_rate
+                else 0.0,
+                "success": True,
+                "message": result.message,
+            }
+
+        except Exception as e:
+            action_type = "강제매도" if force_sell else "중단"
+            logger.exception(
+                f"DCA {action_type} 중 오류 (user_id: {user_id}, market: {market}): {e}"
+            )
+            return {
+                "symbol": market.split("-")[1] if "-" in market else market,
+                "market": market,
+                "action_type": action_type,
+                "success": False,
+                "message": str(e),
+            }
+
     # Embed 생성 메서드들
     async def create_balance_embed(self, user_id: str) -> Any:
         """잔고 Embed 생성"""

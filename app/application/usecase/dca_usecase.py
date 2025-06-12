@@ -293,8 +293,54 @@ class DcaUsecase:
             )
 
     async def get_active_markets(self) -> list[MarketName]:
-        """활성 상태인 마켓 목록 조회"""
+        """활성 마켓 목록 조회"""
         return await self.dca_repository.get_active_markets()
+
+    async def get_active_dca_summary(self) -> list[dict[str, Any]]:
+        """진행중인 DCA 요약 정보 조회"""
+        try:
+            active_markets = await self.get_active_markets()
+            dca_summaries = []
+
+            for market in active_markets:
+                try:
+                    # DCA 상태 조회
+                    market_status = await self.get_dca_market_status(market)
+                    config = await self.dca_repository.get_config(market)
+
+                    if not market_status or not config:
+                        continue
+
+                    # 심볼 추출 (KRW-BTC -> BTC)
+                    symbol = market.split("-")[1] if "-" in market else market
+
+                    # 요약 정보 생성
+                    summary = {
+                        "market": market,
+                        "symbol": symbol,
+                        "current_round": market_status.current_round,
+                        "max_rounds": config.max_buy_rounds,
+                        "total_investment": float(market_status.total_investment),
+                        "average_price": float(market_status.average_price),
+                        "current_profit_rate": float(market_status.current_profit_rate)
+                        if market_status.current_profit_rate
+                        else 0.0,
+                        "cycle_id": market_status.cycle_id
+                        if hasattr(market_status, "cycle_id")
+                        else "unknown",
+                    }
+
+                    dca_summaries.append(summary)
+
+                except Exception as e:
+                    logger.warning(f"DCA 요약 조회 실패 ({market}): {e}")
+                    continue
+
+            return dca_summaries
+
+        except Exception as e:
+            logger.exception(f"활성 DCA 요약 조회 중 오류: {e}")
+            return []
 
     async def get_dca_market_status(self, market: MarketName) -> DcaMarketStatus:
         """특정 마켓의 DCA 상세 상태 조회"""

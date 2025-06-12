@@ -39,6 +39,7 @@ class Container(containers.DeclarativeContainer):
         alert_channel_id=config.discord.alert_channel_id.as_int(),
         log_channel_id=config.discord.log_channel_id.as_int(),
         command_prefix=config.discord.command_prefix,
+        admin_user_ids=config.discord.admin_user_ids,
     )
 
     notification_adapter: providers.Provider[NotificationRepository] = (

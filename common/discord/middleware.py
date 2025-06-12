@@ -1,6 +1,6 @@
 import logging
 import traceback
-from typing import TYPE_CHECKING, Callable, Awaitable, Any
+from typing import Callable, Awaitable, Any
 
 from fastapi import Request, Response
 from fastapi.responses import JSONResponse
@@ -9,9 +9,6 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from common.utils.timezone import now_kst
 from common.discord.models import Embed, EmbedField
 from common.discord.bot import DiscordBot
-
-if TYPE_CHECKING:
-    from common.discord.bot import DiscordBot
 
 logger = logging.getLogger(__name__)
 

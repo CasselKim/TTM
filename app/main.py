@@ -24,6 +24,20 @@ load_dotenv()
 # 로깅 초기화
 setup_logging(service_name="TTM")
 
+
+def parse_admin_user_ids(env_value: str) -> list[int]:
+    """쉼표로 구분된 Discord 관리자 사용자 ID 파싱"""
+    if not env_value:
+        return []
+    try:
+        return [
+            int(user_id.strip()) for user_id in env_value.split(",") if user_id.strip()
+        ]
+    except ValueError:
+        logging.warning("DISCORD_ADMIN_USER_IDS 파싱 실패, 빈 리스트 반환")
+        return []
+
+
 # 컨테이너 초기화
 container = Container()
 container.config.from_dict(
@@ -47,7 +61,10 @@ container.config.from_dict(
                     os.getenv("DISCORD_HISTORY_CHANNEL_ID", "0"),
                 )
             ),
-            "command_prefix": "!",  # Add command_prefix if it's used in bot
+            "command_prefix": "!",
+            "admin_user_ids": parse_admin_user_ids(
+                os.getenv("DISCORD_ADMIN_USER_IDS", "")
+            ),
         },
     }
 )

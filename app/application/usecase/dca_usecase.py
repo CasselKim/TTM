@@ -198,7 +198,7 @@ class DcaUsecase:
             target_currency = market.split("-")[1]
 
             for balance in account.balances:
-                if balance.currency.value == target_currency:
+                if balance.currency == target_currency:
                     target_balance = balance
                     break
 

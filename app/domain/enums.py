@@ -78,5 +78,4 @@ class OrderState(StrEnum):
 # Currency Type
 # ==========================================================
 
-# Currency는 단순히 문자열로 처리합니다 (BTC, ETH, KRW 등)
 Currency = str

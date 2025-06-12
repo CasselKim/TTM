@@ -23,6 +23,7 @@ class DiscordBot(Bot):
         alert_channel_id: int,
         log_channel_id: int,
         command_prefix: str,
+        admin_user_ids: list[int],
         **options: Any,
     ):
         """
@@ -34,6 +35,7 @@ class DiscordBot(Bot):
             alert_channel_id: 알림 전용 채널 ID (에러 알림 등)
             log_channel_id: 로그 전용 채널 ID (디버그 로그 등)
             command_prefix: 명령어 접두사
+            admin_user_ids: 관리자 사용자 ID 목록
         """
         # 봇 인텐트 설정
         intents = discord.Intents.default()
@@ -45,6 +47,7 @@ class DiscordBot(Bot):
         self.channel_id = channel_id
         self.alert_channel_id = alert_channel_id
         self.log_channel_id = log_channel_id
+        self.admin_user_ids = admin_user_ids or []
 
         # 채널들은 on_ready에서 초기화됨 (not null 보장)
         self.history_channel: discord.TextChannel

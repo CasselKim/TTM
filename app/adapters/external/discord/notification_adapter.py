@@ -6,7 +6,6 @@ import discord
 
 from app.domain.constants import (
     DISCORD_EMBED_FIELD_MAX_LENGTH,
-    DISCORD_ADMIN_USER_IDS,
     DISCORD_COLOR_SUCCESS,
     DISCORD_COLOR_ERROR,
     DISCORD_COLOR_INFO,
@@ -56,14 +55,14 @@ class DiscordNotificationAdapter(NotificationRepository):
 
     async def _notify_admins(self, embed: discord.Embed) -> bool:
         """관리자들에게 DM으로 알림을 전송하고, 전체 성공 여부 반환"""
-        if not DISCORD_ADMIN_USER_IDS:
+        if not self.bot.admin_user_ids:
             return True
 
         # 병렬 전송으로 성능 최적화
         results = await asyncio.gather(
             *[
                 self._safe_send_dm(admin_id, embed)
-                for admin_id in DISCORD_ADMIN_USER_IDS
+                for admin_id in self.bot.admin_user_ids
             ],
             return_exceptions=False,
         )

@@ -33,7 +33,7 @@ class Account(BaseModel):
     balances: list[Balance]
 
     def _krw_balances(self) -> Iterator[Balance]:
-        return (balance for balance in self.balances if balance.unit == Currency.KRW)
+        return (balance for balance in self.balances if balance.unit == "KRW")
 
     @property
     def total_balance_krw(self) -> Decimal:

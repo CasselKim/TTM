@@ -50,13 +50,15 @@ async def test_get_account_balance_success(mock_request, upbit_adapter, mock_res
     assert isinstance(account, Account)
     assert len(account.balances) == 2
 
-    btc_balance = next(b for b in account.balances if b.currency == Currency.BTC)
-    assert btc_balance.balance == Decimal('1.5')
-    assert btc_balance.avg_buy_price == Decimal('50000000')
+    btc_balance = next(b for b in account.balances if b.currency == "BTC")
+    assert btc_balance.balance == Decimal("1.5")
+    assert btc_balance.locked == Decimal("0")
+    assert btc_balance.unit == "KRW"
 
-    eth_balance = next(b for b in account.balances if b.currency == Currency.ETH)
-    assert eth_balance.balance == Decimal('2.0')
-    assert eth_balance.avg_buy_price == Decimal('3000000')
+    eth_balance = next(b for b in account.balances if b.currency == "ETH")
+    assert eth_balance.balance == Decimal("2.0")
+    assert eth_balance.locked == Decimal("0")
+    assert eth_balance.unit == "KRW"
 
     # Verify request
     mock_request.assert_called_once()

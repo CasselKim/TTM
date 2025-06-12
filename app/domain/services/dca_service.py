@@ -12,7 +12,6 @@ from app.domain.constants import (
 )
 from app.domain.enums import TradingAction
 from app.domain.models.account import Account, Balance
-from app.domain.enums import Currency
 from app.domain.models.dca import (
     BuyingRound,
     BuyType,
@@ -116,9 +115,7 @@ class DcaService:
 
         # 총 투자 한도 확인 (전체 KRW 잔액 대비)
         total_krw = sum(
-            balance.balance
-            for balance in account.balances
-            if balance.currency == Currency.KRW
+            balance.balance for balance in account.balances if balance.currency == "KRW"
         )
         max_total_investment = total_krw * self.config.max_investment_ratio
 
@@ -428,7 +425,7 @@ class DcaService:
     def _get_available_krw_balance(self, account: Account) -> Decimal:
         """사용 가능한 KRW 잔액 조회"""
         for balance in account.balances:
-            if balance.currency == Currency.KRW:
+            if balance.currency == "KRW":
                 return balance.balance - balance.locked
         return Decimal("0")
 
@@ -438,7 +435,7 @@ class DcaService:
         """대상 통화 잔액 조회"""
         # 마켓에서 대상 통화 추출 (예: KRW-BTC -> BTC)
         target_currency = market.split("-")[1]
-        currency = Currency(target_currency)
+        currency = target_currency
 
         for balance in account.balances:
             if balance.currency == currency:

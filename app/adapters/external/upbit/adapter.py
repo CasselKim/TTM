@@ -4,7 +4,6 @@ from decimal import Decimal
 from app.adapters.external.upbit.client import UpbitClient
 from app.adapters.external.upbit.exceptions import UpbitAPIException
 from app.domain.models.account import Account, Balance
-from app.domain.enums import Currency
 from app.domain.models.order import Order, OrderRequest, OrderResult
 from app.domain.models.ticker import Ticker
 from app.domain.repositories.account_repository import AccountRepository
@@ -25,11 +24,11 @@ class UpbitAdapter(AccountRepository, TickerRepository, OrderRepository):
             response = self.client.get_accounts()
             balances = [
                 Balance(
-                    currency=Currency(item["currency"]),
+                    currency=item["currency"],
                     balance=Decimal(item["balance"]),
                     locked=Decimal(item["locked"]),
                     avg_buy_price=Decimal(item["avg_buy_price"]),
-                    unit=Currency(item["unit_currency"]),
+                    unit=item["unit_currency"],
                 )
                 for item in response
             ]

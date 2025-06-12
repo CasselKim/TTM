@@ -76,6 +76,7 @@ class DcaUsecase:
         time_based_buy_interval_hours: int | None = None,
         enable_time_based_buying: bool | None = None,
         add_buy_multiplier: Decimal | None = None,
+        force_stop_loss_rate: Decimal | None = None,
     ) -> DcaResult:
         """
         DCA 시작 및 초기 매수 실행
@@ -89,6 +90,7 @@ class DcaUsecase:
             time_based_buy_interval_hours: 시간 기반 매수 간격 (시간 단위)
             enable_time_based_buying: 시간 기반 매수 활성화 여부
             add_buy_multiplier: 추가 매수 곱수 (기본 1.1)
+            force_stop_loss_rate: 강제 중단 손절률 (기본 None)
 
         Returns:
             DcaResult: 시작 결과
@@ -121,6 +123,9 @@ class DcaUsecase:
 
         if add_buy_multiplier is not None:
             config_kwargs["add_buy_multiplier"] = add_buy_multiplier
+
+        if force_stop_loss_rate is not None:
+            config_kwargs["force_stop_loss_rate"] = force_stop_loss_rate
 
         config = DcaConfig(**config_kwargs)
         state = DcaState(market=market)

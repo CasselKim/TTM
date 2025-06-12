@@ -2,10 +2,17 @@
 
 import logging
 from typing import TYPE_CHECKING, Any
+from decimal import Decimal
 
 import discord
 
 from common.utils.timezone import now_kst
+from app.domain.constants import (
+    DCA_DEFAULT_ADD_BUY_MULTIPLIER,
+    DCA_DEFAULT_TARGET_PROFIT_RATE,
+    DCA_DEFAULT_PRICE_DROP_THRESHOLD,
+    DCA_DEFAULT_FORCE_STOP_LOSS_RATE,
+)
 
 if TYPE_CHECKING:
     from app.application.usecase.discord_ui_usecase import DiscordUIUseCase
@@ -123,6 +130,34 @@ class TradeModal(discord.ui.Modal):
         max_length=3,
         style=discord.TextStyle.short,
     )
+    add_buy_multiplier: discord.ui.TextInput[Any] = discord.ui.TextInput(
+        label="추가 매수 배수",
+        placeholder="예: 1.5",
+        max_length=5,
+        style=discord.TextStyle.short,
+        default=str(DCA_DEFAULT_ADD_BUY_MULTIPLIER),
+    )
+    target_profit_rate: discord.ui.TextInput[Any] = discord.ui.TextInput(
+        label="목표 수익률 (%)",
+        placeholder="예: 10 (10%)",
+        max_length=6,
+        style=discord.TextStyle.short,
+        default=str(DCA_DEFAULT_TARGET_PROFIT_RATE * 100),
+    )
+    price_drop_threshold: discord.ui.TextInput[Any] = discord.ui.TextInput(
+        label="추가 매수 트리거 하락률 (%)",
+        placeholder="예: -2.5 (-2.5%)",
+        max_length=6,
+        style=discord.TextStyle.short,
+        default=str(DCA_DEFAULT_PRICE_DROP_THRESHOLD * 100),
+    )
+    force_stop_loss_rate: discord.ui.TextInput[Any] = discord.ui.TextInput(
+        label="강제 손절률 (%)",
+        placeholder="예: -25 (-25%)",
+        max_length=6,
+        style=discord.TextStyle.short,
+        default=str(DCA_DEFAULT_FORCE_STOP_LOSS_RATE * 100),
+    )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
         await interaction.response.defer(ephemeral=True)
@@ -131,6 +166,35 @@ class TradeModal(discord.ui.Modal):
             amount_value = int(self.amount.value.replace(",", ""))
             count_value = int(self.total_count.value)
             interval_value = int(self.interval_hours.value)
+
+            # 추가 매수 배수 파싱
+            try:
+                multiplier_value = Decimal(self.add_buy_multiplier.value)
+            except Exception as exc:
+                raise ValueError("추가 매수 배수는 숫자여야 합니다.") from exc
+
+            # 목표 수익률 등 파싱 (% 입력)
+            try:
+                target_profit_value = Decimal(self.target_profit_rate.value) / Decimal(
+                    "100"
+                )
+                price_drop_value = Decimal(self.price_drop_threshold.value) / Decimal(
+                    "100"
+                )
+                force_stop_loss_value = Decimal(
+                    self.force_stop_loss_rate.value
+                ) / Decimal("100")
+            except Exception as exc:
+                raise ValueError("수익률/손절률 값은 숫자여야 합니다.") from exc
+
+            if multiplier_value <= 0:
+                raise ValueError("추가 매수 배수는 0보다 커야 합니다.")
+            if target_profit_value <= 0:
+                raise ValueError("목표 수익률은 0보다 커야 합니다.")
+            if price_drop_value >= 0:
+                raise ValueError("추가 매수 하락률은 0보다 작아야 합니다.")
+            if force_stop_loss_value >= 0:
+                raise ValueError("강제 손절률은 0보다 작아야 합니다.")
 
             if not symbol_value:
                 raise ValueError("코인 심볼을 입력해주세요.")
@@ -148,6 +212,10 @@ class TradeModal(discord.ui.Modal):
                 amount=amount_value,
                 total_count=count_value,
                 interval_hours=interval_value,
+                add_buy_multiplier=multiplier_value,
+                target_profit_rate=target_profit_value,
+                price_drop_threshold=price_drop_value,
+                force_stop_loss_rate=force_stop_loss_value,
             )
 
             embed = await self.ui_usecase.create_trade_complete_embed(trade_data)

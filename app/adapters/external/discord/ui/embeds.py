@@ -42,56 +42,34 @@ def create_balance_embed(balance_data: dict[str, Any]) -> discord.Embed:
     return embed
 
 
-def create_dca_status_embed(dca_data: dict[str, Any]) -> discord.Embed:
+def create_dca_status_embed(dca_list: list[dict[str, Any]]) -> discord.Embed:
     """DCA 상태 조회 Embed 생성"""
     embed = discord.Embed(title="📊 DCA 상태", color=0x0099FF, timestamp=now_kst())
-    current_count = dca_data.get("current_count", 0)
-    total_count = dca_data.get("total_count", 0)
-    progress_rate = (current_count / total_count * 100) if total_count > 0 else 0
-    progress_bar = "█" * int(progress_rate / 10) + "░" * (10 - int(progress_rate / 10))
-    embed.add_field(
-        name="📈 진행률",
-        value=f"{progress_bar} {progress_rate:.1f}%\n({current_count}/{total_count}회)",
-        inline=False,
-    )
-    next_buy_time = dca_data.get("next_buy_time")
-    if next_buy_time:
-        embed.add_field(
-            name="⏰ 다음 매수",
-            value=f"<t:{int(next_buy_time.timestamp())}:R>",
-            inline=True,
+
+    if not dca_list:
+        embed.description = "진행중인 DCA가 없습니다."
+        return embed
+
+    for data in dca_list:
+        current_count = data.get("current_count", 0)
+        total_count = data.get("total_count", 0)
+        progress_rate = (current_count / total_count * 100) if total_count > 0 else 0
+        progress_bar = "█" * int(progress_rate / 10) + "░" * (
+            10 - int(progress_rate / 10)
         )
-    avg_price = dca_data.get("average_price", 0)
-    current_price = dca_data.get("current_price", 0)
-    embed.add_field(name="💰 평균 매입가", value=f"₩ {avg_price:,.0f}", inline=True)
-    embed.add_field(name="📊 현재가", value=f"₩ {current_price:,.0f}", inline=True)
-    profit_rate = dca_data.get("profit_rate", 0)
-    profit_emoji = "📈" if profit_rate >= 0 else "📉"
-    profit_color = "🟢" if profit_rate >= 0 else "🔴"
-    embed.add_field(
-        name=f"{profit_emoji} 현재 수익률",
-        value=f"{profit_color} {profit_rate:+.2f}%",
-        inline=True,
-    )
-    total_invested = dca_data.get("total_invested", 0)
-    embed.add_field(
-        name="💸 누적 투자액", value=f"₩ {total_invested:,.0f}", inline=True
-    )
-    recent_trades = dca_data.get("recent_trades", [])
-    if recent_trades:
-        trades_text = ""
-        for trade in recent_trades[:5]:
-            trade_time = trade.get("time", "")
-            trade_price = trade.get("price", 0)
-            trade_amount = trade.get("amount", 0)
-            trades_text += (
-                f"• {trade_time}: ₩ {trade_price:,.0f} ({trade_amount:,.0f}원)\n"
-            )
-        embed.add_field(
-            name="📝 최근 체결 내역",
-            value=trades_text or "체결 내역이 없습니다.",
-            inline=False,
+        symbol = data.get("symbol", "")
+        profit_rate = data.get("profit_rate", 0)
+        profit_emoji = "📈" if profit_rate >= 0 else "📉"
+        profit_color = "🟢" if profit_rate >= 0 else "🔴"
+        field_value = (
+            f"{progress_bar} {progress_rate:.1f}%\n"
+            f"평균가: ₩ {data.get('average_price', 0):,.0f}\n"
+            f"현재가: ₩ {data.get('current_price', 0):,.0f}\n"
+            f"{profit_emoji} 수익률: {profit_color} {profit_rate:+.2f}%\n"
+            f"누적 투자액: ₩ {data.get('total_invested', 0):,.0f}"
         )
+        embed.add_field(name=f"🪙 {symbol}", value=field_value, inline=False)
+
     embed.set_footer(text="TTM Bot • 실시간 데이터")
     return embed
 

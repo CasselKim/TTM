@@ -2,6 +2,7 @@
 
 import logging
 from typing import Any
+from decimal import Decimal
 
 from app.adapters.external.discord.ui.embeds import (
     create_balance_embed,
@@ -110,99 +111,80 @@ class DiscordUIUseCase:
                 "holdings": [],
             }
 
-    async def get_dca_status_data(self, user_id: str) -> dict[str, Any]:
+    async def get_dca_status_data(self, user_id: str) -> list[dict[str, Any]]:
         """DCA 상태 데이터 조회"""
         try:
             # 활성 마켓 조회
             active_markets = await self.dca_usecase.get_active_markets()
 
             if not active_markets:
-                return {
-                    "symbol": "",
-                    "current_count": 0,
-                    "total_count": 0,
-                    "next_buy_time": None,
-                    "average_price": 0,
-                    "current_price": 0,
-                    "profit_rate": 0.0,
-                    "total_invested": 0,
-                    "recent_trades": [],
-                }
+                return []
 
-            # 첫 번째 활성 마켓의 상태 조회 (단일 사용자 가정)
-            first_market = active_markets[0]
-            market_status = await self.dca_usecase.get_dca_market_status(first_market)
+            dca_list: list[dict[str, Any]] = []
+            for market_name in active_markets:
+                market_status = await self.dca_usecase.get_dca_market_status(
+                    market_name
+                )
+                state = await self.dca_usecase.dca_repository.get_state(market_name)
+                config = await self.dca_usecase.dca_repository.get_config(market_name)
 
-            # 직접 state 조회 (시간 기반 매수 정보를 위해)
-            state = await self.dca_usecase.dca_repository.get_state(first_market)
+                max_buy_rounds = config.max_buy_rounds if config else 10
+                symbol = (
+                    market_name.split("-")[1] if "-" in market_name else market_name
+                )
 
-            # 설정 정보 조회
-            config = await self.dca_usecase.dca_repository.get_config(first_market)
-            max_buy_rounds = config.max_buy_rounds if config else 10
+                recent_trades = []
+                for round_info in market_status.buying_rounds[-5:]:
+                    recent_trades.append(
+                        {
+                            "time": to_kst(round_info.timestamp).strftime(
+                                "%Y-%m-%d %H:%M"
+                            )
+                            if round_info.timestamp
+                            else "",
+                            "price": float(round_info.buy_price),
+                            "amount": float(round_info.buy_amount),
+                        }
+                    )
 
-            # 심볼 추출 (KRW-BTC -> BTC)
-            symbol = first_market.split("-")[1] if "-" in first_market else first_market
+                next_buy_time = None
+                if config and config.enable_time_based_buying and state:
+                    from datetime import timedelta
 
-            # 최근 거래 내역 구성
-            recent_trades = []
-            for round_info in market_status.buying_rounds[-5:]:  # 최근 5개
-                recent_trades.append(
+                    if state.last_time_based_buy_time:
+                        interval_hours = config.time_based_buy_interval_hours
+                        next_buy_time = state.last_time_based_buy_time + timedelta(
+                            hours=interval_hours
+                        )
+                    elif state.cycle_start_time:
+                        interval_hours = config.time_based_buy_interval_hours
+                        next_buy_time = state.cycle_start_time + timedelta(
+                            hours=interval_hours
+                        )
+
+                dca_list.append(
                     {
-                        "time": to_kst(round_info.timestamp).strftime("%Y-%m-%d %H:%M")
-                        if round_info.timestamp
-                        else "",
-                        "price": float(round_info.buy_price),
-                        "amount": float(round_info.buy_amount),
+                        "symbol": symbol,
+                        "current_count": market_status.current_round,
+                        "total_count": max_buy_rounds,
+                        "next_buy_time": next_buy_time,
+                        "average_price": float(market_status.average_price),
+                        "current_price": float(market_status.current_price)
+                        if market_status.current_price
+                        else 0,
+                        "profit_rate": float(market_status.current_profit_rate)
+                        if market_status.current_profit_rate
+                        else 0.0,
+                        "total_invested": float(market_status.total_investment),
+                        "recent_trades": recent_trades,
                     }
                 )
 
-            # 다음 시간 기반 매수 시간 계산
-            next_buy_time = None
-            if config and config.enable_time_based_buying and state:
-                from datetime import timedelta
-
-                if state.last_time_based_buy_time:
-                    # 마지막 시간 기반 매수로부터 설정된 간격 후
-                    interval_hours = config.time_based_buy_interval_hours
-                    next_buy_time = state.last_time_based_buy_time + timedelta(
-                        hours=interval_hours
-                    )
-                elif state.cycle_start_time:
-                    # 아직 시간 기반 매수가 없다면 사이클 시작 후 첫 번째 간격
-                    interval_hours = config.time_based_buy_interval_hours
-                    next_buy_time = state.cycle_start_time + timedelta(
-                        hours=interval_hours
-                    )
-
-            return {
-                "symbol": symbol,
-                "current_count": market_status.current_round,
-                "total_count": max_buy_rounds,
-                "next_buy_time": next_buy_time,
-                "average_price": float(market_status.average_price),
-                "current_price": float(market_status.current_price)
-                if market_status.current_price
-                else 0,
-                "profit_rate": float(market_status.current_profit_rate)
-                if market_status.current_profit_rate
-                else 0.0,
-                "total_invested": float(market_status.total_investment),
-                "recent_trades": recent_trades,
-            }
+            return dca_list
 
         except Exception as e:
             logger.exception(f"DCA 상태 조회 중 오류 (user_id: {user_id}): {e}")
-            return {
-                "symbol": "",
-                "current_count": 0,
-                "total_count": 0,
-                "next_buy_time": None,
-                "average_price": 0,
-                "current_price": 0,
-                "profit_rate": 0.0,
-                "total_invested": 0,
-                "recent_trades": [],
-            }
+            return []
 
     async def get_profit_data(self, user_id: str) -> dict[str, Any]:
         """수익률 데이터 조회"""
@@ -281,17 +263,32 @@ class DiscordUIUseCase:
         amount: int,
         total_count: int,
         interval_hours: int,
+        *,
+        add_buy_multiplier: Decimal | None = None,
+        target_profit_rate: Decimal | None = None,
+        price_drop_threshold: Decimal | None = None,
+        force_stop_loss_rate: Decimal | None = None,
     ) -> dict[str, Any]:
         """매매 실행"""
         try:
             # 실제 DCA 시작
             market_name = f"KRW-{symbol}"
-            result = await self.dca_usecase.start(
-                market=market_name,
-                initial_buy_amount=amount,
-                max_buy_rounds=total_count,
-                time_based_buy_interval_hours=interval_hours,
-            )
+            start_kwargs: dict[str, Any] = {
+                "market": market_name,
+                "initial_buy_amount": amount,
+                "max_buy_rounds": total_count,
+                "time_based_buy_interval_hours": interval_hours,
+            }
+            if add_buy_multiplier is not None:
+                start_kwargs["add_buy_multiplier"] = add_buy_multiplier
+            if target_profit_rate is not None:
+                start_kwargs["target_profit_rate"] = target_profit_rate
+            if price_drop_threshold is not None:
+                start_kwargs["price_drop_threshold"] = price_drop_threshold
+            if force_stop_loss_rate is not None:
+                start_kwargs["force_stop_loss_rate"] = force_stop_loss_rate
+
+            result = await self.dca_usecase.start(**start_kwargs)
 
             if not result.success:
                 raise Exception(f"DCA 시작 실패: {result.message}")
@@ -306,6 +303,18 @@ class DiscordUIUseCase:
                 "amount": amount,
                 "total_count": total_count,
                 "interval_hours": interval_hours,
+                "add_buy_multiplier": float(add_buy_multiplier)
+                if add_buy_multiplier is not None
+                else None,
+                "target_profit_rate": float(target_profit_rate)
+                if target_profit_rate is not None
+                else None,
+                "price_drop_threshold": float(price_drop_threshold)
+                if price_drop_threshold is not None
+                else None,
+                "force_stop_loss_rate": float(force_stop_loss_rate)
+                if force_stop_loss_rate is not None
+                else None,
                 "trade_id": result.current_state.cycle_id
                 if result.current_state
                 else None,
@@ -456,8 +465,8 @@ class DiscordUIUseCase:
 
     async def create_dca_status_embed(self, user_id: str) -> Any:
         """DCA 상태 Embed 생성"""
-        dca_data = await self.get_dca_status_data(user_id)
-        return create_dca_status_embed(dca_data)
+        dca_data_list = await self.get_dca_status_data(user_id)
+        return create_dca_status_embed(dca_data_list)
 
     async def create_profit_embed(self, user_id: str) -> Any:
         """수익률 Embed 생성"""

@@ -286,7 +286,7 @@ class DiscordUIUseCase:
         try:
             # 실제 DCA 시작
             market_name = f"KRW-{symbol}"
-            result = await self.dca_usecase.start_dca(
+            result = await self.dca_usecase.start(
                 market=market_name,
                 initial_buy_amount=amount,
                 max_buy_rounds=total_count,
@@ -339,7 +339,7 @@ class DiscordUIUseCase:
             config = await self.dca_usecase.dca_repository.get_config(first_market)
 
             # 실제 DCA 중단
-            result = await self.dca_usecase.stop_dca(
+            result = await self.dca_usecase.stop(
                 market=first_market,
                 force_sell=False,  # 강제 매도는 하지 않음
             )
@@ -404,7 +404,7 @@ class DiscordUIUseCase:
             symbol = market.split("-")[1] if "-" in market else market
 
             # 실제 DCA 중단
-            result = await self.dca_usecase.stop_dca(
+            result = await self.dca_usecase.stop(
                 market=market,
                 force_sell=force_sell,
             )

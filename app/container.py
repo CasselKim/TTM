@@ -15,6 +15,7 @@ from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
 from app.domain.repositories.notification_repository import NotificationRepository
+from app.domain.services.dca_service import DcaService
 from common.discord.bot import DiscordBot
 
 
@@ -55,6 +56,11 @@ class Container(containers.DeclarativeContainer):
         config=cache_config,
     )
 
+    # Services
+    dca_service = providers.Singleton(
+        DcaService,
+    )
+
     # Use cases
     account_usecase = providers.Singleton(
         AccountUseCase,
@@ -81,6 +87,7 @@ class Container(containers.DeclarativeContainer):
         ticker_repository=upbit_adapter,
         dca_repository=dca_repository,
         notification_repo=notification_adapter,
+        dca_service=dca_service,
     )
 
     discord_ui_usecase = providers.Singleton(

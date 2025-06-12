@@ -249,18 +249,20 @@ class DcaSelectionView(discord.ui.View):
     ) -> None:
         if not self.selected_market:
             embed = discord.Embed(
-                title="❌ 선택 오류",
+                title="⚠️ 선택 필요",
                 description="중단할 DCA를 먼저 선택해주세요.",
-                color=0xFF0000,
+                color=0xFFA500,
             )
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
         # 선택된 DCA 정보 찾기
-        selected_dca = next(
-            (dca for dca in self.dca_list if dca["market"] == self.selected_market),
-            None,
-        )
+        selected_dca = None
+        for dca in self.dca_list:
+            if dca["market"] == self.selected_market:
+                selected_dca = dca
+                break
+
         if not selected_dca:
             embed = discord.Embed(
                 title="❌ 오류",
@@ -270,22 +272,21 @@ class DcaSelectionView(discord.ui.View):
             await interaction.response.send_message(embed=embed, ephemeral=True)
             return
 
-        # 중단 옵션 선택 화면으로 이동
+        # DCA 중단 옵션 화면으로 이동
+
         embed = discord.Embed(
-            title="⚠️ DCA 중단 옵션 선택",
-            description=f"**{selected_dca['symbol']}** DCA를 어떻게 중단하시겠습니까?\n\n"
-            f"**현재 상태:**\n"
-            f"• 진행: {selected_dca['current_round']}/{selected_dca['max_rounds']}회\n"
-            f"• 총 투자: {selected_dca['total_investment']:,.0f}원\n"
-            f"• 수익률: {selected_dca['profit_rate']:.2f}%\n\n"
-            f"**옵션:**\n"
-            f"🛑 **중단만 하기**: DCA만 중단하고 코인은 보관\n"
-            f"💸 **강제매도**: DCA 중단 후 보유 코인 전량 매도",
+            title=f"⏹️ {self.selected_market} DCA 중단 방식 선택",
+            description=f"**진행 정보:**\n"
+            f"• 매수 완료: {selected_dca.get('executed_count', 0)}회 "
+            f"/ {selected_dca.get('total_count', 0)}회\n"
+            f"• 보유 수량: {selected_dca.get('total_volume', 0):.8f}개\n"
+            f"• 매수 총액: {selected_dca.get('total_krw', 0):,.0f} KRW\n\n"
+            "**중단 방식을 선택하세요:**",
             color=0xFF8C00,
         )
 
         view = DcaStopOptionsView(self.ui_usecase, self.selected_market, selected_dca)
-        await interaction.response.edit_message(embed=embed, view=view)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
 
     @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel_button(
@@ -296,7 +297,7 @@ class DcaSelectionView(discord.ui.View):
             description="DCA 중단이 취소되었습니다.",
             color=0x808080,
         )
-        await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class DcaSelectDropdown(discord.ui.Select[DcaSelectionView]):
@@ -305,43 +306,36 @@ class DcaSelectDropdown(discord.ui.Select[DcaSelectionView]):
     def __init__(self, dca_list: list[dict[str, Any]]) -> None:
         options = []
         for dca in dca_list:
+            market = dca["market"]
+            executed = dca.get("executed_count", 0)
+            total = dca.get("total_count", 0)
+            volume = dca.get("total_volume", 0)
+
             options.append(
                 discord.SelectOption(
-                    label=dca["display_name"],
-                    description=dca["description"],
-                    value=dca["market"],
-                    emoji="📈",
+                    label=f"{market} DCA",
+                    description=f"진행: {executed}/{total}회, 보유: {volume:.4f}개",
+                    value=market,
                 )
             )
 
-        super().__init__(
-            placeholder="중단할 DCA를 선택하세요...",
-            min_values=1,
-            max_values=1,
-            options=options,
-        )
+        super().__init__(placeholder="중단할 DCA를 선택하세요...", options=options)
 
     async def callback(self, interaction: discord.Interaction) -> None:
         if self.view:
             self.view.selected_market = self.values[0]
 
-        # 선택 완료 메시지
-        selected_option = next(
-            (opt for opt in self.options if opt.value == self.values[0]), None
+        embed = discord.Embed(
+            title="✅ DCA 선택됨",
+            description=f"**{self.values[0]} DCA**가 선택되었습니다.\n\n"
+            "**선택된 DCA 중단** 버튼을 클릭하여 계속 진행하세요.",
+            color=0x00FF00,
         )
-        if selected_option:
-            embed = discord.Embed(
-                title="✅ DCA 선택됨",
-                description=f"**{selected_option.label}**이(가) 선택되었습니다.\n\n"
-                f"{selected_option.description}\n\n"
-                f"아래 버튼을 클릭하여 중단 진행하세요.",
-                color=0x00FF00,
-            )
-            await interaction.response.edit_message(embed=embed, view=self.view)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class DcaStopOptionsView(discord.ui.View):
-    """DCA 중단 옵션 선택 View"""
+    """DCA 중단 옵션 View"""
 
     def __init__(
         self, ui_usecase: "DiscordUIUseCase", market: str, dca_info: dict[str, Any]
@@ -357,39 +351,58 @@ class DcaStopOptionsView(discord.ui.View):
     async def stop_only(
         self, interaction: discord.Interaction, button: discord.ui.Button[Any]
     ) -> None:
-        await interaction.response.defer()
-
-        # DCA 중단 실행 (강제매도 X)
-        result = await self.ui_usecase.stop_selected_dca(
-            user_id=str(interaction.user.id), market=self.market, force_sell=False
-        )
-
-        # 결과 표시
-        view = DcaStopResultView(result)
-        embed = view.create_result_embed()
-        if interaction.message:
-            await interaction.followup.edit_message(
-                message_id=interaction.message.id, embed=embed, view=view
+        await interaction.response.defer(ephemeral=True)
+        try:
+            user_id = str(interaction.user.id)
+            result = await self.ui_usecase.stop_selected_dca(
+                user_id, self.market, force_sell=False
             )
+
+            embed = discord.Embed(
+                title="🛑 DCA 중단 완료",
+                description=f"**{self.market} DCA**가 성공적으로 중단되었습니다.\n\n"
+                f"보유하신 코인은 그대로 지갑에 남아있습니다.",
+                color=0x00AA00,
+            )
+
+            view = DcaStopResultView(result)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        except Exception as e:
+            logger.exception(f"DCA 중단 처리 중 오류: {e}")
+            embed = discord.Embed(
+                title="❌ 중단 실패",
+                description="DCA 중단 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
+                color=0xFF0000,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="강제매도", style=discord.ButtonStyle.danger, emoji="💸")
     async def force_sell(
         self, interaction: discord.Interaction, button: discord.ui.Button[Any]
     ) -> None:
-        await interaction.response.defer()
-
-        # DCA 중단 + 강제매도 실행
-        result = await self.ui_usecase.stop_selected_dca(
-            user_id=str(interaction.user.id), market=self.market, force_sell=True
-        )
-
-        # 결과 표시
-        view = DcaStopResultView(result)
-        embed = view.create_result_embed()
-        if interaction.message:
-            await interaction.followup.edit_message(
-                message_id=interaction.message.id, embed=embed, view=view
+        await interaction.response.defer(ephemeral=True)
+        try:
+            user_id = str(interaction.user.id)
+            result = await self.ui_usecase.stop_selected_dca(
+                user_id, self.market, force_sell=True
             )
+
+            embed = discord.Embed(
+                title="💸 DCA 중단 및 매도 완료",
+                description=f"**{self.market} DCA**가 중단되고 보유 코인이 전량 매도되었습니다.",
+                color=0xFF6600,
+            )
+
+            view = DcaStopResultView(result)
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        except Exception as e:
+            logger.exception(f"DCA 중단 및 매도 처리 중 오류: {e}")
+            embed = discord.Embed(
+                title="❌ 처리 실패",
+                description="DCA 중단 및 매도 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
+                color=0xFF0000,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
 
     @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel_button(
@@ -400,240 +413,45 @@ class DcaStopOptionsView(discord.ui.View):
             description="DCA 중단이 취소되었습니다.",
             color=0x808080,
         )
-        await interaction.response.edit_message(embed=embed, view=None)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class DcaStopResultView(discord.ui.View):
     """DCA 중단 결과 View"""
 
     def __init__(self, result: dict[str, Any]) -> None:
-        super().__init__(timeout=None)
+        super().__init__(timeout=300)
         self.result = result
 
     def create_result_embed(self) -> discord.Embed:
-        """결과 Embed 생성"""
-        if self.result.get("success", False):
-            title = f"✅ DCA {self.result['action_type']} 완료"
-            color = 0x00FF00
-            description = (
-                f"**{self.result['symbol']}** DCA가 성공적으로 {self.result['action_type']}되었습니다.\n\n"
-                f"**완료된 매수:** {self.result['completed_count']}/{self.result['total_count']}회\n"
-                f"**총 투자금액:** {self.result['total_invested']:,.0f}원\n"
-                f"**최종 수익률:** {self.result['final_profit_rate']:.2f}%\n\n"
-                f"**메시지:** {self.result['message']}"
-            )
-        else:
-            title = f"❌ DCA {self.result['action_type']} 실패"
-            color = 0xFF0000
-            description = (
-                f"**{self.result['symbol']}** DCA {self.result['action_type']} 중 오류가 발생했습니다.\n\n"
-                f"**오류 메시지:** {self.result['message']}"
-            )
-
+        """결과 embed 생성"""
         embed = discord.Embed(
-            title=title,
-            description=description,
-            color=color,
+            title="📊 DCA 중단 결과",
+            color=0x0099FF,
             timestamp=now_kst(),
         )
 
+        if "sell_info" in self.result:
+            sell_info = self.result["sell_info"]
+            embed.add_field(
+                name="💰 매도 정보",
+                value=f"매도량: {sell_info.get('volume', 0):.8f}\n"
+                f"매도가: {sell_info.get('price', 0):,.0f} KRW\n"
+                f"수수료: {sell_info.get('fee', 0):,.0f} KRW\n"
+                f"실수령액: {sell_info.get('net_amount', 0):,.0f} KRW",
+                inline=False,
+            )
+
+        embed.add_field(
+            name="📈 최종 수익률",
+            value=f"{self.result.get('final_profit_rate', 0):.2f}%",
+            inline=True,
+        )
+
+        embed.add_field(
+            name="💵 총 손익",
+            value=f"{self.result.get('total_profit', 0):,.0f} KRW",
+            inline=True,
+        )
+
         return embed
-
-
-class BalanceButton(discord.ui.Button[Any]):
-    """잔고 조회 버튼"""
-
-    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
-        super().__init__(
-            label="잔고", style=discord.ButtonStyle.primary, emoji="💰", row=0
-        )
-        self.ui_usecase = ui_usecase
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
-        try:
-            user_id = str(interaction.user.id)
-            logger.info(f"잔고 조회 시작 (user_id: {user_id})")
-
-            embed = await self.ui_usecase.create_balance_embed(user_id)
-            logger.info(f"embed 생성 완료 (user_id: {user_id})")
-
-            if not is_embed_valid(embed):
-                logger.warning(f"유효하지 않은 잔고 embed 생성됨 (user_id: {user_id})")
-                embed = create_fallback_embed("잔고")
-
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            logger.info(f"잔고 조회 응답 완료 (user_id: {user_id})")
-        except Exception as e:
-            logger.exception(
-                f"잔고 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
-            )
-            embed = discord.Embed(
-                title="❌ 오류 발생",
-                description="잔고 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
-                color=0xFF0000,
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-class DCAStatusButton(discord.ui.Button[Any]):
-    """DCA 상태 조회 버튼"""
-
-    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
-        super().__init__(
-            label="DCA 상태", style=discord.ButtonStyle.secondary, emoji="📊", row=0
-        )
-        self.ui_usecase = ui_usecase
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
-        try:
-            user_id = str(interaction.user.id)
-            logger.info(f"DCA 상태 조회 시작 (user_id: {user_id})")
-
-            embed = await self.ui_usecase.create_dca_status_embed(user_id)
-            logger.info(f"embed 생성 완료 (user_id: {user_id})")
-
-            if not is_embed_valid(embed):
-                logger.warning(
-                    f"유효하지 않은 DCA 상태 embed 생성됨 (user_id: {user_id})"
-                )
-                embed = create_fallback_embed("DCA 상태")
-
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            logger.info(f"DCA 상태 조회 응답 완료 (user_id: {user_id})")
-        except Exception as e:
-            logger.exception(
-                f"DCA 상태 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
-            )
-            embed = discord.Embed(
-                title="❌ 오류 발생",
-                description="DCA 상태 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
-                color=0xFF0000,
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-class ProfitButton(discord.ui.Button[Any]):
-    """수익률 조회 버튼"""
-
-    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
-        super().__init__(
-            label="수익률", style=discord.ButtonStyle.secondary, emoji="📈", row=0
-        )
-        self.ui_usecase = ui_usecase
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
-        try:
-            user_id = str(interaction.user.id)
-            logger.info(f"수익률 조회 시작 (user_id: {user_id})")
-
-            logger.debug(
-                f"ui_usecase.create_profit_embed 호출 시작 (user_id: {user_id})"
-            )
-            embed = await self.ui_usecase.create_profit_embed(user_id)
-            logger.debug(
-                f"ui_usecase.create_profit_embed 호출 완료 (user_id: {user_id}), embed is None: {embed is None}"
-            )
-
-            logger.info(f"embed 생성 완료 (user_id: {user_id})")
-
-            if not is_embed_valid(embed):
-                logger.warning(
-                    f"유효하지 않은 수익률 embed 생성됨 (user_id: {user_id})"
-                )
-                embed = create_fallback_embed("수익률")
-
-            await interaction.followup.send(embed=embed, ephemeral=True)
-            logger.info(f"수익률 조회 응답 완료 (user_id: {user_id})")
-        except Exception as e:
-            logger.exception(
-                f"수익률 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
-            )
-            embed = discord.Embed(
-                title="❌ 오류 발생",
-                description="수익률 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
-                color=0xFF0000,
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-class TradeExecuteButton(discord.ui.Button[Any]):
-    """매매 실행 버튼"""
-
-    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
-        super().__init__(
-            label="매매 실행", style=discord.ButtonStyle.success, emoji="▶️", row=1
-        )
-        self.ui_usecase = ui_usecase
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        modal = TradeModal(self.ui_usecase)
-        await interaction.response.send_modal(modal)
-
-
-class TradeStopButton(discord.ui.Button[Any]):
-    """매매 중단 버튼"""
-
-    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
-        super().__init__(
-            label="매매 중단", style=discord.ButtonStyle.danger, emoji="⏹️", row=1
-        )
-        self.ui_usecase = ui_usecase
-
-    async def callback(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
-
-        try:
-            # 진행중인 DCA 목록 조회
-            user_id = str(interaction.user.id)
-            dca_list = await self.ui_usecase.get_active_dca_list(user_id)
-
-            if not dca_list:
-                # 진행중인 DCA가 없는 경우
-                embed = discord.Embed(
-                    title="ℹ️ 진행중인 DCA 없음",
-                    description="현재 진행중인 DCA가 없습니다.\n\n"
-                    "새로운 DCA를 시작하려면 **매매 실행** 버튼을 클릭하세요.",
-                    color=0x808080,
-                )
-                await interaction.followup.send(embed=embed, ephemeral=True)
-                return
-
-            # DCA 선택 화면 표시
-            embed = discord.Embed(
-                title="⏹️ DCA 중단 선택",
-                description=f"**{len(dca_list)}개의 진행중인 DCA**가 있습니다.\n\n"
-                "중단할 DCA를 선택해주세요:\n\n"
-                "• 🛑 **중단만 하기**: DCA만 중단하고 코인은 보관\n"
-                "• 💸 **강제매도**: DCA 중단 후 보유 코인 전량 매도",
-                color=0xFF8C00,
-            )
-
-            view = DcaSelectionView(self.ui_usecase, dca_list)
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-
-        except Exception as e:
-            logger.exception(
-                f"DCA 중단 화면 표시 중 오류 (user_id: {interaction.user.id}): {e}"
-            )
-            embed = discord.Embed(
-                title="❌ 오류 발생",
-                description="DCA 목록을 불러오는 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
-                color=0xFF0000,
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
-
-
-class MainMenuView(discord.ui.View):
-    """메인 메뉴 Persistent View"""
-
-    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
-        super().__init__(timeout=None)
-        self.ui_usecase = ui_usecase
-        self.add_item(BalanceButton(ui_usecase))
-        self.add_item(DCAStatusButton(ui_usecase))
-        self.add_item(ProfitButton(ui_usecase))
-        self.add_item(TradeExecuteButton(ui_usecase))
-        self.add_item(TradeStopButton(ui_usecase))

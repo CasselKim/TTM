@@ -55,7 +55,7 @@ class DcaScheduler:
     async def _process_market(self, market: MarketName) -> None:
         """단일 시장에 대한 DCA 사이클 처리"""
         try:
-            result = await self.dca_usecase.execute_dca_cycle(market)
+            result = await self.dca_usecase.run(market)
             await self._handle_cycle_result(market, result)
         except Exception as e:
             logger.error(

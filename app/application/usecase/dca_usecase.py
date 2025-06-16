@@ -3,6 +3,7 @@ from decimal import Decimal
 from typing import Any
 
 from app.domain.enums import TradingAction
+from app.domain.models.dca import BuyType
 from app.domain.exceptions import ConfigSaveError, StateSaveError
 from app.domain.models.account import Account
 from app.domain.models.dca import (
@@ -145,7 +146,12 @@ class DcaUsecase:
             )
 
         await self.dca_service.execute_buy(
-            market_data, initial_buy_amount, config, state
+            market_data,
+            initial_buy_amount,
+            config,
+            state,
+            buy_type=BuyType.INITIAL,
+            reason="초기 매수",
         )
         await self.dca_repository.save_state(market, state)
 
@@ -312,6 +318,8 @@ class DcaUsecase:
             buy_amount,
             config,
             state,
+            buy_type=BuyType.PRICE_DROP,
+            reason=getattr(signal, "reason", None),
         )
         await self.dca_repository.save_state(market, state)
         return result
@@ -479,6 +487,7 @@ class DcaUsecase:
                     buy_amount=Decimal(str(buy_round.buy_amount)),
                     buy_volume=buy_round.buy_volume,
                     timestamp=buy_round.timestamp,
+                    reason=buy_round.reason,
                 )
             )
 

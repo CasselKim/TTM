@@ -119,6 +119,7 @@ class BuyingRoundInfo(BaseModel):
     buy_amount: Decimal
     buy_volume: Decimal
     timestamp: datetime
+    reason: str | None = None
 
     @field_serializer("buy_price", "buy_amount", "buy_volume")
     def serialize_decimal(self, value: Decimal) -> float:

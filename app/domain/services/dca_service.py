@@ -165,7 +165,8 @@ class DcaService:
         buy_amount: int,
         config: DcaConfig,
         state: DcaState,
-        buy_type: BuyType = BuyType.INITIAL,
+        buy_type: BuyType | None = None,
+        reason: str | None = None,
     ) -> DcaResult:
         """
         매수 실행 및 상태 업데이트
@@ -183,7 +184,8 @@ class DcaService:
                 buy_amount=buy_amount,
                 buy_volume=buy_volume,
                 timestamp=datetime.now(),
-                buy_type=buy_type,
+                buy_type=buy_type if buy_type is not None else BuyType.PRICE_DROP,
+                reason=reason,
             )
 
             # 상태 업데이트

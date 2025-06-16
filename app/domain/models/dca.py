@@ -128,6 +128,7 @@ class BuyingRound(BaseModel):
     buy_volume: Decimal  # 매수 수량 (코인)
     timestamp: datetime  # 매수 시점
     buy_type: BuyType = BuyType.PRICE_DROP  # 매수 타입
+    reason: str | None = None  # 매수 사유 (시간/하락 등)
 
     @field_validator("buy_price", "buy_volume", mode="before")
     @classmethod

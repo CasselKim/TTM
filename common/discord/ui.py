@@ -94,11 +94,12 @@ class TradeCompleteView(discord.ui.View):
 
 
 class TradeModal(discord.ui.Modal):
-    """매매 실행 모달"""
+    """매매 실행 모달 (필수값만 입력)"""
 
     def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(title="📈 자동매매 실행")
         self.ui_usecase = ui_usecase
+        self.advanced_data = None  # Advanced 옵션 값 저장용
 
     symbol: discord.ui.TextInput[Any] = discord.ui.TextInput(
         label="코인 심볼",
@@ -131,6 +132,97 @@ class TradeModal(discord.ui.Modal):
         style=discord.TextStyle.short,
         default="1.5",
     )
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        # advanced 옵션 입력 여부를 묻는 버튼 View를 띄운다
+        from discord.ui import View, Button
+
+        class AdvancedOptionView(View):
+            def __init__(self, modal: TradeModal, values: dict[str, Any]):
+                super().__init__(timeout=60)
+                self.modal = modal
+                self.values = values
+
+            @discord.ui.button(
+                label="고급 옵션 입력", style=discord.ButtonStyle.primary
+            )
+            async def advanced(self, interaction: discord.Interaction, button: Button):
+                self.stop()
+                await interaction.response.send_modal(
+                    AdvancedTradeModal(self.modal.ui_usecase, self.values)
+                )
+
+            @discord.ui.button(
+                label="기본값으로 진행", style=discord.ButtonStyle.secondary
+            )
+            async def skip(self, interaction: discord.Interaction, button: Button):
+                self.stop()
+                # 기본값으로 trade 실행
+                await execute_trade_with_advanced(
+                    interaction, self.values, None, self.modal.ui_usecase
+                )
+
+        # 필수값 파싱
+        try:
+            symbol_value = self.symbol.value.upper().strip()
+            amount_value = int(self.amount.value.replace(",", ""))
+            count_value = int(self.total_count.value)
+            interval_value = int(self.interval_hours.value)
+            multiplier_value = Decimal(self.add_buy_multiplier.value)
+
+            if not symbol_value:
+                raise ValueError("코인 심볼을 입력해주세요.")
+            if amount_value <= 0:
+                raise ValueError("매수 금액은 0보다 커야 합니다.")
+            if count_value <= 0:
+                raise ValueError("총 횟수는 0보다 커야 합니다.")
+            if interval_value <= 0:
+                raise ValueError("매수 간격은 0보다 커야 합니다.")
+            if multiplier_value <= 0:
+                raise ValueError("추가 매수 배수는 0보다 커야 합니다.")
+        except Exception as e:
+            embed = discord.Embed(
+                title="❌ 입력 오류",
+                description=f"입력값을 확인해주세요:\n{str(e)}",
+                color=0xFF0000,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
+        values = {
+            "symbol": symbol_value,
+            "amount": amount_value,
+            "total_count": count_value,
+            "interval_hours": interval_value,
+            "add_buy_multiplier": multiplier_value,
+        }
+        view = AdvancedOptionView(self, values)
+        embed = discord.Embed(
+            title="고급 옵션 입력",
+            description="고급 옵션(목표 수익률, 추가 매수 트리거 하락률, 강제 손절률)을 입력하시겠습니까?\n\n'고급 옵션 입력'을 선택하면 추가 입력창이 열립니다.\n'기본값으로 진행'을 선택하면 기본값(목표수익률 10%, 하락률 -2.5%, 손절률 -25%)으로 진행됩니다.",
+            color=0x00BFFF,
+        )
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+
+
+def get_advanced_defaults() -> dict[str, Decimal]:
+    return {
+        "target_profit_rate": Decimal("0.10"),
+        "price_drop_threshold": Decimal("-0.025"),
+        "force_stop_loss_rate": Decimal("-0.25"),
+    }
+
+
+class AdvancedTradeModal(discord.ui.Modal):
+    """고급 옵션 입력 모달"""
+
+    def __init__(
+        self, ui_usecase: "DiscordUIUseCase", base_values: dict[str, Any]
+    ) -> None:
+        super().__init__(title="⚙️ 고급 옵션 입력")
+        self.ui_usecase = ui_usecase
+        self.base_values = base_values
+
     target_profit_rate: discord.ui.TextInput[Any] = discord.ui.TextInput(
         label="목표 수익률 (%)",
         placeholder="예: 10 (10%)",
@@ -154,84 +246,74 @@ class TradeModal(discord.ui.Modal):
     )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        await interaction.response.defer(ephemeral=True)
         try:
-            symbol_value = self.symbol.value.upper().strip()
-            amount_value = int(self.amount.value.replace(",", ""))
-            count_value = int(self.total_count.value)
-            interval_value = int(self.interval_hours.value)
+            target_profit_value = Decimal(self.target_profit_rate.value) / Decimal(
+                "100"
+            )
+            price_drop_value = Decimal(self.price_drop_threshold.value) / Decimal("100")
+            force_stop_loss_value = Decimal(self.force_stop_loss_rate.value) / Decimal(
+                "100"
+            )
 
-            # 추가 매수 배수 파싱
-            try:
-                multiplier_value = Decimal(self.add_buy_multiplier.value)
-            except Exception as exc:
-                raise ValueError("추가 매수 배수는 숫자여야 합니다.") from exc
-
-            # 목표 수익률 등 파싱 (% 입력)
-            try:
-                target_profit_value = Decimal(self.target_profit_rate.value) / Decimal(
-                    "100"
-                )
-                price_drop_value = Decimal(self.price_drop_threshold.value) / Decimal(
-                    "100"
-                )
-                force_stop_loss_value = Decimal(
-                    self.force_stop_loss_rate.value
-                ) / Decimal("100")
-            except Exception as exc:
-                raise ValueError("수익률/손절률 값은 숫자여야 합니다.") from exc
-
-            if multiplier_value <= 0:
-                raise ValueError("추가 매수 배수는 0보다 커야 합니다.")
             if target_profit_value <= 0:
                 raise ValueError("목표 수익률은 0보다 커야 합니다.")
             if price_drop_value >= 0:
                 raise ValueError("추가 매수 하락률은 0보다 작아야 합니다.")
             if force_stop_loss_value >= 0:
                 raise ValueError("강제 손절률은 0보다 작아야 합니다.")
-
-            if not symbol_value:
-                raise ValueError("코인 심볼을 입력해주세요.")
-            if amount_value <= 0:
-                raise ValueError("매수 금액은 0보다 커야 합니다.")
-            if count_value <= 0:
-                raise ValueError("총 횟수는 0보다 커야 합니다.")
-            if interval_value <= 0:
-                raise ValueError("매수 간격은 0보다 커야 합니다.")
-
-            user_id = str(interaction.user.id)
-            trade_data = await self.ui_usecase.execute_trade(
-                user_id=user_id,
-                symbol=symbol_value,
-                amount=amount_value,
-                total_count=count_value,
-                interval_hours=interval_value,
-                add_buy_multiplier=multiplier_value,
-                target_profit_rate=target_profit_value,
-                price_drop_threshold=price_drop_value,
-                force_stop_loss_rate=force_stop_loss_value,
-            )
-
-            embed = await self.ui_usecase.create_trade_complete_embed(trade_data)
-            view = TradeCompleteView(self.ui_usecase)
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-        except ValueError as e:
+        except Exception as e:
             embed = discord.Embed(
                 title="❌ 입력 오류",
                 description=f"입력값을 확인해주세요:\n{str(e)}",
                 color=0xFF0000,
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
-        except Exception as e:
-            logger.exception(
-                f"매매 실행 중 오류 발생 (user_id: {interaction.user.id}): {e}"
-            )
-            embed = discord.Embed(
-                title="❌ 오류 발생",
-                description="매매 실행 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
-                color=0xFF0000,
-            )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            return
+
+        advanced = {
+            "target_profit_rate": target_profit_value,
+            "price_drop_threshold": price_drop_value,
+            "force_stop_loss_rate": force_stop_loss_value,
+        }
+        await execute_trade_with_advanced(
+            interaction, self.base_values, advanced, self.ui_usecase
+        )
+
+
+async def execute_trade_with_advanced(
+    interaction: discord.Interaction,
+    base_values: dict[str, Any],
+    advanced: dict[str, Decimal] | None,
+    ui_usecase: "DiscordUIUseCase",
+) -> None:
+    try:
+        user_id = str(interaction.user.id)
+        if advanced is None:
+            advanced = get_advanced_defaults()
+        trade_data = await ui_usecase.execute_trade(
+            user_id=user_id,
+            symbol=base_values["symbol"],
+            amount=base_values["amount"],
+            total_count=base_values["total_count"],
+            interval_hours=base_values["interval_hours"],
+            add_buy_multiplier=base_values["add_buy_multiplier"],
+            target_profit_rate=advanced["target_profit_rate"],
+            price_drop_threshold=advanced["price_drop_threshold"],
+            force_stop_loss_rate=advanced["force_stop_loss_rate"],
+        )
+        embed = await ui_usecase.create_trade_complete_embed(trade_data)
+        view = TradeCompleteView(ui_usecase)
+        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+    except Exception as e:
+        logger.exception(
+            f"매매 실행 중 오류 발생 (user_id: {interaction.user.id}): {e}"
+        )
+        embed = discord.Embed(
+            title="❌ 오류 발생",
+            description="매매 실행 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
+            color=0xFF0000,
+        )
+        await interaction.followup.send(embed=embed, ephemeral=True)
 
 
 class ConfirmationView(discord.ui.View):

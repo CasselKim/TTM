@@ -99,6 +99,7 @@ class TradeModal(discord.ui.Modal):
     def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
         super().__init__(title="📈 자동매매 실행")
         self.ui_usecase = ui_usecase
+        self.advanced_options: dict[str, float] | None = None
         self.advanced_data = None  # Advanced 옵션 값 저장용
 
     symbol: discord.ui.TextInput[Any] = discord.ui.TextInput(

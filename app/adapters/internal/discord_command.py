@@ -159,22 +159,27 @@ class DiscordCommandAdapter(commands.Cog):
     @app_commands.command(
         name="trade_start", description="새로운 자동매매를 시작합니다"
     )
-    async def trade_execute_command(self, interaction: discord.Interaction) -> None:
-        """매매 실행 Slash Command"""
-        try:
-            modal = TradeModal(self.ui_usecase)
-            await interaction.response.send_modal(modal)
-            logger.info(f"매매 실행 모달 표시 완료 (user_id: {interaction.user.id})")
-        except Exception as e:
-            logger.exception(
-                f"매매 실행 모달 표시 중 오류 발생 (user_id: {interaction.user.id}): {e}"
-            )
-            embed = discord.Embed(
-                title="❌ 오류 발생",
-                description="매매 실행 화면을 불러오는 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
-                color=0xFF0000,
-            )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+    @app_commands.describe(
+        target_profit_rate="목표 수익률 (예: 0.1 = 10%, 기본값: 0.1)",
+        price_drop_threshold="추가 매수 트리거 하락률 (예: -0.025 = -2.5%, 기본값: -0.025)",
+        force_stop_loss_rate="강제 손절률 (예: -0.25 = -25%, 기본값: -0.25)",
+    )
+    async def trade_execute_command(
+        self,
+        interaction: discord.Interaction,
+        target_profit_rate: float = 0.1,
+        price_drop_threshold: float = -0.025,
+        force_stop_loss_rate: float = -0.25,
+    ) -> None:
+        modal = TradeModal(self.ui_usecase)
+        # advanced 옵션을 모달에 전달
+        modal.advanced_options = {
+            "target_profit_rate": target_profit_rate,
+            "price_drop_threshold": price_drop_threshold,
+            "force_stop_loss_rate": force_stop_loss_rate,
+        }
+        await interaction.response.send_modal(modal)
+        logger.info(f"매매 실행 모달 표시 완료 (user_id: {interaction.user.id})")
 
     @app_commands.command(
         name="trade_stop", description="진행 중인 자동매매를 중단합니다"

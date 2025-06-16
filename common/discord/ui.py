@@ -364,6 +364,7 @@ class DcaSelectDropdown(discord.ui.Select[DcaSelectionView]):
     async def callback(self, interaction: discord.Interaction) -> None:
         if self.view:
             self.view.selected_market = self.values[0]
+        await interaction.response.defer(ephemeral=True)
 
 
 class DcaStopOptionsView(discord.ui.View):

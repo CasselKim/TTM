@@ -100,7 +100,6 @@ class TradeModal(discord.ui.Modal):
         super().__init__(title="📈 자동매매 실행")
         self.ui_usecase = ui_usecase
         self.advanced_options: dict[str, float] | None = None
-        self.advanced_data = None  # Advanced 옵션 값 저장용
 
     symbol: discord.ui.TextInput[Any] = discord.ui.TextInput(
         label="코인 심볼",
@@ -135,73 +134,8 @@ class TradeModal(discord.ui.Modal):
     )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        from discord.ui import View, Button
         import discord.errors
 
-        expired = getattr(interaction, "expired", None)
-        try:
-            response_done = interaction.response.is_done()
-        except Exception:
-            response_done = False
-        logger.info(
-            f"[DCA-TRACE] TradeModal.on_submit 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={expired}, response_done={response_done}"
-        )
-
-        class AdvancedOptionView(View):
-            def __init__(self, modal: TradeModal, values: dict[str, Any]):
-                super().__init__(timeout=60)
-                self.modal = modal
-                self.values = values
-
-            @discord.ui.button(
-                label="고급 옵션 입력", style=discord.ButtonStyle.primary
-            )
-            async def advanced(
-                self, interaction: discord.Interaction, button: Button[Any]
-            ) -> None:
-                expired = getattr(interaction, "expired", None)
-                try:
-                    response_done = interaction.response.is_done()
-                except Exception:
-                    response_done = False
-                logger.info(
-                    f"[DCA-TRACE] AdvancedOptionView.advanced 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={expired}, response_done={response_done}"
-                )
-                if expired or response_done:
-                    logger.error(
-                        f"[DCA-TRACE] AdvancedOptionView.advanced: interaction expired or already responded. interaction.id={getattr(interaction, 'id', None)}"
-                    )
-                    return
-                self.stop()
-                await interaction.response.send_modal(
-                    AdvancedTradeModal(self.modal.ui_usecase, self.values)
-                )
-
-            @discord.ui.button(
-                label="기본값으로 진행", style=discord.ButtonStyle.secondary
-            )
-            async def skip(
-                self, interaction: discord.Interaction, button: Button[Any]
-            ) -> None:
-                expired = getattr(interaction, "expired", None)
-                try:
-                    response_done = interaction.response.is_done()
-                except Exception:
-                    response_done = False
-                logger.info(
-                    f"[DCA-TRACE] AdvancedOptionView.skip 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={expired}, response_done={response_done}"
-                )
-                if expired or response_done:
-                    logger.error(
-                        f"[DCA-TRACE] AdvancedOptionView.skip: interaction expired or already responded. interaction.id={getattr(interaction, 'id', None)}"
-                    )
-                    return
-                self.stop()
-                await execute_trade_with_advanced(
-                    interaction, self.values, None, self.modal.ui_usecase
-                )
-
-        # 필수값 파싱
         try:
             symbol_value = self.symbol.value.upper().strip()
             amount_value = int(self.amount.value.replace(",", ""))
@@ -226,200 +160,56 @@ class TradeModal(discord.ui.Modal):
                 color=0xFF0000,
             )
             try:
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
             except discord.errors.NotFound:
-                logger.warning(
-                    "[TradeModal.on_submit] interaction expired or already responded (input error)"
-                )
+                pass
             return
 
-        values = {
-            "symbol": symbol_value,
-            "amount": amount_value,
-            "total_count": count_value,
-            "interval_hours": interval_value,
-            "add_buy_multiplier": multiplier_value,
+        # advanced 옵션은 커맨드 파라미터 or 기본값 사용
+        advanced_raw = self.advanced_options or {
+            "target_profit_rate": 0.1,
+            "price_drop_threshold": -0.025,
+            "force_stop_loss_rate": -0.25,
         }
-        view = AdvancedOptionView(self, values)
-        embed = discord.Embed(
-            title="고급 옵션 입력",
-            description="고급 옵션(목표 수익률, 추가 매수 트리거 하락률, 강제 손절률)을 입력하시겠습니까?\n\n'고급 옵션 입력'을 선택하면 추가 입력창이 열립니다.\n'기본값으로 진행'을 선택하면 기본값(목표수익률 10%, 하락률 -2.5%, 손절률 -25%)으로 진행됩니다.",
-            color=0x00BFFF,
-        )
+        advanced = {
+            "target_profit_rate": Decimal(str(advanced_raw["target_profit_rate"])),
+            "price_drop_threshold": Decimal(str(advanced_raw["price_drop_threshold"])),
+            "force_stop_loss_rate": Decimal(str(advanced_raw["force_stop_loss_rate"])),
+        }
+        user_id = str(interaction.user.id)
         try:
+            trade_data = await self.ui_usecase.execute_trade(
+                user_id=user_id,
+                symbol=symbol_value,
+                amount=amount_value,
+                total_count=count_value,
+                interval_hours=interval_value,
+                add_buy_multiplier=multiplier_value,
+                target_profit_rate=advanced["target_profit_rate"],
+                price_drop_threshold=advanced["price_drop_threshold"],
+                force_stop_loss_rate=advanced["force_stop_loss_rate"],
+            )
+            embed = await self.ui_usecase.create_trade_complete_embed(trade_data)
+            view = TradeCompleteView(self.ui_usecase)
             await interaction.response.send_message(
                 embed=embed, view=view, ephemeral=True
             )
-        except discord.errors.NotFound:
-            logger.warning(
-                "[TradeModal.on_submit] interaction expired or already responded (advanced option)"
-            )
-
-
-def get_advanced_defaults() -> dict[str, Decimal]:
-    return {
-        "target_profit_rate": Decimal("0.10"),
-        "price_drop_threshold": Decimal("-0.025"),
-        "force_stop_loss_rate": Decimal("-0.25"),
-    }
-
-
-class AdvancedTradeModal(discord.ui.Modal):
-    """고급 옵션 입력 모달"""
-
-    def __init__(
-        self, ui_usecase: "DiscordUIUseCase", base_values: dict[str, Any]
-    ) -> None:
-        super().__init__(title="⚙️ 고급 옵션 입력")
-        self.ui_usecase = ui_usecase
-        self.base_values = base_values
-
-    target_profit_rate: discord.ui.TextInput[Any] = discord.ui.TextInput(
-        label="목표 수익률 (%)",
-        placeholder="예: 10 (10%)",
-        max_length=6,
-        style=discord.TextStyle.short,
-        default="10",
-    )
-    price_drop_threshold: discord.ui.TextInput[Any] = discord.ui.TextInput(
-        label="추가 매수 트리거 하락률 (%)",
-        placeholder="예: -2.5 (-2.5%)",
-        max_length=6,
-        style=discord.TextStyle.short,
-        default="-2.5",
-    )
-    force_stop_loss_rate: discord.ui.TextInput[Any] = discord.ui.TextInput(
-        label="강제 손절률 (%)",
-        placeholder="예: -25 (-25%)",
-        max_length=6,
-        style=discord.TextStyle.short,
-        default="-25",
-    )
-
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        import discord.errors
-
-        expired = getattr(interaction, "expired", None)
-        try:
-            response_done = interaction.response.is_done()
-        except Exception:
-            response_done = False
-        logger.info(
-            f"[DCA-TRACE] AdvancedTradeModal.on_submit 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={expired}, response_done={response_done}"
-        )
-        if expired or response_done:
-            logger.error(
-                f"[DCA-TRACE] AdvancedTradeModal.on_submit: interaction expired or already responded. interaction.id={getattr(interaction, 'id', None)}"
-            )
-            return
-        # Discord interaction에 반드시 1차 응답을 보낸다 (상호작용 실패 방지)
-        await interaction.response.defer(thinking=True)
-        try:
-            target_profit_value = Decimal(self.target_profit_rate.value) / Decimal(
-                "100"
-            )
-            price_drop_value = Decimal(self.price_drop_threshold.value) / Decimal("100")
-            force_stop_loss_value = Decimal(self.force_stop_loss_rate.value) / Decimal(
-                "100"
-            )
-
-            if target_profit_value <= 0:
-                raise ValueError("목표 수익률은 0보다 커야 합니다.")
-            if price_drop_value >= 0:
-                raise ValueError("추가 매수 하락률은 0보다 작아야 합니다.")
-            if force_stop_loss_value >= 0:
-                raise ValueError("강제 손절률은 0보다 작아야 합니다.")
         except Exception as e:
+            import traceback
+
+            logger = logging.getLogger(__name__)
+            logger.error(
+                f"[DCA-TRACE] TradeModal.on_submit 예외: user_id={user_id}, 예외={e}\n{traceback.format_exc()}"
+            )
             embed = discord.Embed(
-                title="❌ 입력 오류",
-                description=f"입력값을 확인해주세요:\n{str(e)}",
+                title="❌ 오류 발생",
+                description="매매 실행 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
                 color=0xFF0000,
             )
             try:
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.response.send_message(embed=embed, ephemeral=True)
             except discord.errors.NotFound:
-                logger.warning(
-                    "[AdvancedTradeModal.on_submit] interaction expired or already responded (input error)"
-                )
-            return
-
-        advanced = {
-            "target_profit_rate": target_profit_value,
-            "price_drop_threshold": price_drop_value,
-            "force_stop_loss_rate": force_stop_loss_value,
-        }
-        await execute_trade_with_advanced(
-            interaction, self.base_values, advanced, self.ui_usecase
-        )
-
-
-async def execute_trade_with_advanced(
-    interaction: discord.Interaction,
-    base_values: dict[str, Any],
-    advanced: dict[str, Decimal] | None,
-    ui_usecase: "DiscordUIUseCase",
-) -> None:
-    import discord.errors
-    import traceback
-
-    expired = getattr(interaction, "expired", None)
-    try:
-        response_done = interaction.response.is_done()
-    except Exception:
-        response_done = False
-    logger.info(
-        f"[DCA-TRACE] execute_trade_with_advanced 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={expired}, response_done={response_done}"
-    )
-    if expired or response_done:
-        logger.error(
-            f"[DCA-TRACE] execute_trade_with_advanced: interaction expired or already responded. interaction.id={getattr(interaction, 'id', None)}"
-        )
-        return
-    try:
-        user_id = str(interaction.user.id)
-        logger.info(
-            f"[DCA-TRACE] execute_trade_with_advanced 진입: user_id={user_id}, base_values={base_values}, advanced={advanced}"
-        )
-        if advanced is None:
-            advanced = get_advanced_defaults()
-        trade_data = await ui_usecase.execute_trade(
-            user_id=user_id,
-            symbol=base_values["symbol"],
-            amount=base_values["amount"],
-            total_count=base_values["total_count"],
-            interval_hours=base_values["interval_hours"],
-            add_buy_multiplier=base_values["add_buy_multiplier"],
-            target_profit_rate=advanced["target_profit_rate"],
-            price_drop_threshold=advanced["price_drop_threshold"],
-            force_stop_loss_rate=advanced["force_stop_loss_rate"],
-        )
-        logger.info(
-            f"[DCA-TRACE] execute_trade_with_advanced trade_data: user_id={user_id}, trade_data={trade_data}"
-        )
-        embed = await ui_usecase.create_trade_complete_embed(trade_data)
-        view = TradeCompleteView(ui_usecase)
-        try:
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
-        except discord.errors.NotFound:
-            logger.warning(
-                "[execute_trade_with_advanced] interaction expired or already responded (trade complete)"
-            )
-    except Exception as e:
-        safe_user_id = locals().get("user_id", "unknown")
-        logger.error(
-            f"[DCA-TRACE] execute_trade_with_advanced 예외: user_id={safe_user_id}, base_values={base_values}, advanced={advanced}, 예외={e}\n{traceback.format_exc()}"
-        )
-        embed = discord.Embed(
-            title="❌ 오류 발생",
-            description="매매 실행 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
-            color=0xFF0000,
-        )
-        try:
-            await interaction.followup.send(embed=embed, ephemeral=True)
-        except discord.errors.NotFound:
-            logger.warning(
-                "[execute_trade_with_advanced] interaction expired or already responded (trade error)"
-            )
+                pass
 
 
 class ConfirmationView(discord.ui.View):

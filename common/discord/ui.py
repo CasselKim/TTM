@@ -134,9 +134,12 @@ class TradeModal(discord.ui.Modal):
     )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
-        # advanced 옵션 입력 여부를 묻는 버튼 View를 띄운다
         from discord.ui import View, Button
         import discord.errors
+
+        logger.info(
+            f"[DCA-TRACE] TradeModal.on_submit 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={getattr(interaction, 'expired', None)}, response_done={getattr(interaction.response, 'is_done', None)}"
+        )
 
         class AdvancedOptionView(View):
             def __init__(self, modal: TradeModal, values: dict[str, Any]):
@@ -150,6 +153,16 @@ class TradeModal(discord.ui.Modal):
             async def advanced(
                 self, interaction: discord.Interaction, button: Button[Any]
             ) -> None:
+                logger.info(
+                    f"[DCA-TRACE] AdvancedOptionView.advanced 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={getattr(interaction, 'expired', None)}, response_done={getattr(interaction.response, 'is_done', None)}"
+                )
+                if getattr(interaction, "expired", False) or getattr(
+                    interaction.response, "is_done", False
+                ):
+                    logger.error(
+                        f"[DCA-TRACE] AdvancedOptionView.advanced: interaction expired or already responded. interaction.id={getattr(interaction, 'id', None)}"
+                    )
+                    return
                 self.stop()
                 await interaction.response.send_modal(
                     AdvancedTradeModal(self.modal.ui_usecase, self.values)
@@ -161,8 +174,17 @@ class TradeModal(discord.ui.Modal):
             async def skip(
                 self, interaction: discord.Interaction, button: Button[Any]
             ) -> None:
+                logger.info(
+                    f"[DCA-TRACE] AdvancedOptionView.skip 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={getattr(interaction, 'expired', None)}, response_done={getattr(interaction.response, 'is_done', None)}"
+                )
+                if getattr(interaction, "expired", False) or getattr(
+                    interaction.response, "is_done", False
+                ):
+                    logger.error(
+                        f"[DCA-TRACE] AdvancedOptionView.skip: interaction expired or already responded. interaction.id={getattr(interaction, 'id', None)}"
+                    )
+                    return
                 self.stop()
-                # 기본값으로 trade 실행
                 await execute_trade_with_advanced(
                     interaction, self.values, None, self.modal.ui_usecase
                 )
@@ -263,6 +285,16 @@ class AdvancedTradeModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         import discord.errors
 
+        logger.info(
+            f"[DCA-TRACE] AdvancedTradeModal.on_submit 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={getattr(interaction, 'expired', None)}, response_done={getattr(interaction.response, 'is_done', None)}"
+        )
+        if getattr(interaction, "expired", False) or getattr(
+            interaction.response, "is_done", False
+        ):
+            logger.error(
+                f"[DCA-TRACE] AdvancedTradeModal.on_submit: interaction expired or already responded. interaction.id={getattr(interaction, 'id', None)}"
+            )
+            return
         try:
             target_profit_value = Decimal(self.target_profit_rate.value) / Decimal(
                 "100"
@@ -311,6 +343,16 @@ async def execute_trade_with_advanced(
     import discord.errors
     import traceback
 
+    logger.info(
+        f"[DCA-TRACE] execute_trade_with_advanced 진입: interaction.id={getattr(interaction, 'id', None)}, user_id={getattr(interaction.user, 'id', None)}, expired={getattr(interaction, 'expired', None)}, response_done={getattr(interaction.response, 'is_done', None)}"
+    )
+    if getattr(interaction, "expired", False) or getattr(
+        interaction.response, "is_done", False
+    ):
+        logger.error(
+            f"[DCA-TRACE] execute_trade_with_advanced: interaction expired or already responded. interaction.id={getattr(interaction, 'id', None)}"
+        )
+        return
     try:
         user_id = str(interaction.user.id)
         logger.info(

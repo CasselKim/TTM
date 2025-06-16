@@ -136,6 +136,7 @@ class TradeModal(discord.ui.Modal):
     async def on_submit(self, interaction: discord.Interaction) -> None:
         # advanced 옵션 입력 여부를 묻는 버튼 View를 띄운다
         from discord.ui import View, Button
+        import discord.errors
 
         class AdvancedOptionView(View):
             def __init__(self, modal: TradeModal, values: dict[str, Any]):
@@ -190,7 +191,12 @@ class TradeModal(discord.ui.Modal):
                 description=f"입력값을 확인해주세요:\n{str(e)}",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            try:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            except discord.errors.NotFound:
+                logger.warning(
+                    "[TradeModal.on_submit] interaction expired or already responded (input error)"
+                )
             return
 
         values = {
@@ -206,7 +212,12 @@ class TradeModal(discord.ui.Modal):
             description="고급 옵션(목표 수익률, 추가 매수 트리거 하락률, 강제 손절률)을 입력하시겠습니까?\n\n'고급 옵션 입력'을 선택하면 추가 입력창이 열립니다.\n'기본값으로 진행'을 선택하면 기본값(목표수익률 10%, 하락률 -2.5%, 손절률 -25%)으로 진행됩니다.",
             color=0x00BFFF,
         )
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        try:
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        except discord.errors.NotFound:
+            logger.warning(
+                "[TradeModal.on_submit] interaction expired or already responded (advanced option)"
+            )
 
 
 def get_advanced_defaults() -> dict[str, Decimal]:
@@ -250,6 +261,8 @@ class AdvancedTradeModal(discord.ui.Modal):
     )
 
     async def on_submit(self, interaction: discord.Interaction) -> None:
+        import discord.errors
+
         try:
             target_profit_value = Decimal(self.target_profit_rate.value) / Decimal(
                 "100"
@@ -271,7 +284,12 @@ class AdvancedTradeModal(discord.ui.Modal):
                 description=f"입력값을 확인해주세요:\n{str(e)}",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            try:
+                await interaction.followup.send(embed=embed, ephemeral=True)
+            except discord.errors.NotFound:
+                logger.warning(
+                    "[AdvancedTradeModal.on_submit] interaction expired or already responded (input error)"
+                )
             return
 
         advanced = {
@@ -290,6 +308,8 @@ async def execute_trade_with_advanced(
     advanced: dict[str, Decimal] | None,
     ui_usecase: "DiscordUIUseCase",
 ) -> None:
+    import discord.errors
+
     try:
         user_id = str(interaction.user.id)
         if advanced is None:
@@ -307,7 +327,12 @@ async def execute_trade_with_advanced(
         )
         embed = await ui_usecase.create_trade_complete_embed(trade_data)
         view = TradeCompleteView(ui_usecase)
-        await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        try:
+            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+        except discord.errors.NotFound:
+            logger.warning(
+                "[execute_trade_with_advanced] interaction expired or already responded (trade complete)"
+            )
     except Exception as e:
         logger.exception(
             f"매매 실행 중 오류 발생 (user_id: {interaction.user.id}): {e}"
@@ -317,7 +342,12 @@ async def execute_trade_with_advanced(
             description="매매 실행 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
             color=0xFF0000,
         )
-        await interaction.followup.send(embed=embed, ephemeral=True)
+        try:
+            await interaction.followup.send(embed=embed, ephemeral=True)
+        except discord.errors.NotFound:
+            logger.warning(
+                "[execute_trade_with_advanced] interaction expired or already responded (trade error)"
+            )
 
 
 class ConfirmationView(discord.ui.View):

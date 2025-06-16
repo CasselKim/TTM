@@ -68,10 +68,7 @@ class TradeCompleteView(discord.ui.View):
         await interaction.response.defer(ephemeral=True)
         try:
             user_id = str(interaction.user.id)
-            logger.info(f"DCA 상태 조회 시작 (user_id: {user_id})")
-
-            embed = await self.ui_usecase.create_dca_status_embed_detail(user_id)
-            logger.info(f"embed 생성 완료 (user_id: {user_id})")
+            embed = await self.ui_usecase.create_dca_status_embed(user_id)
 
             if not is_embed_valid(embed):
                 logger.warning(
@@ -80,7 +77,6 @@ class TradeCompleteView(discord.ui.View):
                 embed = create_fallback_embed("DCA 상태")
 
             await interaction.followup.send(embed=embed, ephemeral=True)
-            logger.info(f"DCA 상태 조회 응답 완료 (user_id: {user_id})")
         except Exception as e:
             logger.exception(
                 f"DCA 상태 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"

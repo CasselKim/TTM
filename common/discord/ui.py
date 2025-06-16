@@ -311,6 +311,8 @@ class AdvancedTradeModal(discord.ui.Modal):
                 f"[DCA-TRACE] AdvancedTradeModal.on_submit: interaction expired or already responded. interaction.id={getattr(interaction, 'id', None)}"
             )
             return
+        # Discord interaction에 반드시 1차 응답을 보낸다 (상호작용 실패 방지)
+        await interaction.response.defer(thinking=True)
         try:
             target_profit_value = Decimal(self.target_profit_rate.value) / Decimal(
                 "100"

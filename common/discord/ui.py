@@ -70,7 +70,7 @@ class TradeCompleteView(discord.ui.View):
             user_id = str(interaction.user.id)
             logger.info(f"DCA 상태 조회 시작 (user_id: {user_id})")
 
-            embed = await self.ui_usecase.create_dca_status_embed(user_id)
+            embed = await self.ui_usecase.create_dca_status_embed_detail(user_id)
             logger.info(f"embed 생성 완료 (user_id: {user_id})")
 
             if not is_embed_valid(embed):
@@ -364,14 +364,6 @@ class DcaSelectDropdown(discord.ui.Select[DcaSelectionView]):
     async def callback(self, interaction: discord.Interaction) -> None:
         if self.view:
             self.view.selected_market = self.values[0]
-
-        embed = discord.Embed(
-            title="✅ DCA 선택됨",
-            description=f"**{self.values[0]} DCA**가 선택되었습니다.\n\n"
-            "**선택된 DCA 중단** 버튼을 클릭하여 계속 진행하세요.",
-            color=0x00FF00,
-        )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 
 class DcaStopOptionsView(discord.ui.View):

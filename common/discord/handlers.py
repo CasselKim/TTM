@@ -2,6 +2,7 @@ import asyncio
 import logging
 import traceback
 from datetime import datetime
+import time
 
 from common.discord.models import Embed, EmbedField
 from common.discord.bot import DiscordBot
@@ -12,6 +13,9 @@ from common.discord.bot import DiscordBot
 class DiscordLoggingHandler(logging.Handler):
     """Discord로 에러 로그를 전송하는 로깅 핸들러"""
 
+    _last_sent_time: float = 0.0
+    _cooldown_sec = 1.0
+
     def __init__(self, discord_bot: "DiscordBot", level: int = logging.ERROR):
         super().__init__(level)
         self.discord_bot = discord_bot
@@ -19,6 +23,10 @@ class DiscordLoggingHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             if asyncio.get_running_loop().is_running():
+                now = time.time()
+                if now - self._last_sent_time < self._cooldown_sec:
+                    return  # 쿨다운 중이면 전송하지 않음
+                self._last_sent_time = now
                 asyncio.create_task(self._send_to_discord(record))
         except RuntimeError:
             pass
@@ -72,6 +80,9 @@ LEVEL_MAP = {
 class DiscordDebugLoggingHandler(logging.Handler):
     """Discord로 디버그 로그를 전송하는 로깅 핸들러"""
 
+    _last_sent_time: float = 0.0
+    _cooldown_sec = 1.0
+
     def __init__(self, discord_bot: "DiscordBot", level: int = logging.DEBUG):
         super().__init__(level)
         self.discord_bot = discord_bot
@@ -79,6 +90,10 @@ class DiscordDebugLoggingHandler(logging.Handler):
     def emit(self, record: logging.LogRecord) -> None:
         try:
             if asyncio.get_running_loop().is_running():
+                now = time.time()
+                if now - self._last_sent_time < self._cooldown_sec:
+                    return  # 쿨다운 중이면 전송하지 않음
+                self._last_sent_time = now
                 asyncio.create_task(self._send_to_discord(record))
         except RuntimeError:
             pass

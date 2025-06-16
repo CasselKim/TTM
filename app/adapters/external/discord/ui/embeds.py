@@ -2,6 +2,7 @@ import logging
 from typing import Any
 
 import discord
+from datetime import datetime
 
 from common.utils.timezone import now_kst
 
@@ -76,6 +77,21 @@ def create_dca_status_embed_summary(dca_list: list[dict[str, Any]]) -> discord.E
     return embed
 
 
+def format_trade_time_kor(dt: str | datetime) -> str:
+    """YYYY-MM-DD(요일) HH:MM:SS 형식, millisecond 제거, 한글 요일 포함"""
+    if isinstance(dt, str):
+        try:
+            dt_obj = datetime.fromisoformat(dt)
+        except Exception:
+            return dt  # str 반환
+    else:
+        dt_obj = dt
+    dt_obj = dt_obj.replace(microsecond=0)
+    weekday_kor = ["월", "화", "수", "목", "금", "토", "일"]
+    w = weekday_kor[dt_obj.weekday()]
+    return dt_obj.strftime(f"%Y-%m-%d({w}) %H:%M:%S")
+
+
 def create_dca_status_embed_detail(
     dca_detail_list: list[dict[str, Any]],
 ) -> discord.Embed:
@@ -106,22 +122,20 @@ def create_dca_status_embed_detail(
             f"- 최소 매수 간격: {config.get('min_buy_interval_minutes', '-')}분",
             f"- 최대 사이클 기간: {config.get('max_cycle_days', '-')}일",
             f"- 시간 기반 매수 간격: {config.get('time_based_buy_interval_hours', '-')}시간",
-            f"- 시간 기반 매수 활성화: {config.get('enable_time_based_buying', False)}",
         ]
         # state 필드
-        state_lines = [
+        raw_state_lines = [
             f"- 마켓: {state.get('market', '-')} (ID: {state.get('cycle_id', '-')})",
             f"- 단계: {state.get('phase', '-')} / 상태: {market_status.get('status', '-')} ",
             f"- 현재 회차: {state.get('current_round', '-')}회",
             f"- 총 투자 금액: {state.get('total_investment', 0):,} KRW",
-            f"- 총 보유 수량: {state.get('total_volume', 0):.8f}",
             f"- 평균 매수 단가: {state.get('average_price', 0):,.0f} KRW",
-            f"- 마지막 매수 가격: {state.get('last_buy_price', 0):,.0f} KRW",
-            f"- 마지막 매수 시각: {state.get('last_buy_time', '-')}",
-            f"- 마지막 시간 기반 매수 시각: {state.get('last_time_based_buy_time', '-')}",
-            f"- 사이클 시작 시각: {state.get('cycle_start_time', '-')}",
+            f"- 사이클 시작 시각: {state.get('cycle_start_time', '-')}"
+            if state.get("cycle_start_time")
+            else None,
             f"- 목표 매도 가격: {state.get('target_sell_price', 0):,.0f} KRW",
         ]
+        state_lines = [line for line in raw_state_lines if line is not None]  # type: list[str]
         # 수익률/평가
         profit_lines = [
             f"- 현재가: {market_status.get('current_price', 0):,.0f} KRW",
@@ -132,9 +146,10 @@ def create_dca_status_embed_detail(
         # 최근 매수 내역
         trade_lines = []
         for t in recent_trades:
-            trade_lines.append(
-                f"- {t.get('time', '-')}: {t.get('price', 0):,.0f} KRW, {t.get('amount', 0):,.8f}개"
-            )
+            trade_time = format_trade_time_kor(t.get("time", "-"))
+            amount = int(t.get("amount", 0))
+            price = int(t.get("price", 0))
+            trade_lines.append(f"- {trade_time} {amount:,}W, {price:,}KRW")
         if not trade_lines:
             trade_lines = ["- 최근 매수 내역 없음"]
         # 전체 field

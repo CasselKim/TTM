@@ -205,13 +205,11 @@ class DiscordUIUseCase:
                 )
                 recent_trades = []
                 for buy_round in market_status.buying_rounds[-5:]:
+                    # millisecond 없이 초 단위까지 포맷
+                    trade_time = to_kst(buy_round.timestamp).replace(microsecond=0)
                     recent_trades.append(
                         {
-                            "time": to_kst(buy_round.timestamp).strftime(
-                                "%Y-%m-%d %H:%M"
-                            )
-                            if buy_round.timestamp
-                            else "",
+                            "time": trade_time,
                             "price": float(buy_round.buy_price),
                             "amount": float(buy_round.buy_amount),
                         }

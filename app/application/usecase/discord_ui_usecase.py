@@ -6,7 +6,8 @@ from decimal import Decimal
 
 from app.adapters.external.discord.ui.embeds import (
     create_balance_embed,
-    create_dca_status_embed,
+    create_dca_status_embed_summary,
+    create_dca_status_embed_detail,
     create_profit_embed,
     create_trade_complete_embed,
     create_trade_stop_embed,
@@ -184,6 +185,51 @@ class DiscordUIUseCase:
 
         except Exception as e:
             logger.exception(f"DCA 상태 조회 중 오류 (user_id: {user_id}): {e}")
+            return []
+
+    async def get_dca_status_detail_data(self, user_id: str) -> list[dict[str, Any]]:
+        """DCA 상태 상세 데이터 조회 (config, state, market_status, recent_trades 모두 포함)"""
+        try:
+            active_markets = await self.dca_usecase.get_active_markets()
+            if not active_markets:
+                return []
+            dca_detail_list: list[dict[str, Any]] = []
+            for market_name in active_markets:
+                market_status = await self.dca_usecase.get_dca_market_status(
+                    market_name
+                )
+                state = await self.dca_usecase.dca_repository.get_state(market_name)
+                config = await self.dca_usecase.dca_repository.get_config(market_name)
+                symbol = (
+                    market_name.split("-")[1] if "-" in market_name else market_name
+                )
+                recent_trades = []
+                for buy_round in market_status.buying_rounds[-5:]:
+                    recent_trades.append(
+                        {
+                            "time": to_kst(buy_round.timestamp).strftime(
+                                "%Y-%m-%d %H:%M"
+                            )
+                            if buy_round.timestamp
+                            else "",
+                            "price": float(buy_round.buy_price),
+                            "amount": float(buy_round.buy_amount),
+                        }
+                    )
+                dca_detail_list.append(
+                    {
+                        "symbol": symbol,
+                        "config": config.model_dump() if config else {},
+                        "state": state.model_dump() if state else {},
+                        "market_status": market_status.model_dump()
+                        if market_status
+                        else {},
+                        "recent_trades": recent_trades,
+                    }
+                )
+            return dca_detail_list
+        except Exception as e:
+            logger.exception(f"DCA 상세 상태 조회 중 오류 (user_id: {user_id}): {e}")
             return []
 
     async def get_profit_data(self, user_id: str) -> dict[str, Any]:
@@ -464,9 +510,14 @@ class DiscordUIUseCase:
         return create_balance_embed(balance_data)
 
     async def create_dca_status_embed(self, user_id: str) -> Any:
-        """DCA 상태 Embed 생성"""
+        """DCA 상태 요약 Embed 생성"""
         dca_data_list = await self.get_dca_status_data(user_id)
-        return create_dca_status_embed(dca_data_list)
+        return create_dca_status_embed_summary(dca_data_list)
+
+    async def create_dca_status_embed_detail(self, user_id: str) -> Any:
+        """DCA 상태 상세 Embed 생성"""
+        dca_detail_list = await self.get_dca_status_detail_data(user_id)
+        return create_dca_status_embed_detail(dca_detail_list)
 
     async def create_profit_embed(self, user_id: str) -> Any:
         """수익률 Embed 생성"""

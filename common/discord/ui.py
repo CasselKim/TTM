@@ -146,7 +146,9 @@ class TradeModal(discord.ui.Modal):
             @discord.ui.button(
                 label="고급 옵션 입력", style=discord.ButtonStyle.primary
             )
-            async def advanced(self, interaction: discord.Interaction, button: Button):
+            async def advanced(
+                self, interaction: discord.Interaction, button: Button[Any]
+            ) -> None:
                 self.stop()
                 await interaction.response.send_modal(
                     AdvancedTradeModal(self.modal.ui_usecase, self.values)
@@ -155,7 +157,9 @@ class TradeModal(discord.ui.Modal):
             @discord.ui.button(
                 label="기본값으로 진행", style=discord.ButtonStyle.secondary
             )
-            async def skip(self, interaction: discord.Interaction, button: Button):
+            async def skip(
+                self, interaction: discord.Interaction, button: Button[Any]
+            ) -> None:
                 self.stop()
                 # 기본값으로 trade 실행
                 await execute_trade_with_advanced(

@@ -42,9 +42,11 @@ def create_balance_embed(balance_data: dict[str, Any]) -> discord.Embed:
     return embed
 
 
-def create_dca_status_embed(dca_list: list[dict[str, Any]]) -> discord.Embed:
-    """DCA 상태 조회 Embed 생성"""
-    embed = discord.Embed(title="📊 DCA 상태", color=0x0099FF, timestamp=now_kst())
+def create_dca_status_embed_summary(dca_list: list[dict[str, Any]]) -> discord.Embed:
+    """DCA 상태 요약 Embed 생성"""
+    embed = discord.Embed(
+        title="📊 DCA 상태 (요약)", color=0x0099FF, timestamp=now_kst()
+    )
 
     if not dca_list:
         embed.description = "진행중인 DCA가 없습니다."
@@ -69,6 +71,84 @@ def create_dca_status_embed(dca_list: list[dict[str, Any]]) -> discord.Embed:
             f"누적 투자액: ₩ {data.get('total_invested', 0):,.0f}"
         )
         embed.add_field(name=f"🪙 {symbol}", value=field_value, inline=False)
+
+    embed.set_footer(text="TTM Bot • 실시간 데이터")
+    return embed
+
+
+def create_dca_status_embed_detail(
+    dca_detail_list: list[dict[str, Any]],
+) -> discord.Embed:
+    """DCA 상태 상세 Embed 생성 (config, state, 수익률, 매수내역 등 모두 표시)"""
+    embed = discord.Embed(
+        title="📊 DCA 상태 (상세)", color=0x0055FF, timestamp=now_kst()
+    )
+
+    if not dca_detail_list:
+        embed.description = "진행중인 DCA가 없습니다."
+        return embed
+
+    for data in dca_detail_list:
+        symbol = data.get("symbol", "")
+        config = data.get("config", {})
+        state = data.get("state", {})
+        market_status = data.get("market_status", {})
+        recent_trades = data.get("recent_trades", [])
+        # config 필드
+        config_lines = [
+            f"- 초기 매수 금액: {config.get('initial_buy_amount', '-'):,} KRW",
+            f"- 추가 매수 배수: {config.get('add_buy_multiplier', '-')}"
+            f"\n- 목표 수익률: {float(config.get('target_profit_rate', 0)) * 100:.2f}%",
+            f"- 추가 매수 하락률: {float(config.get('price_drop_threshold', 0)) * 100:.2f}%",
+            f"- 강제 손절률: {float(config.get('force_stop_loss_rate', 0)) * 100:.2f}%",
+            f"- 최대 매수 회차: {config.get('max_buy_rounds', '-')}회",
+            f"- 최대 투자 비율: {float(config.get('max_investment_ratio', 0)) * 100:.2f}%",
+            f"- 최소 매수 간격: {config.get('min_buy_interval_minutes', '-')}분",
+            f"- 최대 사이클 기간: {config.get('max_cycle_days', '-')}일",
+            f"- 시간 기반 매수 간격: {config.get('time_based_buy_interval_hours', '-')}시간",
+            f"- 시간 기반 매수 활성화: {config.get('enable_time_based_buying', False)}",
+        ]
+        # state 필드
+        state_lines = [
+            f"- 마켓: {state.get('market', '-')} (ID: {state.get('cycle_id', '-')})",
+            f"- 단계: {state.get('phase', '-')} / 상태: {market_status.get('status', '-')} ",
+            f"- 현재 회차: {state.get('current_round', '-')}회",
+            f"- 총 투자 금액: {state.get('total_investment', 0):,} KRW",
+            f"- 총 보유 수량: {state.get('total_volume', 0):.8f}",
+            f"- 평균 매수 단가: {state.get('average_price', 0):,.0f} KRW",
+            f"- 마지막 매수 가격: {state.get('last_buy_price', 0):,.0f} KRW",
+            f"- 마지막 매수 시각: {state.get('last_buy_time', '-')}",
+            f"- 마지막 시간 기반 매수 시각: {state.get('last_time_based_buy_time', '-')}",
+            f"- 사이클 시작 시각: {state.get('cycle_start_time', '-')}",
+            f"- 목표 매도 가격: {state.get('target_sell_price', 0):,.0f} KRW",
+        ]
+        # 수익률/평가
+        profit_lines = [
+            f"- 현재가: {market_status.get('current_price', 0):,.0f} KRW",
+            f"- 평가 금액: {market_status.get('current_value', 0):,.0f} KRW",
+            f"- 수익률: {market_status.get('current_profit_rate', 0):.2f}%",
+            f"- 손익: {market_status.get('profit_loss_amount', 0):,.0f} KRW",
+        ]
+        # 최근 매수 내역
+        trade_lines = []
+        for t in recent_trades:
+            trade_lines.append(
+                f"- {t.get('time', '-')}: {t.get('price', 0):,.0f} KRW, {t.get('amount', 0):,.8f}개"
+            )
+        if not trade_lines:
+            trade_lines = ["- 최근 매수 내역 없음"]
+        # 전체 field
+        field_value = (
+            "__설정 정보__\n"
+            + "\n".join(config_lines)
+            + "\n\n__진행 상태__\n"
+            + "\n".join(state_lines)
+            + "\n\n__수익률/평가__\n"
+            + "\n".join(profit_lines)
+            + "\n\n__최근 매수 내역__\n"
+            + "\n".join(trade_lines)
+        )
+        embed.add_field(name=f"🪙 {symbol} 상세", value=field_value, inline=False)
 
     embed.set_footer(text="TTM Bot • 실시간 데이터")
     return embed

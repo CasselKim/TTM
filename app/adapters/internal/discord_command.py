@@ -1,4 +1,5 @@
 import logging
+from typing import Optional
 
 import discord
 from discord import app_commands
@@ -73,14 +74,30 @@ class DiscordCommandAdapter(commands.Cog):
     @app_commands.command(
         name="dca_status", description="자동매매 진행 상황을 확인합니다"
     )
-    async def dca_status_command(self, interaction: discord.Interaction) -> None:
-        """DCA 상태 조회 Slash Command"""
+    @app_commands.describe(mode="출력 모드: 요약 또는 상세")
+    @app_commands.choices(
+        mode=[
+            app_commands.Choice(name="요약", value="summary"),
+            app_commands.Choice(name="상세", value="detail"),
+        ]
+    )
+    async def dca_status_command(
+        self,
+        interaction: discord.Interaction,
+        mode: Optional[app_commands.Choice[str]] = None,
+    ) -> None:
+        """DCA 상태 조회 Slash Command (요약/상세 선택)"""
         await interaction.response.defer(ephemeral=True)
         try:
             user_id = str(interaction.user.id)
-            logger.info(f"DCA 상태 조회 시작 (user_id: {user_id})")
+            logger.info(
+                f"DCA 상태 조회 시작 (user_id: {user_id}, mode: {mode.value if mode else 'summary'})"
+            )
 
-            embed = await self.ui_usecase.create_dca_status_embed(user_id)
+            if mode and mode.value == "detail":
+                embed = await self.ui_usecase.create_dca_status_embed_detail(user_id)
+            else:
+                embed = await self.ui_usecase.create_dca_status_embed(user_id)
             logger.info(f"embed 생성 완료 (user_id: {user_id})")
 
             if not is_embed_valid(embed):

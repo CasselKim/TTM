@@ -309,9 +309,13 @@ async def execute_trade_with_advanced(
     ui_usecase: "DiscordUIUseCase",
 ) -> None:
     import discord.errors
+    import traceback
 
     try:
         user_id = str(interaction.user.id)
+        logger.info(
+            f"[DCA-TRACE] execute_trade_with_advanced 진입: user_id={user_id}, base_values={base_values}, advanced={advanced}"
+        )
         if advanced is None:
             advanced = get_advanced_defaults()
         trade_data = await ui_usecase.execute_trade(
@@ -325,6 +329,9 @@ async def execute_trade_with_advanced(
             price_drop_threshold=advanced["price_drop_threshold"],
             force_stop_loss_rate=advanced["force_stop_loss_rate"],
         )
+        logger.info(
+            f"[DCA-TRACE] execute_trade_with_advanced trade_data: user_id={user_id}, trade_data={trade_data}"
+        )
         embed = await ui_usecase.create_trade_complete_embed(trade_data)
         view = TradeCompleteView(ui_usecase)
         try:
@@ -334,8 +341,9 @@ async def execute_trade_with_advanced(
                 "[execute_trade_with_advanced] interaction expired or already responded (trade complete)"
             )
     except Exception as e:
-        logger.exception(
-            f"매매 실행 중 오류 발생 (user_id: {interaction.user.id}): {e}"
+        safe_user_id = locals().get("user_id", "unknown")
+        logger.error(
+            f"[DCA-TRACE] execute_trade_with_advanced 예외: user_id={safe_user_id}, base_values={base_values}, advanced={advanced}, 예외={e}\n{traceback.format_exc()}"
         )
         embed = discord.Embed(
             title="❌ 오류 발생",

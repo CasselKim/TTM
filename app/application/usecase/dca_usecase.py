@@ -94,87 +94,121 @@ class DcaUsecase:
         Returns:
             DcaResult: 시작 결과
         """
-        existing_state = await self.dca_repository.get_state(market)
-        if existing_state and existing_state.is_active:
-            return DcaResult(
-                success=False,
-                action_taken=ActionTaken.START,
-                message=f"{market} DCA가 이미 실행 중입니다.",
-                current_state=None,
+        import traceback
+
+        try:
+            logger.info(
+                f"[DCA-TRACE] DcaUsecase.start 진입: market={market}, initial_buy_amount={initial_buy_amount}, target_profit_rate={target_profit_rate}, price_drop_threshold={price_drop_threshold}, max_buy_rounds={max_buy_rounds}, time_based_buy_interval_hours={time_based_buy_interval_hours}, enable_time_based_buying={enable_time_based_buying}, add_buy_multiplier={add_buy_multiplier}, force_stop_loss_rate={force_stop_loss_rate}, max_investment_ratio={max_investment_ratio}, min_buy_interval_minutes={min_buy_interval_minutes}, max_cycle_days={max_cycle_days}"
+            )
+            existing_state = await self.dca_repository.get_state(market)
+            if existing_state and existing_state.is_active:
+                logger.info(f"[DCA-TRACE] 이미 실행 중인 DCA: market={market}")
+                return DcaResult(
+                    success=False,
+                    action_taken=ActionTaken.START,
+                    message=f"{market} DCA가 이미 실행 중입니다.",
+                    current_state=None,
+                )
+
+            config_kwargs: dict[str, Any] = {
+                "initial_buy_amount": initial_buy_amount,
+                "target_profit_rate": target_profit_rate,
+                "price_drop_threshold": price_drop_threshold,
+                "max_buy_rounds": max_buy_rounds,
+                "add_buy_multiplier": add_buy_multiplier,
+                "force_stop_loss_rate": force_stop_loss_rate,
+                "max_investment_ratio": max_investment_ratio,
+                "min_buy_interval_minutes": min_buy_interval_minutes,
+                "max_cycle_days": max_cycle_days,
+                "time_based_buy_interval_hours": time_based_buy_interval_hours,
+                "enable_time_based_buying": enable_time_based_buying,
+            }
+            logger.info(
+                f"[DCA-TRACE] DcaConfig 생성 시도: config_kwargs={config_kwargs}"
+            )
+            try:
+                config = DcaConfig(**config_kwargs)
+            except Exception as e:
+                logger.error(
+                    f"[DCA-TRACE] DcaConfig 생성 실패: config_kwargs={config_kwargs}, 예외={e}\n{traceback.format_exc()}"
+                )
+                raise
+            logger.info(f"[DCA-TRACE] DcaConfig 생성 성공: config={config}")
+            state = DcaState(market=market)
+            state.reset_cycle(market)
+
+            config_saved = await self.dca_repository.save_config(market, config)
+            logger.info(
+                f"[DCA-TRACE] save_config 결과: market={market}, config_saved={config_saved}"
+            )
+            if not config_saved:
+                logger.error(f"[DCA-TRACE] 설정 저장 실패: market={market}")
+                raise ConfigSaveError()
+
+            state_saved = await self.dca_repository.save_state(market, state)
+            logger.info(
+                f"[DCA-TRACE] save_state 결과: market={market}, state_saved={state_saved}"
+            )
+            if not state_saved:
+                logger.error(f"[DCA-TRACE] 상태 저장 실패: market={market}")
+                raise StateSaveError()
+
+            account, market_data = await self._get_account_and_market_data(market)
+
+            order_request = OrderRequest.create_market_buy(
+                market, Decimal(str(initial_buy_amount))
+            )
+            logger.info(
+                f"[DCA-TRACE] 초기 매수 주문 요청: order_request={order_request}"
+            )
+            order_result = await self.order_repository.place_order(order_request)
+            logger.info(f"[DCA-TRACE] 초기 매수 주문 결과: order_result={order_result}")
+
+            if not order_result.success:
+                logger.error(f"[DCA-TRACE] 초기 매수 실패: order_result={order_result}")
+                await self.dca_repository.clear_market_data(market)
+                return DcaResult(
+                    success=False,
+                    action_taken=ActionTaken.START,
+                    message=f"초기 매수 실패: {order_result.error_message}",
+                    current_state=None,
+                )
+
+            await self.dca_service.execute_buy(
+                market_data,
+                initial_buy_amount,
+                config,
+                state,
+                buy_type=BuyType.INITIAL,
+                reason="초기 매수",
+            )
+            await self.dca_repository.save_state(market, state)
+
+            logger.info(
+                f"DCA 시작 및 초기 매수 완료: {market}, 금액: {initial_buy_amount:,.0f}원"
             )
 
-        config_kwargs: dict[str, Any] = {
-            "initial_buy_amount": initial_buy_amount,
-            "target_profit_rate": target_profit_rate,
-            "price_drop_threshold": price_drop_threshold,
-            "max_buy_rounds": max_buy_rounds,
-            "add_buy_multiplier": add_buy_multiplier,
-            "force_stop_loss_rate": force_stop_loss_rate,
-            "max_investment_ratio": max_investment_ratio,
-            "min_buy_interval_minutes": min_buy_interval_minutes,
-            "max_cycle_days": max_cycle_days,
-            "time_based_buy_interval_hours": time_based_buy_interval_hours,
-            "enable_time_based_buying": enable_time_based_buying,
-        }
-
-        config = DcaConfig(**config_kwargs)
-        state = DcaState(market=market)
-        state.reset_cycle(market)
-
-        config_saved = await self.dca_repository.save_config(market, config)
-        if not config_saved:
-            raise ConfigSaveError()
-
-        state_saved = await self.dca_repository.save_state(market, state)
-        if not state_saved:
-            raise StateSaveError()
-
-        account, market_data = await self._get_account_and_market_data(market)
-
-        order_request = OrderRequest.create_market_buy(
-            market, Decimal(str(initial_buy_amount))
-        )
-        order_result = await self.order_repository.place_order(order_request)
-
-        if not order_result.success:
-            await self.dca_repository.clear_market_data(market)
-            return DcaResult(
-                success=False,
-                action_taken=ActionTaken.START,
-                message=f"초기 매수 실패: {order_result.error_message}",
-                current_state=None,
+            await self.notification_repo.send_info_notification(
+                title="DCA 시작",
+                message=f"**{market}** 마켓의 DCA를 시작하고 초기 매수를 완료했습니다.",
+                fields=[
+                    ("초기 매수 금액", f"{initial_buy_amount:,.0f} KRW", True),
+                    ("목표 수익률", f"{target_profit_rate:.1%}", True),
+                    ("매수가", f"{market_data.current_price:,.0f} KRW", True),
+                ],
             )
 
-        await self.dca_service.execute_buy(
-            market_data,
-            initial_buy_amount,
-            config,
-            state,
-            buy_type=BuyType.INITIAL,
-            reason="초기 매수",
-        )
-        await self.dca_repository.save_state(market, state)
-
-        logger.info(
-            f"DCA 시작 및 초기 매수 완료: {market}, 금액: {initial_buy_amount:,.0f}원"
-        )
-
-        await self.notification_repo.send_info_notification(
-            title="DCA 시작",
-            message=f"**{market}** 마켓의 DCA를 시작하고 초기 매수를 완료했습니다.",
-            fields=[
-                ("초기 매수 금액", f"{initial_buy_amount:,.0f} KRW", True),
-                ("목표 수익률", f"{target_profit_rate:.1%}", True),
-                ("매수가", f"{market_data.current_price:,.0f} KRW", True),
-            ],
-        )
-
-        return DcaResult(
-            success=True,
-            action_taken=ActionTaken.START,
-            message=f"{market} DCA가 시작되고 초기 매수가 완료되었습니다.",
-            current_state=state,
-        )
+            return DcaResult(
+                success=True,
+                action_taken=ActionTaken.START,
+                message=f"{market} DCA가 시작되고 초기 매수가 완료되었습니다.",
+                current_state=state,
+            )
+        except Exception as e:
+            logger.error(
+                f"[DCA-TRACE] DcaUsecase.start 예외: market={market}, 예외={e}\n{traceback.format_exc()}"
+            )
+            raise
 
     async def stop(self, market: MarketName, *, force_sell: bool = False) -> DcaResult:
         """DCA 종료 및 보유 포지션 정리"""

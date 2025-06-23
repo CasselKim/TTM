@@ -5,7 +5,6 @@ from typing import Any
 from app.domain.enums import TradingAction
 from app.domain.models.dca import BuyType
 from app.domain.exceptions import ConfigSaveError, StateSaveError
-from app.domain.models.account import Account
 from app.domain.models.dca import (
     DcaConfig,
     DcaResult,
@@ -47,20 +46,6 @@ class DcaUsecase:
         self.notification_repo = notification_repo
         self.dca_service = dca_service
 
-    async def _get_account_and_market_data(
-        self, market: MarketName
-    ) -> tuple[Account, MarketData]:
-        """계좌 정보와 시장 데이터를 조회합니다."""
-        account = await self.account_repository.get_account_balance()
-        ticker = await self.ticker_repository.get_ticker(market)
-        market_data = MarketData(
-            market=market,
-            current_price=ticker.trade_price,
-            volume_24h=ticker.acc_trade_volume_24h,
-            change_rate_24h=ticker.signed_change_rate,
-        )
-        return account, market_data
-
     async def start(
         self,
         market: MarketName,
@@ -79,20 +64,6 @@ class DcaUsecase:
     ) -> DcaResult:
         """
         DCA 시작 및 초기 매수 실행
-
-        Args:
-            market: 거래 시장 (예: "KRW-BTC")
-            initial_buy_amount: 초기 매수 금액
-            target_profit_rate: 목표 수익률 (기본 10%)
-            price_drop_threshold: 추가 매수 트리거 하락률 (기본 -5%)
-            max_buy_rounds: 최대 매수 회차 (기본 10회)
-            time_based_buy_interval_hours: 시간 기반 매수 간격 (시간 단위)
-            enable_time_based_buying: 시간 기반 매수 활성화 여부
-            add_buy_multiplier: 추가 매수 곱수 (기본 1.1)
-            force_stop_loss_rate: 강제 중단 손절률 (기본 None)
-
-        Returns:
-            DcaResult: 시작 결과
         """
         import traceback
 
@@ -153,7 +124,13 @@ class DcaUsecase:
                 logger.error(f"[DCA-TRACE] 상태 저장 실패: market={market}")
                 raise StateSaveError()
 
-            account, market_data = await self._get_account_and_market_data(market)
+            ticker = await self.ticker_repository.get_ticker(market)
+            market_data = MarketData(
+                market=market,
+                current_price=ticker.trade_price,
+                volume_24h=ticker.acc_trade_volume_24h,
+                change_rate_24h=ticker.signed_change_rate,
+            )
 
             order_request = OrderRequest.create_market_buy(
                 market, Decimal(str(initial_buy_amount))
@@ -231,7 +208,14 @@ class DcaUsecase:
                 current_state=state,
             )
 
-        account, market_data = await self._get_account_and_market_data(market)
+        account = await self.account_repository.get_account_balance()
+        ticker = await self.ticker_repository.get_ticker(market)
+        market_data = MarketData(
+            market=market,
+            current_price=ticker.trade_price,
+            volume_24h=ticker.acc_trade_volume_24h,
+            change_rate_24h=ticker.signed_change_rate,
+        )
 
         target_currency = market.split("-")[1]
         target_balance = next(
@@ -284,80 +268,6 @@ class DcaUsecase:
             current_state=state,
         )
 
-    async def _create_dca_instance(
-        self, market: MarketName
-    ) -> tuple[DcaConfig, DcaState] | None:
-        """설정과 상태를 함께 조회"""
-        config = await self.dca_repository.get_config(market)
-        state = await self.dca_repository.get_state(market)
-        if not config or not state:
-            return None
-        return config, state
-
-    async def _send_dca_notification(
-        self,
-        title: str,
-        message: str,
-        fields: list[tuple[str, str, bool]] | None = None,
-    ) -> None:
-        """알림 전송 래퍼"""
-        fields = fields or []
-        await self.notification_repo.send_info_notification(
-            title=title,
-            message=message,
-            fields=fields,
-        )
-
-    async def _handle_buy_signal(
-        self,
-        market: MarketName,
-        account: Account,
-        market_data: MarketData,
-        signal: TradingSignal,
-        config: DcaConfig,
-        state: DcaState,
-    ) -> DcaResult:
-        """BUY 신호 처리"""
-        # 최소 주문 금액은 거래소 기준값(5,000 KRW)으로 고정
-        min_order_amount = Decimal("5000")
-        buy_amount = await self.dca_service.calculate_buy_amount(
-            account,
-            signal,
-            min_order_amount,
-            config,
-            state,
-        )
-
-        if buy_amount <= 0:
-            return DcaResult(
-                success=False,
-                action_taken=ActionTaken.HOLD,
-                message="매수 조건 미충족 (자금 부족 또는 기타 제약)",
-                current_state=state,
-            )
-
-        order_request = OrderRequest.create_market_buy(market, Decimal(str(buy_amount)))
-        order_result = await self.order_repository.place_order(order_request)
-
-        if not order_result.success:
-            return DcaResult(
-                success=False,
-                action_taken=ActionTaken.HOLD,
-                message=order_result.error_message or "주문 실패",
-                current_state=state,
-            )
-
-        result = await self.dca_service.execute_buy(
-            market_data,
-            buy_amount,
-            config,
-            state,
-            buy_type=BuyType.PRICE_DROP,
-            reason=getattr(signal, "reason", None),
-        )
-        await self.dca_repository.save_state(market, state)
-        return result
-
     async def run(self, market: MarketName) -> DcaResult:
         """
         DCA 사이클 실행 (스케줄러에서 호출)
@@ -373,20 +283,59 @@ class DcaUsecase:
                 current_state=None,
             )
 
-        account, market_data = await self._get_account_and_market_data(market)
+        account = await self.account_repository.get_account_balance()
+        ticker = await self.ticker_repository.get_ticker(market)
+        market_data = MarketData(
+            market=market,
+            current_price=ticker.trade_price,
+            volume_24h=ticker.acc_trade_volume_24h,
+            change_rate_24h=ticker.signed_change_rate,
+        )
         signal = await self.dca_service.analyze_signal(
             account, market_data, config, state
         )
 
         if signal.action == TradingAction.BUY:
-            return await self._handle_buy_signal(
-                market,
+            min_order_amount = Decimal("5000")
+            buy_amount = await self.dca_service.calculate_buy_amount(
                 account,
-                market_data,
                 signal,
+                min_order_amount,
                 config,
                 state,
             )
+
+            if buy_amount <= 0:
+                return DcaResult(
+                    success=False,
+                    action_taken=ActionTaken.HOLD,
+                    message="매수 조건 미충족 (자금 부족 또는 기타 제약)",
+                    current_state=state,
+                )
+
+            order_request = OrderRequest.create_market_buy(
+                market, Decimal(str(buy_amount))
+            )
+            order_result = await self.order_repository.place_order(order_request)
+
+            if not order_result.success:
+                return DcaResult(
+                    success=False,
+                    action_taken=ActionTaken.HOLD,
+                    message=order_result.error_message or "주문 실패",
+                    current_state=state,
+                )
+
+            result = await self.dca_service.execute_buy(
+                market_data,
+                buy_amount,
+                config,
+                state,
+                buy_type=BuyType.PRICE_DROP,
+                reason=getattr(signal, "reason", None),
+            )
+            await self.dca_repository.save_state(market, state)
+            return result
 
         if signal.action == TradingAction.SELL:
             sell_signal = TradingSignal(
@@ -446,13 +395,9 @@ class DcaUsecase:
             current_state=state,
         )
 
-    async def get_active_markets(self) -> list[MarketName]:
-        """활성 마켓 목록 조회"""
-        return await self.dca_repository.get_active_markets()
-
     async def get_active_dca_summary(self) -> list[dict[str, Any]]:
         """진행중인 DCA 요약 정보 조회"""
-        active_markets = await self.get_active_markets()
+        active_markets = await self.dca_repository.get_active_markets()
         dca_summaries: list[dict[str, Any]] = []
 
         for market in active_markets:
@@ -560,110 +505,3 @@ class DcaUsecase:
             statistics=None,
             recent_history=[],
         )
-
-    async def update_config(
-        self, market: MarketName, patch_dict: dict[str, Any]
-    ) -> dict[str, Any]:
-        """DCA config를 정책에 따라 안전하게 업데이트한다."""
-        # 정책 정의
-        IMMUTABLE_FIELDS = {"initial_buy_amount"}
-        DISCOURAGED_FIELDS = {"force_stop_loss_rate", "price_drop_threshold"}
-        warnings = []
-        # 1. 기존 config 불러오기
-        config = await self.dca_repository.get_config(market)
-        state = await self.dca_repository.get_state(market)
-        if not config or not state:
-            return {
-                "success": False,
-                "message": f"{market} DCA가 실행 중이 아닙니다.",
-                "warnings": [],
-                "applied_config": {},
-            }
-
-        # 2. patch_dict에서 변경 불가 필드 제거
-        patch = {k: v for k, v in patch_dict.items() if k not in IMMUTABLE_FIELDS}
-        removed = set(patch_dict) - set(patch)
-        if removed:
-            warnings.append(
-                f"변경 불가 필드({', '.join(removed)})는 수정할 수 없습니다."
-            )
-
-        # 3. 비추천 필드 경고
-        discouraged = set(patch) & DISCOURAGED_FIELDS
-        if discouraged:
-            warnings.append(
-                f"비추천 필드({', '.join(discouraged)})를 변경합니다. 신중히 결정하세요."
-            )
-
-        # 4. patch 적용 시 side effect 정책
-        # max_buy_rounds: 이미 current_round > patch 값이면 불가
-        if "max_buy_rounds" in patch:
-            try:
-                new_max = int(patch["max_buy_rounds"])
-                if state.current_round > new_max:
-                    return {
-                        "success": False,
-                        "message": f"불가: 이미 현재 회차({state.current_round})가 최대 매수 회차({new_max})를 초과합니다.",
-                        "warnings": warnings,
-                        "applied_config": config.model_dump(),
-                    }
-            except Exception:
-                return {
-                    "success": False,
-                    "message": "불가: max_buy_rounds 값이 올바르지 않습니다.",
-                    "warnings": warnings,
-                    "applied_config": config.model_dump(),
-                }
-        # max_investment_ratio: 이미 투자한 금액이 새 한도보다 많으면 불가
-        if "max_investment_ratio" in patch:
-            try:
-                float(patch["max_investment_ratio"])
-                # 실제로는 account 잔고와 비교 필요(간략화)
-                # 이미 투자한 금액이 새 한도보다 많으면 불가
-                # (실제 전체 자산 대비 체크는 account 필요)
-                # 여기선 정책상 단순히 투자액만 체크
-                # (실제 적용 시 account도 받아서 체크 권장)
-                # 예시: 전체 자산 1000, 투자 400, ratio 0.3 -> 300보다 많으면 불가
-                # 여기선 total_krw > (total_krw / old_ratio) * new_ratio
-                # 하지만 전체 자산 정보가 없으므로, 경고만 표시
-                pass
-            except Exception:
-                return {
-                    "success": False,
-                    "message": "불가: max_investment_ratio 값이 올바르지 않습니다.",
-                    "warnings": warnings,
-                    "applied_config": config.model_dump(),
-                }
-        # 5. patch 적용
-        config_dict = config.model_dump()
-        config_dict.update(patch)
-        try:
-            new_config = DcaConfig(**config_dict)
-        except Exception as e:
-            return {
-                "success": False,
-                "message": f"설정값 오류: {e}",
-                "warnings": warnings,
-                "applied_config": config.model_dump(),
-            }
-        # 6. 저장
-        saved = await self.dca_repository.save_config(market, new_config)
-        if not saved:
-            return {
-                "success": False,
-                "message": "설정 저장에 실패했습니다.",
-                "warnings": warnings,
-                "applied_config": config.model_dump(),
-            }
-        # 7. trade history 채널 메시지 전송
-        await self.notification_repo.send_info_notification(
-            title="DCA 설정 변경",
-            message=f"**{market}** DCA 설정이 변경되었습니다.",
-            fields=[(k, str(v), True) for k, v in patch.items()],
-        )
-        return {
-            "success": True,
-            "message": "설정이 성공적으로 변경되었습니다. (다음 사이클부터 반영)",
-            "warnings": warnings,
-            "applied_config": new_config.model_dump(),
-        }

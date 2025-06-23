@@ -117,7 +117,7 @@ class DiscordUIUseCase:
         """DCA 상태 데이터 조회"""
         try:
             # 활성 마켓 조회
-            active_markets = await self.dca_usecase.get_active_markets()
+            active_markets = await self.dca_usecase.dca_repository.get_active_markets()
 
             if not active_markets:
                 return []
@@ -191,7 +191,7 @@ class DiscordUIUseCase:
     async def get_dca_status_detail_data(self, user_id: str) -> list[dict[str, Any]]:
         """DCA 상태 상세 데이터 조회 (config, state, market_status, recent_trades 모두 포함)"""
         try:
-            active_markets = await self.dca_usecase.get_active_markets()
+            active_markets = await self.dca_usecase.dca_repository.get_active_markets()
             if not active_markets:
                 return []
             dca_detail_list: list[dict[str, Any]] = []
@@ -387,7 +387,7 @@ class DiscordUIUseCase:
         """매매 중단"""
         try:
             # 활성 마켓 조회
-            active_markets = await self.dca_usecase.get_active_markets()
+            active_markets = await self.dca_usecase.dca_repository.get_active_markets()
 
             if not active_markets:
                 return {

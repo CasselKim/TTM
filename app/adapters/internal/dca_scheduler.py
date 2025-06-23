@@ -68,7 +68,9 @@ class DcaScheduler:
         logger.info("DCA algorithm loop started")
         while self._running and self.enabled:
             try:
-                active_markets = await self.dca_usecase.get_active_markets()
+                active_markets = (
+                    await self.dca_usecase.dca_repository.get_active_markets()
+                )
                 if not active_markets:
                     logger.info("No active DCA markets")
                     await asyncio.sleep(self.interval_seconds)
@@ -97,7 +99,7 @@ class DcaScheduler:
         """스케줄러 상태 반환"""
         active_markets = []
         if self._running:
-            active_markets = await self.dca_usecase.get_active_markets()
+            active_markets = await self.dca_usecase.dca_repository.get_active_markets()
 
         return {
             "running": self._running,

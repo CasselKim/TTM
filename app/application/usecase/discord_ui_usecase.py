@@ -3,7 +3,6 @@
 import logging
 from typing import Any
 from decimal import Decimal
-import traceback
 
 from app.adapters.external.discord.ui.embeds import (
     create_balance_embed,
@@ -18,6 +17,7 @@ from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.ticker_usecase import TickerUseCase
 from app.application.usecase.dca_stats_usecase import DcaStatsUsecase
 from common.utils.timezone import to_kst
+from app.application.dto.dca_config_dto import DcaConfigDTO
 
 logger = logging.getLogger(__name__)
 
@@ -319,13 +319,8 @@ class DiscordUIUseCase:
     ) -> dict[str, Any]:
         """매매 실행"""
         try:
-            logger.info(
-                f"[DCA-TRACE] execute_trade 진입: user_id={user_id}, symbol={symbol}, amount={amount}, total_count={total_count}, interval_hours={interval_hours}, add_buy_multiplier={add_buy_multiplier}, target_profit_rate={target_profit_rate}, price_drop_threshold={price_drop_threshold}, force_stop_loss_rate={force_stop_loss_rate}"
-            )
-            # 실제 DCA 시작
             market_name = f"KRW-{symbol}"
             start_kwargs: dict[str, Any] = {
-                "market": market_name,
                 "initial_buy_amount": amount,
                 "max_buy_rounds": total_count,
                 "time_based_buy_interval_hours": interval_hours,
@@ -339,24 +334,11 @@ class DiscordUIUseCase:
             if force_stop_loss_rate is not None:
                 start_kwargs["force_stop_loss_rate"] = force_stop_loss_rate
 
-            logger.info(
-                f"[DCA-TRACE] DcaUsecase.start 호출: user_id={user_id}, start_kwargs={start_kwargs}"
-            )
-            result = await self.dca_usecase.start(**start_kwargs)
-            logger.info(
-                f"[DCA-TRACE] DcaUsecase.start 결과: user_id={user_id}, result={result}"
-            )
+            dto = DcaConfigDTO(**start_kwargs)
+            result = await self.dca_usecase.start(market_name, dto)
 
             if not result.success:
-                logger.error(
-                    f"[DCA-TRACE] DCA 시작 실패: user_id={user_id}, result={result}"
-                )
                 raise Exception(f"DCA 시작 실패: {result.message}")
-
-            logger.info(
-                f"매매 실행 성공 (user_id: {user_id}, symbol: {symbol}, "
-                f"amount: {amount}, count: {total_count})"
-            )
 
             return {
                 "symbol": symbol,
@@ -381,8 +363,8 @@ class DiscordUIUseCase:
             }
 
         except Exception as e:
-            logger.error(
-                f"[DCA-TRACE] 매매 실행 중 오류 (user_id: {user_id}, symbol: {symbol}, start_kwargs={locals().get('start_kwargs', None)}): {e}\n{traceback.format_exc()}"
+            logger.exception(
+                f"매매 실행 중 오류 (user_id: {user_id}, symbol: {symbol}): {e}"
             )
             raise
 

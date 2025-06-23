@@ -3,9 +3,7 @@ from decimal import Decimal
 
 from app.domain.enums import TradingAction
 from app.domain.models.dca import BuyType
-from app.domain.exceptions import ConfigSaveError, StateSaveError
 from app.domain.models.dca import (
-    DcaConfig,
     DcaResult,
     DcaState,
 )
@@ -22,6 +20,7 @@ from app.domain.models.status import (
     MarketName,
 )
 from app.domain.models.order import OrderRequest
+from app.application.dto.dca_config_dto import DcaConfigDTO
 
 logger = logging.getLogger(__name__)
 
@@ -46,18 +45,7 @@ class DcaUsecase:
     async def start(
         self,
         market: MarketName,
-        initial_buy_amount: int,
-        target_profit_rate: Decimal = Decimal("0.10"),
-        price_drop_threshold: Decimal = Decimal("-0.025"),
-        max_buy_rounds: int = 8,
-        *,
-        time_based_buy_interval_hours: int = 72,
-        enable_time_based_buying: bool = True,
-        add_buy_multiplier: Decimal = Decimal("1.5"),
-        force_stop_loss_rate: Decimal = Decimal("-0.25"),
-        max_investment_ratio: Decimal = Decimal("1"),
-        min_buy_interval_minutes: int = 30,
-        max_cycle_days: int = 45,
+        config_dto: DcaConfigDTO,
     ) -> DcaResult:
         """
         DCA 시작 및 초기 매수 실행
@@ -71,33 +59,11 @@ class DcaUsecase:
                 current_state=None,
             )
 
-        config = DcaConfig(
-            initial_buy_amount=initial_buy_amount,
-            target_profit_rate=target_profit_rate,
-            price_drop_threshold=price_drop_threshold,
-            max_buy_rounds=max_buy_rounds,
-            add_buy_multiplier=add_buy_multiplier,
-            force_stop_loss_rate=force_stop_loss_rate,
-            max_investment_ratio=max_investment_ratio,
-            min_buy_interval_minutes=min_buy_interval_minutes,
-            max_cycle_days=max_cycle_days,
-            time_based_buy_interval_hours=time_based_buy_interval_hours,
-            enable_time_based_buying=enable_time_based_buying,
-        )
+        config = config_dto.to_entity()
         state = DcaState(market=market)
-        state.reset_cycle(market)
 
-        config_saved = await self.dca_repository.save_config(
-            market=market, config=config
-        )
-        if not config_saved:
-            logger.error(f"설정 저장 실패: market={market}")
-            raise ConfigSaveError()
-
-        state_saved = await self.dca_repository.save_state(market=market, state=state)
-        if not state_saved:
-            logger.error(f"상태 저장 실패: market={market}")
-            raise StateSaveError()
+        await self.dca_repository.save_config(market, config)
+        await self.dca_repository.save_state(market, state)
 
         ticker = await self.ticker_repository.get_ticker(market)
         market_data = MarketData(
@@ -109,7 +75,7 @@ class DcaUsecase:
 
         order_request = OrderRequest.create_market_buy(
             market=market,
-            total_krw=Decimal(initial_buy_amount),
+            total_krw=Decimal(config.initial_buy_amount),
         )
         order_result = await self.order_repository.place_order(order_request)
         if not order_result.success:
@@ -124,7 +90,7 @@ class DcaUsecase:
 
         await self.dca_service.execute_buy(
             market_data=market_data,
-            buy_amount=initial_buy_amount,
+            buy_amount=config.initial_buy_amount,
             config=config,
             state=state,
             buy_type=BuyType.INITIAL,
@@ -137,8 +103,8 @@ class DcaUsecase:
             title="DCA 시작",
             message=f"**{market}** 마켓의 DCA를 시작하고 초기 매수를 완료했습니다.",
             fields=[
-                ("초기 매수 금액", f"{initial_buy_amount:,.0f} KRW", True),
-                ("목표 수익률", f"{target_profit_rate:.1%}", True),
+                ("초기 매수 금액", f"{config.initial_buy_amount:,.0f} KRW", True),
+                ("목표 수익률", f"{config.target_profit_rate:.1%}", True),
                 ("매수가", f"{market_data.current_price:,.0f} KRW", True),
             ],
         )

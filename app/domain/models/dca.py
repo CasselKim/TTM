@@ -40,25 +40,25 @@ class DcaConfig(BaseModel):
     )
 
     # 기본 매수 설정
-    initial_buy_amount: int  # 초기 매수 금액 (KRW)
-    add_buy_multiplier: Decimal  # 추가 매수 배수
+    initial_buy_amount: int = 5000  # 초기 매수 금액 (KRW)
+    add_buy_multiplier: Decimal = Decimal("1.5")  # 추가 매수 배수
 
     # 수익/손실 기준
-    target_profit_rate: Decimal  # 목표 수익률
-    price_drop_threshold: Decimal  # 추가 매수 트리거 하락률
-    force_stop_loss_rate: Decimal  # 강제 손절률
+    target_profit_rate: Decimal = Decimal("0.10")  # 목표 수익률
+    price_drop_threshold: Decimal = Decimal("-0.025")  # 추가 매수 트리거 하락률
+    force_stop_loss_rate: Decimal = Decimal("-0.25")  # 강제 손절률
 
     # 리스크 관리
-    max_buy_rounds: int  # 최대 매수 회차
-    max_investment_ratio: Decimal  # 전체 자산 대비 최대 투자 비율
+    max_buy_rounds: int = 8  # 최대 매수 회차
+    max_investment_ratio: Decimal = Decimal("1")  # 전체 자산 대비 최대 투자 비율
 
     # 시간 관리
-    min_buy_interval_minutes: int  # 최소 매수 간격 (분)
-    max_cycle_days: int  # 최대 사이클 기간 (일)
+    min_buy_interval_minutes: int = 30  # 최소 매수 간격 (분)
+    max_cycle_days: int = 45  # 최대 사이클 기간 (일)
 
     # 하이브리드 DCA 설정 (시간 단위)
-    time_based_buy_interval_hours: int  # 시간 기반 매수 간격 (시간)
-    enable_time_based_buying: bool  # 시간 기반 매수 활성화
+    time_based_buy_interval_hours: int = 72  # 시간 기반 매수 간격 (시간)
+    enable_time_based_buying: bool = True  # 시간 기반 매수 활성화
 
     @field_validator(
         "add_buy_multiplier",

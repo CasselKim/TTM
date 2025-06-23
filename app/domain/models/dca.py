@@ -373,14 +373,14 @@ class DcaResult(BaseModel):
     message: str  # 결과 메시지
 
     # 거래 정보 (실제 거래가 발생한 경우)
-    trade_price: Decimal | None = None
-    trade_amount: int | None = None
-    trade_volume: Decimal | None = None
+    trade_price: Decimal = Decimal("0")
+    trade_amount: int = 0
+    trade_volume: Decimal = Decimal("0")
 
     # 상태 정보
     current_state: DcaState | None = None
-    profit_rate: Decimal | None = None
-    profit_loss_amount_krw: int | None = None
+    profit_rate: Decimal = Decimal("0")
+    profit_loss_amount_krw: int = 0
 
     @field_validator(
         "trade_price",

@@ -4,6 +4,7 @@ from decimal import Decimal
 
 from app.domain.constants import (
     ALGORITHM_MAX_CONFIDENCE,
+    TRADING_DEFAULT_MIN_ORDER_AMOUNT,
 )
 from app.domain.enums import TradingAction
 from app.domain.models.account import Account, Balance
@@ -76,7 +77,6 @@ class DcaService:
         self,
         account: Account,
         signal: TradingSignal,
-        min_order_amount: Decimal,
         config: DcaConfig,
         state: DcaState,
     ) -> int:
@@ -110,7 +110,7 @@ class DcaService:
                 buy_amount = min(buy_amount, available_krw_int)
 
         # 최소 주문 금액 확인
-        if Decimal(buy_amount) < min_order_amount:
+        if Decimal(buy_amount) < TRADING_DEFAULT_MIN_ORDER_AMOUNT:
             return 0
 
         # 총 투자 한도 확인 (전체 KRW 잔액 대비)
@@ -122,7 +122,7 @@ class DcaService:
         total_investment_decimal = Decimal(str(state.total_investment))
         if total_investment_decimal + Decimal(buy_amount) > max_total_investment:
             buy_amount = int(max_total_investment - total_investment_decimal)
-            if Decimal(buy_amount) < min_order_amount:
+            if Decimal(buy_amount) < TRADING_DEFAULT_MIN_ORDER_AMOUNT:
                 return 0
 
         logger.info(

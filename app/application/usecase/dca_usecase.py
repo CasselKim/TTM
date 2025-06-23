@@ -1,6 +1,5 @@
 import logging
 from decimal import Decimal
-from typing import Any
 
 from app.domain.enums import TradingAction
 from app.domain.models.dca import BuyType
@@ -18,10 +17,8 @@ from app.domain.repositories.notification_repository import NotificationReposito
 from app.domain.repositories.order_repository import OrderRepository
 from app.domain.repositories.ticker_repository import TickerRepository
 from app.domain.services.dca_service import DcaService
-from app.domain.enums import ActionTaken, DcaStatus
+from app.domain.enums import ActionTaken
 from app.domain.models.status import (
-    BuyingRoundInfo,
-    DcaMarketStatus,
     MarketName,
 )
 from app.domain.models.order import OrderRequest
@@ -343,115 +340,4 @@ class DcaUsecase:
             action_taken=ActionTaken.HOLD,
             message=signal.reason,
             current_state=state,
-        )
-
-    async def get_active_dca_summary(self) -> list[dict[str, Any]]:
-        """진행중인 DCA 요약 정보 조회"""
-        active_markets = await self.dca_repository.get_active_markets()
-        dca_summaries: list[dict[str, Any]] = []
-
-        for market in active_markets:
-            try:
-                market_status = await self.get_dca_market_status(market)
-                config = await self.dca_repository.get_config(market)
-
-                if not market_status or not config:
-                    continue
-
-                symbol = market.split("-")[1] if "-" in market else market
-
-                dca_summaries.append(
-                    {
-                        "market": market,
-                        "symbol": symbol,
-                        "current_round": market_status.current_round,
-                        "max_rounds": config.max_buy_rounds,
-                        "total_investment": float(market_status.total_investment),
-                        "total_volume": (
-                            float(market_status.total_volume)
-                            if isinstance(
-                                getattr(market_status, "total_volume", None),
-                                (int, float, Decimal),
-                            )
-                            else 0.0
-                        ),
-                        "average_price": float(market_status.average_price),
-                        "current_profit_rate": float(market_status.current_profit_rate)
-                        if market_status.current_profit_rate
-                        else 0.0,
-                        "cycle_id": market_status.cycle_id
-                        if hasattr(market_status, "cycle_id")
-                        else "unknown",
-                    }
-                )
-
-            except ValueError as e:
-                logger.warning("DCA 요약 조회 실패 (%s): %s", market, e)
-
-        return dca_summaries
-
-    async def get_dca_market_status(self, market: MarketName) -> DcaMarketStatus:
-        """특정 마켓의 DCA 상세 상태 조회"""
-        config = await self.dca_repository.get_config(market)
-        state = await self.dca_repository.get_state(market)
-
-        if not config or not state:
-            raise ValueError(f"마켓 {market}의 DCA 설정 또는 상태를 찾을 수 없습니다.")
-
-        # 현재가 조회
-        try:
-            ticker = await self.ticker_repository.get_ticker(market)
-            current_price = ticker.trade_price
-        except Exception as e:
-            logger.warning(f"현재가 조회 실패 ({market}): {e}")
-            current_price = None
-
-        # 매수 회차 정보는 DcaState의 buying_rounds를 사용
-        buying_rounds = []
-        for buy_round in state.buying_rounds:
-            buying_rounds.append(
-                BuyingRoundInfo(
-                    round_number=buy_round.round_number,
-                    buy_price=buy_round.buy_price,
-                    buy_amount=Decimal(str(buy_round.buy_amount)),
-                    buy_volume=buy_round.buy_volume,
-                    timestamp=buy_round.timestamp,
-                    reason=buy_round.reason,
-                )
-            )
-
-        # 수익률 계산
-        current_profit_rate = None
-        current_value = None
-        profit_loss_amount = None
-
-        if current_price and state.total_volume > 0:
-            current_value = state.total_volume * current_price
-            # int → Decimal 형 변환 후 연산(타입 오류 방지)
-            total_inv_dec = Decimal(str(state.total_investment))
-            profit_loss_amount = current_value - total_inv_dec
-
-            if total_inv_dec > 0:
-                current_profit_rate = (profit_loss_amount / total_inv_dec) * 100
-
-        return DcaMarketStatus(
-            market=market,
-            status=DcaStatus.ACTIVE if state.is_active else DcaStatus.INACTIVE,
-            phase=state.phase,
-            cycle_id=state.cycle_id,
-            current_round=state.current_round,
-            total_investment=state.total_investment,
-            total_volume=state.total_volume,
-            average_price=state.average_price,
-            target_sell_price=state.target_sell_price,
-            last_buy_price=state.last_buy_price,
-            last_buy_time=state.last_buy_time,
-            cycle_start_time=state.cycle_start_time,
-            current_price=current_price,
-            current_profit_rate=current_profit_rate,
-            current_value=current_value,
-            profit_loss_amount=profit_loss_amount,
-            buying_rounds=buying_rounds,
-            statistics=None,
-            recent_history=[],
         )

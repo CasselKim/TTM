@@ -16,6 +16,7 @@ from app.adapters.external.discord.ui.embeds import (
 from app.application.usecase.account_usecase import AccountUseCase
 from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.ticker_usecase import TickerUseCase
+from app.application.usecase.dca_stats_usecase import DcaStatsUsecase
 from common.utils.timezone import to_kst
 
 logger = logging.getLogger(__name__)
@@ -29,10 +30,12 @@ class DiscordUIUseCase:
         account_usecase: AccountUseCase,
         dca_usecase: DcaUsecase,
         ticker_usecase: TickerUseCase,
+        dca_stats_usecase: DcaStatsUsecase,
     ) -> None:
         self.account_usecase = account_usecase
         self.dca_usecase = dca_usecase
         self.ticker_usecase = ticker_usecase
+        self.dca_stats_usecase = dca_stats_usecase
 
     async def get_balance_data(self, user_id: str) -> dict[str, Any]:
         """잔고 데이터 조회"""
@@ -124,7 +127,7 @@ class DiscordUIUseCase:
 
             dca_list: list[dict[str, Any]] = []
             for market_name in active_markets:
-                market_status = await self.dca_usecase.get_dca_market_status(
+                market_status = await self.dca_stats_usecase.get_dca_market_status(
                     market_name
                 )
                 state = await self.dca_usecase.dca_repository.get_state(market_name)
@@ -196,7 +199,7 @@ class DiscordUIUseCase:
                 return []
             dca_detail_list: list[dict[str, Any]] = []
             for market_name in active_markets:
-                market_status = await self.dca_usecase.get_dca_market_status(
+                market_status = await self.dca_stats_usecase.get_dca_market_status(
                     market_name
                 )
                 state = await self.dca_usecase.dca_repository.get_state(market_name)
@@ -401,7 +404,9 @@ class DiscordUIUseCase:
             first_market = active_markets[0]
 
             # 중단 전 상태 조회
-            market_status = await self.dca_usecase.get_dca_market_status(first_market)
+            market_status = await self.dca_stats_usecase.get_dca_market_status(
+                first_market
+            )
             config = await self.dca_usecase.dca_repository.get_config(first_market)
 
             # 실제 DCA 중단
@@ -431,7 +436,7 @@ class DiscordUIUseCase:
     async def get_active_dca_list(self, user_id: str) -> list[dict[str, Any]]:
         """진행중인 DCA 목록 조회"""
         try:
-            dca_summaries = await self.dca_usecase.get_active_dca_summary()
+            dca_summaries = await self.dca_stats_usecase.get_active_dca_summary()
 
             # UI용 데이터 형태로 변환
             dca_list = []
@@ -464,7 +469,7 @@ class DiscordUIUseCase:
         """선택된 DCA 중단"""
         try:
             # 중단 전 상태 조회
-            market_status = await self.dca_usecase.get_dca_market_status(market)
+            market_status = await self.dca_stats_usecase.get_dca_market_status(market)
             config = await self.dca_usecase.dca_repository.get_config(market)
 
             if not market_status or not config:

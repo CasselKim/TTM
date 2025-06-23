@@ -73,7 +73,7 @@ class DcaUsecase:
         enable_time_based_buying: bool = True,
         add_buy_multiplier: Decimal = Decimal("1.5"),
         force_stop_loss_rate: Decimal = Decimal("-0.25"),
-        max_investment_ratio: Decimal = Decimal("0.30"),
+        max_investment_ratio: Decimal = Decimal("1"),
         min_buy_interval_minutes: int = 30,
         max_cycle_days: int = 45,
     ) -> DcaResult:

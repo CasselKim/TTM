@@ -2,6 +2,7 @@ import logging
 from datetime import datetime, timedelta
 from decimal import Decimal
 
+from app.domain.repositories.dca_repository import DcaRepository
 from app.domain.constants import (
     ALGORITHM_MAX_CONFIDENCE,
     TRADING_DEFAULT_MIN_ORDER_AMOUNT,
@@ -22,6 +23,9 @@ logger = logging.getLogger(__name__)
 
 
 class DcaService:
+    def __init__(self, dca_repository: DcaRepository) -> None:
+        self.dca_repository = dca_repository
+
     """
     분할 매수를 통한 평균 단가 하락 및 목표 수익률 달성 시 익절하는 전략
     """
@@ -171,53 +175,50 @@ class DcaService:
         """
         매수 실행 및 상태 업데이트
         """
-        try:
-            current_price = market_data.current_price
-            buy_volume = (
-                Decimal(str(buy_amount)) / current_price
-            )  # 수수료는 실제 거래에서 적용
+        current_price = market_data.current_price
+        buy_volume = (
+            Decimal(str(buy_amount)) / current_price
+        )  # 수수료는 실제 거래에서 적용
 
-            # 새로운 매수 회차 생성
-            new_round = BuyingRound(
-                round_number=state.current_round + 1,
-                buy_price=current_price,
-                buy_amount=buy_amount,
-                buy_volume=buy_volume,
-                timestamp=datetime.now(),
-                buy_type=buy_type if buy_type is not None else BuyType.PRICE_DROP,
-                reason=reason,
-            )
+        # 새로운 매수 회차 생성
+        new_round = BuyingRound(
+            round_number=state.current_round + 1,
+            buy_price=current_price,
+            buy_amount=buy_amount,
+            buy_volume=buy_volume,
+            timestamp=datetime.now(),
+            buy_type=buy_type if buy_type is not None else BuyType.PRICE_DROP,
+            reason=reason,
+        )
 
-            # 상태 업데이트
-            if not state.is_active:
-                # 새 사이클 시작 (cycle_id 자동 생성)
-                state.reset_cycle(market_data.market)
+        # 상태 업데이트
+        if not state.is_active:
+            state.reset_cycle(market_data.market)  # 새 사이클 시작 (cycle_id 자동 생성)
 
-            state.add_buying_round(new_round, config)
-            state.phase = DcaPhase.ACCUMULATING
+        state.add_buying_round(new_round, config)
+        state.phase = DcaPhase.ACCUMULATING
 
-            result = DcaResult(
-                success=True,
-                action_taken=ActionTaken.BUY,
-                message=f"DCA 매수 실행: {new_round.round_number}회차",
-                trade_price=current_price,
-                trade_amount=buy_amount,
-                trade_volume=buy_volume,
-                current_state=state,
-                profit_rate=self._calculate_current_profit_rate(current_price, state),
-            )
+        result = DcaResult(
+            success=True,
+            action_taken=ActionTaken.BUY,
+            message=f"DCA 매수 실행: {new_round.round_number}회차",
+            trade_price=current_price,
+            trade_amount=buy_amount,
+            trade_volume=buy_volume,
+            current_state=state,
+            profit_rate=self._calculate_current_profit_rate(current_price, state),
+        )
 
-            logger.info(
-                f"DCA 매수 실행: {new_round.round_number}회차, "
-                f"매수가 {current_price:,.0f}원, 매수량 {buy_volume:.8f}, "
-                f"평균단가 {state.average_price:,.0f}원"
-            )
+        # 상태 저장
+        await self.dca_repository.save_state(state.market, state)
 
-            return result
+        logger.info(
+            f"DCA 매수 실행: {new_round.round_number}회차, "
+            f"매수가 {current_price:,.0f}원, 매수량 {buy_volume:.8f}, "
+            f"평균단가 {state.average_price:,.0f}원"
+        )
 
-        except Exception as e:
-            logger.error(f"DCA 매수 실행 실패: {e}")
-            raise
+        return result
 
     async def execute_sell(
         self,
@@ -228,46 +229,42 @@ class DcaService:
         """
         매도 실행 및 상태 업데이트
         """
-        try:
-            current_price = market_data.current_price
-            sell_amount = int(sell_volume * current_price)
-            current_profit_rate = self._calculate_current_profit_rate(
-                current_price, state
-            )
+        current_price = market_data.current_price
+        sell_amount = int(sell_volume * current_price)
+        current_profit_rate = self._calculate_current_profit_rate(current_price, state)
 
-            # 결과 생성
-            profit_loss_amount = sell_amount - state.total_investment
-            result = DcaResult(
-                success=True,
-                action_taken=ActionTaken.SELL,
-                message=f"DCA 매도 실행: 수익률 {current_profit_rate:.2%}",
-                trade_price=current_price,
-                trade_amount=sell_amount,
-                trade_volume=sell_volume,
-                current_state=state,
-                profit_rate=current_profit_rate,
-                profit_loss_amount_krw=profit_loss_amount,
-            )
+        # 결과 생성
+        profit_loss_amount = sell_amount - state.total_investment
+        result = DcaResult(
+            success=True,
+            action_taken=ActionTaken.SELL,
+            message=f"DCA 매도 실행: 수익률 {current_profit_rate:.2%}",
+            trade_price=current_price,
+            trade_amount=sell_amount,
+            trade_volume=sell_volume,
+            current_state=state,
+            profit_rate=current_profit_rate,
+            profit_loss_amount_krw=profit_loss_amount,
+        )
 
-            # 상태 리셋 (사이클 종료)
-            state.phase = DcaPhase.INACTIVE
-            state.current_round = 0
-            state.total_investment = 0
-            state.total_volume = Decimal("0")
-            state.average_price = Decimal("0")
-            state.buying_rounds = []
+        # 상태 리셋 (사이클 종료)
+        state.phase = DcaPhase.INACTIVE
+        state.current_round = 0
+        state.total_investment = 0
+        state.total_volume = Decimal("0")
+        state.average_price = Decimal("0")
+        state.buying_rounds = []
 
-            logger.info(
-                f"DCA 매도 실행: 매도가 {current_price:,.0f}원, "
-                f"매도량 {sell_volume:.8f}, 수익률 {current_profit_rate:.2%}, "
-                f"실현손익 {profit_loss_amount:,.0f}원"
-            )
+        # 상태 저장
+        await self.dca_repository.save_state(state.market, state)
 
-            return result
+        logger.info(
+            f"DCA 매도 실행: 매도가 {current_price:,.0f}원, "
+            f"매도량 {sell_volume:.8f}, 수익률 {current_profit_rate:.2%}, "
+            f"실현손익 {profit_loss_amount:,.0f}원"
+        )
 
-        except Exception as e:
-            logger.error(f"DCA 매도 실행 실패: {e}")
-            raise
+        return result
 
     async def _analyze_initial_buy_signal(
         self, account: Account, config: DcaConfig

@@ -17,7 +17,7 @@ from app.application.usecase.dca_usecase import DcaUsecase
 from app.application.usecase.ticker_usecase import TickerUseCase
 from app.application.usecase.dca_stats_usecase import DcaStatsUsecase
 from common.utils.timezone import to_kst
-from app.application.dto.dca_config_dto import DcaConfigDTO
+from app.domain.models.dca import DcaConfig, DcaState
 
 logger = logging.getLogger(__name__)
 
@@ -334,8 +334,9 @@ class DiscordUIUseCase:
             if force_stop_loss_rate is not None:
                 start_kwargs["force_stop_loss_rate"] = force_stop_loss_rate
 
-            dto = DcaConfigDTO(**start_kwargs)
-            result = await self.dca_usecase.start(market_name, dto)
+            config = DcaConfig(**start_kwargs)
+            state = DcaState(market=market_name)
+            result = await self.dca_usecase.start(state, config)
 
             if not result.success:
                 raise Exception(f"DCA 시작 실패: {result.message}")

@@ -8,7 +8,7 @@ from app.domain.constants import (
     TRADING_DEFAULT_MIN_ORDER_AMOUNT,
 )
 from app.domain.enums import TradingAction
-from app.domain.models.account import Account, Balance
+from app.domain.models.account import Account
 from app.domain.models.dca import (
     BuyingRound,
     BuyType,
@@ -42,35 +42,62 @@ class DcaService:
 
         현재 상태에 따라 매수/매도/홀드 신호를 생성합니다.
         """
-        # 초기 매수 단계 확인
-        if state.phase == DcaPhase.INITIAL_BUY:
-            return await self._analyze_initial_buy_signal(account, config)
+        # 초기 매수 or 비활성 상태
+        if state.phase == DcaPhase.INITIAL_BUY or not state.is_active:
+            if account.available_krw < config.initial_buy_amount:
+                return TradingSignal(
+                    action=TradingAction.HOLD,
+                    confidence=ALGORITHM_MAX_CONFIDENCE,
+                    reason=f"초기 매수 불가: 필요금액 {config.initial_buy_amount:,.0f}원, 보유금액 {account.available_krw:,.0f}원",
+                )
 
-        # 비활성 상태 확인 (이전 로직 유지)
-        if not state.is_active:
-            return await self._analyze_initial_buy_signal(account, config)
+            return TradingSignal(
+                action=TradingAction.BUY,
+                confidence=ALGORITHM_MAX_CONFIDENCE,
+                reason="DCA 초기 매수 신호",
+            )
 
         # 현재 수익률 계산
-        current_profit_rate = self._calculate_current_profit_rate(
-            market_data.current_price, state
+        current_profit_rate = state.calculate_current_profit_rate(
+            market_data.current_price
         )
 
         # 강제 손절 확인
         if await self._should_force_sell(current_profit_rate, config, state):
-            return self._create_force_sell_signal(current_profit_rate)
+            return TradingSignal(
+                action=TradingAction.SELL,
+                confidence=ALGORITHM_MAX_CONFIDENCE,
+                reason=f"강제 손절: 수익률 {current_profit_rate:.2%}",
+            )
 
         # 익절 확인
         if await self._should_take_profit(current_profit_rate, config):
-            return self._create_profit_taking_signal(current_profit_rate)
+            return TradingSignal(
+                action=TradingAction.SELL,
+                confidence=ALGORITHM_MAX_CONFIDENCE,
+                reason=f"목표 수익률 달성: {current_profit_rate:.2%}",
+            )
 
         # 추가 매수 확인
         should_buy, buy_reason = await self._should_add_buy(
-            account, market_data, config, state
+            account=account,
+            market_data=market_data,
+            config=config,
+            state=state,
         )
-        if should_buy:
-            return await self._create_add_buy_signal(market_data, buy_reason, state)
 
-        # 홀드
+        # 추가 매수 신호 생성
+        if should_buy:
+            current_price = market_data.current_price
+            drop_rate = (state.average_price - current_price) / state.average_price
+
+            return TradingSignal(
+                action=TradingAction.BUY,
+                confidence=ALGORITHM_MAX_CONFIDENCE,
+                reason=f"{buy_reason} (평균단가: {state.average_price:,.0f}, 현재가: {current_price:,.0f}, 하락률: {drop_rate:.2%})",
+            )
+
+        # 매수/매도 신호가 없으면 홀드
         return TradingSignal(
             action=TradingAction.HOLD,
             confidence=ALGORITHM_MAX_CONFIDENCE,
@@ -90,10 +117,8 @@ class DcaService:
         if signal.action != TradingAction.BUY:
             return 0
 
-        available_krw = self._get_available_krw_balance(account)
-
-        # Decimal → int로 비교를 위해 Decimal -> int 캐스팅
-        available_krw_int = int(available_krw)
+        # Decimal -> int
+        available_krw_int = int(account.available_krw)
 
         if state.current_round == 0:
             # 초기 매수
@@ -131,7 +156,7 @@ class DcaService:
 
         logger.info(
             f"DCA 매수 금액 계산: {state.current_round + 1}회차, "
-            f"매수금액 {buy_amount}원 (사용가능: {available_krw:,.0f}원)"
+            f"매수금액 {buy_amount}원 (사용가능: {account.available_krw:,.0f}원)"
         )
 
         return buy_amount
@@ -149,7 +174,8 @@ class DcaService:
         if signal.action != TradingAction.SELL:
             return Decimal("0")
 
-        target_balance = self._get_target_currency_balance(account, market_data.market)
+        currency = market_data.market.split("-")[1]
+        target_balance = account.get_balance(currency)
         if not target_balance:
             return Decimal("0")
 
@@ -206,7 +232,7 @@ class DcaService:
             trade_amount=buy_amount,
             trade_volume=buy_volume,
             current_state=state,
-            profit_rate=self._calculate_current_profit_rate(current_price, state),
+            profit_rate=state.calculate_current_profit_rate(current_price),
         )
 
         # 상태 저장
@@ -231,7 +257,7 @@ class DcaService:
         """
         current_price = market_data.current_price
         sell_amount = int(sell_volume * current_price)
-        current_profit_rate = self._calculate_current_profit_rate(current_price, state)
+        current_profit_rate = state.calculate_current_profit_rate(current_price)
 
         # 결과 생성
         profit_loss_amount = sell_amount - state.total_investment
@@ -265,35 +291,6 @@ class DcaService:
         )
 
         return result
-
-    async def _analyze_initial_buy_signal(
-        self, account: Account, config: DcaConfig
-    ) -> TradingSignal:
-        """
-        초기 매수 신호 분석
-        """
-        available_krw = self._get_available_krw_balance(account)
-
-        if available_krw < config.initial_buy_amount:
-            return TradingSignal(
-                action=TradingAction.HOLD,
-                confidence=ALGORITHM_MAX_CONFIDENCE,
-                reason=f"초기 매수 불가: 필요금액 {config.initial_buy_amount:,.0f}원, 보유금액 {available_krw:,.0f}원",
-            )
-
-        return TradingSignal(
-            action=TradingAction.BUY,
-            confidence=ALGORITHM_MAX_CONFIDENCE,
-            reason="DCA 초기 매수 신호",
-        )
-
-    def _calculate_current_profit_rate(
-        self, current_price: Decimal, state: DcaState
-    ) -> Decimal:
-        """현재 수익률 계산"""
-        if state.average_price == 0:
-            return Decimal("0")
-        return (current_price - state.average_price) / state.average_price
 
     async def _should_force_sell(
         self, current_profit_rate: Decimal, config: DcaConfig, state: DcaState
@@ -349,7 +346,7 @@ class DcaService:
         current_price = market_data.current_price
 
         # 사용 가능한 KRW 확인
-        available_krw = self._get_available_krw_balance(account)
+        available_krw = account.available_krw
         if available_krw < config.initial_buy_amount:
             return False, "사용 가능한 KRW 부족"
 
@@ -410,54 +407,3 @@ class DcaService:
         drop_rate = (state.average_price - current_price) / state.average_price
 
         return drop_rate >= abs(config.price_drop_threshold)
-
-    def _create_force_sell_signal(self, current_profit_rate: Decimal) -> TradingSignal:
-        """강제 손절 신호 생성"""
-        return TradingSignal(
-            action=TradingAction.SELL,
-            confidence=ALGORITHM_MAX_CONFIDENCE,
-            reason=f"강제 손절: 수익률 {current_profit_rate:.2%}",
-        )
-
-    def _create_profit_taking_signal(
-        self, current_profit_rate: Decimal
-    ) -> TradingSignal:
-        """익절 신호 생성"""
-        return TradingSignal(
-            action=TradingAction.SELL,
-            confidence=ALGORITHM_MAX_CONFIDENCE,
-            reason=f"목표 수익률 달성: {current_profit_rate:.2%}",
-        )
-
-    async def _create_add_buy_signal(
-        self, market_data: MarketData, buy_reason: str, state: DcaState
-    ) -> TradingSignal:
-        """추가 매수 신호 생성"""
-        current_price = market_data.current_price
-        drop_rate = (state.average_price - current_price) / state.average_price
-
-        return TradingSignal(
-            action=TradingAction.BUY,
-            confidence=ALGORITHM_MAX_CONFIDENCE,
-            reason=f"{buy_reason} (평균단가: {state.average_price:,.0f}, 현재가: {current_price:,.0f}, 하락률: {drop_rate:.2%})",
-        )
-
-    def _get_available_krw_balance(self, account: Account) -> Decimal:
-        """사용 가능한 KRW 잔액 조회"""
-        for balance in account.balances:
-            if balance.currency == "KRW":
-                return balance.balance - balance.locked
-        return Decimal("0")
-
-    def _get_target_currency_balance(
-        self, account: Account, market: str
-    ) -> Balance | None:
-        """대상 통화 잔액 조회"""
-        # 마켓에서 대상 통화 추출 (예: KRW-BTC -> BTC)
-        target_currency = market.split("-")[1]
-        currency = target_currency
-
-        for balance in account.balances:
-            if balance.currency == currency:
-                return balance
-        return None

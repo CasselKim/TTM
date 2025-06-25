@@ -45,3 +45,15 @@ class Account(BaseModel):
             if balance.currency == currency:
                 return balance
         return None
+
+    # 추가: 사용 가능한 KRW 잔액 반환
+    @property
+    def available_krw(self) -> Decimal:
+        return self.available_balance("KRW")
+
+    def available_balance(self, currency: Currency) -> Decimal:
+        """해당 통화의 사용 가능한 잔액(balance - locked)을 반환"""
+        balance = self.get_balance(currency)
+        if balance is None:
+            return Decimal("0")
+        return balance.balance - balance.locked

@@ -561,3 +561,106 @@ class DiscordUIUseCase:
         """매매 중단 Embed 생성"""
         stop_data = await self.stop_trade(user_id)
         return create_trade_stop_embed(stop_data)
+
+    async def update_dca_config(
+        self,
+        user_id: str,
+        market: str,
+        *,
+        target_profit_rate: Decimal | None = None,
+        price_drop_threshold: Decimal | None = None,
+        force_stop_loss_rate: Decimal | None = None,
+        add_buy_multiplier: Decimal | None = None,
+        enable_smart_dca: bool | None = None,
+        smart_dca_rho: Decimal | None = None,
+        smart_dca_max_multiplier: Decimal | None = None,
+        smart_dca_min_multiplier: Decimal | None = None,
+        time_based_buy_interval_hours: int | None = None,
+        enable_time_based_buying: bool | None = None,
+        max_buy_rounds: int | None = None,
+    ) -> dict[str, Any]:
+        """DCA 설정 변경"""
+        try:
+            # 1. 기존 설정 조회
+            existing_config = await self.dca_usecase.dca_repository.get_config(market)
+            if not existing_config:
+                raise Exception(f"{market} DCA가 실행 중이 아닙니다.")
+
+            # 2. 새로운 설정 생성 (기존 값 유지하면서 변경할 값만 업데이트)
+            config_data = existing_config.model_dump()
+
+            if target_profit_rate is not None:
+                config_data["target_profit_rate"] = target_profit_rate
+            if price_drop_threshold is not None:
+                config_data["price_drop_threshold"] = price_drop_threshold
+            if force_stop_loss_rate is not None:
+                config_data["force_stop_loss_rate"] = force_stop_loss_rate
+            if add_buy_multiplier is not None:
+                config_data["add_buy_multiplier"] = add_buy_multiplier
+            if enable_smart_dca is not None:
+                config_data["enable_smart_dca"] = enable_smart_dca
+            if smart_dca_rho is not None:
+                config_data["smart_dca_rho"] = smart_dca_rho
+            if smart_dca_max_multiplier is not None:
+                config_data["smart_dca_max_multiplier"] = smart_dca_max_multiplier
+            if smart_dca_min_multiplier is not None:
+                config_data["smart_dca_min_multiplier"] = smart_dca_min_multiplier
+            if time_based_buy_interval_hours is not None:
+                config_data["time_based_buy_interval_hours"] = (
+                    time_based_buy_interval_hours
+                )
+            if enable_time_based_buying is not None:
+                config_data["enable_time_based_buying"] = enable_time_based_buying
+            if max_buy_rounds is not None:
+                config_data["max_buy_rounds"] = max_buy_rounds
+
+            # 3. 새로운 설정 객체 생성
+            new_config = DcaConfig(**config_data)
+
+            # 4. 설정 업데이트
+            result = await self.dca_usecase.update(market, new_config)
+
+            if not result.success:
+                raise Exception(f"설정 변경 실패: {result.message}")
+
+            symbol = market.split("-")[1] if "-" in market else market
+            logger.info(f"DCA 설정 변경 완료 (user_id: {user_id}, market: {market})")
+
+            return {
+                "symbol": symbol,
+                "market": market,
+                "success": True,
+                "message": result.message,
+                "updated_config": {
+                    "initial_buy_amount": new_config.initial_buy_amount,
+                    "target_profit_rate": float(new_config.target_profit_rate),
+                    "price_drop_threshold": float(new_config.price_drop_threshold),
+                    "force_stop_loss_rate": float(new_config.force_stop_loss_rate),
+                    "add_buy_multiplier": float(new_config.add_buy_multiplier),
+                    "enable_smart_dca": new_config.enable_smart_dca,
+                    "smart_dca_rho": float(new_config.smart_dca_rho),
+                    "smart_dca_max_multiplier": float(
+                        new_config.smart_dca_max_multiplier
+                    ),
+                    "smart_dca_min_multiplier": float(
+                        new_config.smart_dca_min_multiplier
+                    ),
+                    "time_based_buy_interval_hours": new_config.time_based_buy_interval_hours,
+                    "enable_time_based_buying": new_config.enable_time_based_buying,
+                    "max_buy_rounds": new_config.max_buy_rounds,
+                    "max_investment_ratio": float(new_config.max_investment_ratio),
+                    "min_buy_interval_minutes": new_config.min_buy_interval_minutes,
+                    "max_cycle_days": new_config.max_cycle_days,
+                },
+            }
+
+        except Exception as e:
+            logger.exception(
+                f"DCA 설정 변경 중 오류 (user_id: {user_id}, market: {market}): {e}"
+            )
+            return {
+                "symbol": market.split("-")[1] if "-" in market else market,
+                "market": market,
+                "success": False,
+                "message": str(e),
+            }

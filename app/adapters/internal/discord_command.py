@@ -263,3 +263,197 @@ class DiscordCommandAdapter(commands.Cog):
                 color=0xFF0000,
             )
             await interaction.followup.send(embed=embed, ephemeral=True)
+
+    @app_commands.command(
+        name="update_dca_config", description="진행 중인 DCA의 설정을 변경합니다"
+    )
+    @app_commands.describe(
+        target_profit_rate="목표 수익률 (예: 0.1 = 10%)",
+        price_drop_threshold="추가 매수 트리거 하락률 (예: -0.025 = -2.5%)",
+        force_stop_loss_rate="강제 손절률 (예: -0.25 = -25%)",
+        add_buy_multiplier="추가 매수 배수 (예: 1.5)",
+        enable_smart_dca="Smart DCA 사용 여부",
+        smart_dca_rho="Smart DCA ρ 파라미터 (예: 1.5)",
+        smart_dca_max_multiplier="Smart DCA 최대 투자 배수 (예: 5.0)",
+        smart_dca_min_multiplier="Smart DCA 최소 투자 배수 (예: 0.1)",
+        time_interval_hours="시간 기반 매수 간격 (시간, 예: 24)",
+        enable_time_based="시간 기반 매수 활성화 여부",
+        max_rounds="최대 매수 회차 (예: 10)",
+    )
+    async def update_dca_config_command(
+        self,
+        interaction: discord.Interaction,
+        target_profit_rate: float | None = None,
+        price_drop_threshold: float | None = None,
+        force_stop_loss_rate: float | None = None,
+        add_buy_multiplier: float | None = None,
+        enable_smart_dca: bool | None = None,
+        smart_dca_rho: float | None = None,
+        smart_dca_max_multiplier: float | None = None,
+        smart_dca_min_multiplier: float | None = None,
+        time_interval_hours: int | None = None,
+        enable_time_based: bool | None = None,
+        max_rounds: int | None = None,
+    ) -> None:
+        """DCA 설정 변경 Slash Command"""
+        await interaction.response.defer(ephemeral=True)
+
+        try:
+            user_id = str(interaction.user.id)
+            logger.info(f"DCA 설정 변경 요청 (user_id: {user_id})")
+
+            # 1. 진행중인 DCA 목록 조회
+            dca_list = await self.ui_usecase.get_active_dca_list(user_id)
+
+            if not dca_list:
+                embed = discord.Embed(
+                    title="ℹ️ 진행중인 DCA 없음",
+                    description="현재 진행중인 DCA가 없습니다.\n\n"
+                    "새로운 DCA를 시작하려면 `/trade_start` 커맨드를 사용하세요.",
+                    color=0x808080,
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+
+            # 2. 첫 번째 DCA의 설정 변경 (단일 사용자 가정)
+            first_dca = dca_list[0]
+            market = first_dca["market"]
+
+            # 3. Decimal 변환
+            from decimal import Decimal
+            from typing import Any
+
+            kwargs: dict[str, Any] = {}
+            if target_profit_rate is not None:
+                kwargs["target_profit_rate"] = Decimal(str(target_profit_rate))
+            if price_drop_threshold is not None:
+                kwargs["price_drop_threshold"] = Decimal(str(price_drop_threshold))
+            if force_stop_loss_rate is not None:
+                kwargs["force_stop_loss_rate"] = Decimal(str(force_stop_loss_rate))
+            if add_buy_multiplier is not None:
+                kwargs["add_buy_multiplier"] = Decimal(str(add_buy_multiplier))
+            if enable_smart_dca is not None:
+                kwargs["enable_smart_dca"] = enable_smart_dca
+            if smart_dca_rho is not None:
+                kwargs["smart_dca_rho"] = Decimal(str(smart_dca_rho))
+            if smart_dca_max_multiplier is not None:
+                kwargs["smart_dca_max_multiplier"] = Decimal(
+                    str(smart_dca_max_multiplier)
+                )
+            if smart_dca_min_multiplier is not None:
+                kwargs["smart_dca_min_multiplier"] = Decimal(
+                    str(smart_dca_min_multiplier)
+                )
+            if time_interval_hours is not None:
+                kwargs["time_based_buy_interval_hours"] = time_interval_hours
+            if enable_time_based is not None:
+                kwargs["enable_time_based_buying"] = enable_time_based
+            if max_rounds is not None:
+                kwargs["max_buy_rounds"] = max_rounds
+
+            # 4. 설정 변경할 값이 있는지 확인
+            if not kwargs:
+                embed = discord.Embed(
+                    title="⚠️ 변경할 설정 없음",
+                    description="변경할 설정 값을 입력해주세요.\n\n"
+                    "사용 가능한 옵션:\n"
+                    "• `target_profit_rate`: 목표 수익률\n"
+                    "• `price_drop_threshold`: 추가 매수 트리거 하락률\n"
+                    "• `force_stop_loss_rate`: 강제 손절률\n"
+                    "• `add_buy_multiplier`: 추가 매수 배수\n"
+                    "• `enable_smart_dca`: Smart DCA 활성화\n"
+                    "• `smart_dca_rho`: Smart DCA ρ 파라미터\n"
+                    "• `max_rounds`: 최대 매수 회차",
+                    color=0xFFA500,
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+
+            # 5. 설정 변경 실행
+            result = await self.ui_usecase.update_dca_config(
+                user_id=user_id,
+                market=market,
+                **kwargs,
+            )
+
+            # 6. 결과 응답
+            if result["success"]:
+                config = result["updated_config"]
+                embed = discord.Embed(
+                    title="✅ DCA 설정 변경 완료",
+                    description=f"**{result['symbol']}** DCA의 설정이 변경되었습니다.",
+                    color=0x00FF00,
+                )
+
+                # 변경된 설정만 표시
+                changed_fields = []
+                if target_profit_rate is not None:
+                    changed_fields.append(
+                        ("목표 수익률", f"{config['target_profit_rate']:.1%}", True)
+                    )
+                if price_drop_threshold is not None:
+                    changed_fields.append(
+                        (
+                            "추가 매수 하락률",
+                            f"{config['price_drop_threshold']:.1%}",
+                            True,
+                        )
+                    )
+                if force_stop_loss_rate is not None:
+                    changed_fields.append(
+                        ("강제 손절률", f"{config['force_stop_loss_rate']:.1%}", True)
+                    )
+                if add_buy_multiplier is not None:
+                    changed_fields.append(
+                        ("추가 매수 배수", f"{config['add_buy_multiplier']:.1f}x", True)
+                    )
+                if enable_smart_dca is not None:
+                    smart_status = (
+                        "활성화" if config["enable_smart_dca"] else "비활성화"
+                    )
+                    changed_fields.append(("Smart DCA", smart_status, True))
+                if smart_dca_rho is not None:
+                    changed_fields.append(
+                        ("Smart DCA ρ", f"{config['smart_dca_rho']:.1f}", True)
+                    )
+                if max_rounds is not None:
+                    changed_fields.append(
+                        ("최대 매수 회차", f"{config['max_buy_rounds']}회", True)
+                    )
+                if time_interval_hours is not None:
+                    changed_fields.append(
+                        (
+                            "시간 기반 간격",
+                            f"{config['time_based_buy_interval_hours']}시간",
+                            True,
+                        )
+                    )
+                if enable_time_based is not None:
+                    time_status = (
+                        "활성화" if config["enable_time_based_buying"] else "비활성화"
+                    )
+                    changed_fields.append(("시간 기반 매수", time_status, True))
+
+                for name, value, inline in changed_fields:
+                    embed.add_field(name=name, value=value, inline=inline)
+
+            else:
+                embed = discord.Embed(
+                    title="❌ 설정 변경 실패",
+                    description=f"DCA 설정 변경 중 오류가 발생했습니다.\n\n**오류**: {result['message']}",
+                    color=0xFF0000,
+                )
+
+            await interaction.followup.send(embed=embed, ephemeral=True)
+            logger.info(f"DCA 설정 변경 응답 완료 (user_id: {user_id})")
+
+        except Exception as e:
+            logger.exception(
+                f"DCA 설정 변경 중 오류 발생 (user_id: {interaction.user.id}): {e}"
+            )
+            embed = discord.Embed(
+                title="❌ 오류 발생",
+                description="DCA 설정 변경 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
+                color=0xFF0000,
+            )
+            await interaction.followup.send(embed=embed, ephemeral=True)

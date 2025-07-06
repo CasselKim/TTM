@@ -420,3 +420,160 @@ class TestSmartDcaIntegration:
             Decimal("1000000"), Decimal("10000")  # 10000% 상승
         )
         assert multiplier == Decimal("0.5")  # 최소 배수 제한
+
+
+class TestDcaConfigUpdate:
+    """DCA 설정 변경 테스트"""
+
+    def test_config_update_all_params(self):
+        """모든 파라미터 업데이트 테스트"""
+        # 기존 설정
+        original_config = DcaConfig(
+            initial_buy_amount=5000,
+            target_profit_rate=Decimal("0.10"),
+            add_buy_multiplier=Decimal("1.5"),
+            enable_smart_dca=False
+        )
+
+        # 새로운 설정 데이터
+        new_data = {
+            "initial_buy_amount": 10000,
+            "target_profit_rate": Decimal("0.15"),
+            "add_buy_multiplier": Decimal("2.0"),
+            "enable_smart_dca": True,
+            "smart_dca_rho": Decimal("1.8"),
+            "smart_dca_max_multiplier": Decimal("4.0"),
+            "smart_dca_min_multiplier": Decimal("0.2"),
+            "price_drop_threshold": Decimal("-0.03"),
+            "force_stop_loss_rate": Decimal("-0.30"),
+            "max_buy_rounds": 12,
+            "time_based_buy_interval_hours": 48,
+            "enable_time_based_buying": True
+        }
+
+        # 새로운 설정 생성
+        updated_config = DcaConfig(**new_data)
+
+        # 검증
+        assert updated_config.initial_buy_amount == 10000
+        assert updated_config.target_profit_rate == Decimal("0.15")
+        assert updated_config.add_buy_multiplier == Decimal("2.0")
+        assert updated_config.enable_smart_dca is True
+        assert updated_config.smart_dca_rho == Decimal("1.8")
+        assert updated_config.smart_dca_max_multiplier == Decimal("4.0")
+        assert updated_config.smart_dca_min_multiplier == Decimal("0.2")
+        assert updated_config.price_drop_threshold == Decimal("-0.03")
+        assert updated_config.force_stop_loss_rate == Decimal("-0.30")
+        assert updated_config.max_buy_rounds == 12
+        assert updated_config.time_based_buy_interval_hours == 48
+        assert updated_config.enable_time_based_buying is True
+
+    def test_config_partial_update(self):
+        """부분 업데이트 테스트"""
+        # 기존 설정
+        original_config = DcaConfig(
+            initial_buy_amount=5000,
+            target_profit_rate=Decimal("0.10"),
+            add_buy_multiplier=Decimal("1.5"),
+            enable_smart_dca=False
+        )
+
+        # 기존 값 유지하며 일부만 변경
+        config_data = original_config.model_dump()
+        config_data["target_profit_rate"] = Decimal("0.20")
+        config_data["enable_smart_dca"] = True
+
+        updated_config = DcaConfig(**config_data)
+
+        # 변경된 값 확인
+        assert updated_config.target_profit_rate == Decimal("0.20")
+        assert updated_config.enable_smart_dca is True
+
+        # 변경되지 않은 값 확인
+        assert updated_config.initial_buy_amount == 5000
+        assert updated_config.add_buy_multiplier == Decimal("1.5")
+
+    def test_config_validation_on_update(self):
+        """설정 변경 시 유효성 검증 테스트"""
+        # 잘못된 목표 수익률 (음수)
+        with pytest.raises(Exception):
+            DcaConfig(target_profit_rate=Decimal("-0.1"))
+
+        # 잘못된 추가 매수 하락률 (양수)
+        with pytest.raises(Exception):
+            DcaConfig(price_drop_threshold=Decimal("0.025"))
+
+        # 잘못된 강제 손절률 (양수)
+        with pytest.raises(Exception):
+            DcaConfig(force_stop_loss_rate=Decimal("0.25"))
+
+        # 잘못된 최대 투자 비율 (1 초과)
+        with pytest.raises(Exception):
+            DcaConfig(max_investment_ratio=Decimal("1.5"))
+
+    def test_smart_dca_config_update(self):
+        """SmartDCA 관련 설정 변경 테스트"""
+        config = DcaConfig(enable_smart_dca=False)
+
+        # SmartDCA 활성화 및 파라미터 설정
+        config_data = config.model_dump()
+        config_data.update({
+            "enable_smart_dca": True,
+            "smart_dca_rho": Decimal("2.5"),
+            "smart_dca_max_multiplier": Decimal("6.0"),
+            "smart_dca_min_multiplier": Decimal("0.1")
+        })
+
+        updated_config = DcaConfig(**config_data)
+
+        assert updated_config.enable_smart_dca is True
+        assert updated_config.smart_dca_rho == Decimal("2.5")
+        assert updated_config.smart_dca_max_multiplier == Decimal("6.0")
+        assert updated_config.smart_dca_min_multiplier == Decimal("0.1")
+
+        # 새로운 설정으로 SmartDCA 배수 계산 테스트
+        multiplier = updated_config.calculate_smart_dca_multiplier(
+            Decimal("40000"), Decimal("50000")  # 20% 하락
+        )
+        assert multiplier > Decimal("1.0")
+        assert multiplier <= Decimal("6.0")
+
+    def test_time_based_config_update(self):
+        """시간 기반 매수 설정 변경 테스트"""
+        config = DcaConfig(
+            enable_time_based_buying=False,
+            time_based_buy_interval_hours=72
+        )
+
+        # 시간 기반 매수 활성화 및 간격 변경
+        config_data = config.model_dump()
+        config_data.update({
+            "enable_time_based_buying": True,
+            "time_based_buy_interval_hours": 24
+        })
+
+        updated_config = DcaConfig(**config_data)
+
+        assert updated_config.enable_time_based_buying is True
+        assert updated_config.time_based_buy_interval_hours == 24
+
+    def test_json_serialization_deserialization(self):
+        """JSON 직렬화/역직렬화 테스트"""
+        original_config = DcaConfig(
+            initial_buy_amount=8000,
+            target_profit_rate=Decimal("0.12"),
+            enable_smart_dca=True,
+            smart_dca_rho=Decimal("1.8")
+        )
+
+        # JSON으로 직렬화
+        json_str = original_config.to_cache_json()
+
+        # JSON에서 역직렬화
+        restored_config = DcaConfig.from_cache_json(json_str)
+
+        # 값 비교
+        assert restored_config.initial_buy_amount == original_config.initial_buy_amount
+        assert restored_config.target_profit_rate == original_config.target_profit_rate
+        assert restored_config.enable_smart_dca == original_config.enable_smart_dca
+        assert restored_config.smart_dca_rho == original_config.smart_dca_rho

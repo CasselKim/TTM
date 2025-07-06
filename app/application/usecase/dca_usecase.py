@@ -182,6 +182,47 @@ class DcaUsecase:
             current_state=state,
         )
 
+    async def update(self, market: MarketName, new_config: DcaConfig) -> DcaResult:
+        """DCA 설정 변경"""
+
+        # 1. 기존 설정 및 상태 조회
+        existing_config = await self.dca_repository.get_config(market)
+        existing_state = await self.dca_repository.get_state(market)
+
+        if not existing_config or not existing_state:
+            return DcaResult(
+                success=False,
+                action_taken=ActionTaken.HOLD,
+                message=f"{market} DCA가 실행 중이 아닙니다.",
+                current_state=None,
+            )
+
+        # 2. 새 설정 저장
+        await self.dca_repository.save_config(market, new_config)
+
+        # 3. 알림 전송
+        await self.notification_repo.send_info_notification(
+            title="DCA 설정 변경",
+            message=f"**{market}** 마켓의 DCA 설정이 변경되었습니다.",
+            fields=[
+                ("목표 수익률", f"{new_config.target_profit_rate:.1%}", True),
+                ("추가 매수 배수", f"{new_config.add_buy_multiplier:.1f}", True),
+                (
+                    "Smart DCA",
+                    "활성화" if new_config.enable_smart_dca else "비활성화",
+                    True,
+                ),
+            ],
+        )
+
+        # 4. 결과 반환
+        return DcaResult(
+            success=True,
+            action_taken=ActionTaken.HOLD,
+            message=f"{market} DCA 설정이 변경되었습니다.",
+            current_state=existing_state,
+        )
+
     async def run(self, market: MarketName) -> DcaResult:
         """DCA 사이클 실행"""
 

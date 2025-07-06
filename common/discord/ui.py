@@ -89,123 +89,81 @@ class TradeCompleteView(discord.ui.View):
             await interaction.followup.send(embed=embed, ephemeral=True)
 
 
-class TradeModal(discord.ui.Modal):
-    """매매 실행 모달 (필수값만 입력)"""
+async def execute_trade_direct(
+    ui_usecase: "DiscordUIUseCase",
+    interaction: discord.Interaction,
+    symbol: str = "BTC",
+    amount: int = 100000,
+    total_count: int = 10,
+    interval_hours: int = 24,
+    add_buy_multiplier: float = 1.5,
+    enable_smart_dca: bool = False,
+    advanced_options: dict[str, float] | None = None,
+) -> None:
+    """DCA 직접 실행 (모달 없이)"""
+    import discord.errors
 
-    def __init__(self, ui_usecase: "DiscordUIUseCase") -> None:
-        super().__init__(title="📈 자동매매 실행")
-        self.ui_usecase = ui_usecase
-        self.advanced_options: dict[str, float] | None = None
+    # advanced 옵션은 커맨드 파라미터 or 기본값 사용
+    advanced_raw = advanced_options or {
+        "target_profit_rate": 0.1,
+        "price_drop_threshold": -0.025,
+        "force_stop_loss_rate": -0.25,
+        "smart_dca_rho": 1.5,
+        "smart_dca_max_multiplier": 5.0,
+        "smart_dca_min_multiplier": 0.1,
+    }
+    advanced = {
+        "target_profit_rate": Decimal(str(advanced_raw["target_profit_rate"])),
+        "price_drop_threshold": Decimal(str(advanced_raw["price_drop_threshold"])),
+        "force_stop_loss_rate": Decimal(str(advanced_raw["force_stop_loss_rate"])),
+        "smart_dca_rho": Decimal(str(advanced_raw["smart_dca_rho"])),
+        "smart_dca_max_multiplier": Decimal(
+            str(advanced_raw["smart_dca_max_multiplier"])
+        ),
+        "smart_dca_min_multiplier": Decimal(
+            str(advanced_raw["smart_dca_min_multiplier"])
+        ),
+    }
 
-    symbol: discord.ui.TextInput[Any] = discord.ui.TextInput(
-        label="코인 심볼",
-        placeholder="예: BTC, ETH, DOGE",
-        max_length=10,
-        style=discord.TextStyle.short,
-    )
-    amount: discord.ui.TextInput[Any] = discord.ui.TextInput(
-        label="매수 금액 (KRW)",
-        placeholder="예: 100000 (10만원)",
-        max_length=15,
-        style=discord.TextStyle.short,
-    )
-    total_count: discord.ui.TextInput[Any] = discord.ui.TextInput(
-        label="총 매수 횟수",
-        placeholder="예: 10",
-        max_length=3,
-        style=discord.TextStyle.short,
-    )
-    interval_hours: discord.ui.TextInput[Any] = discord.ui.TextInput(
-        label="매수 간격 (시간)",
-        placeholder="예: 24 (24시간마다)",
-        max_length=3,
-        style=discord.TextStyle.short,
-    )
-    add_buy_multiplier: discord.ui.TextInput[Any] = discord.ui.TextInput(
-        label="추가 매수 배수",
-        placeholder="예: 1.5",
-        max_length=5,
-        style=discord.TextStyle.short,
-        default="1.5",
-    )
+    user_id = str(interaction.user.id)
+    try:
+        trade_data = await ui_usecase.execute_trade(
+            user_id=user_id,
+            symbol=symbol.upper().strip(),
+            amount=amount,
+            total_count=total_count,
+            interval_hours=interval_hours,
+            add_buy_multiplier=Decimal(str(add_buy_multiplier)),
+            target_profit_rate=advanced["target_profit_rate"],
+            price_drop_threshold=advanced["price_drop_threshold"],
+            force_stop_loss_rate=advanced["force_stop_loss_rate"],
+            enable_smart_dca=enable_smart_dca,
+            smart_dca_rho=advanced["smart_dca_rho"] if enable_smart_dca else None,
+            smart_dca_max_multiplier=advanced["smart_dca_max_multiplier"]
+            if enable_smart_dca
+            else None,
+            smart_dca_min_multiplier=advanced["smart_dca_min_multiplier"]
+            if enable_smart_dca
+            else None,
+        )
+        embed = await ui_usecase.create_trade_complete_embed(trade_data)
+        view = TradeCompleteView(ui_usecase)
+        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+    except Exception as e:
+        import traceback
 
-    async def on_submit(self, interaction: discord.Interaction) -> None:
-        import discord.errors
-
+        logger.error(
+            f"[DCA-TRACE] execute_trade_direct 예외: user_id={user_id}, 예외={e}\n{traceback.format_exc()}"
+        )
+        embed = discord.Embed(
+            title="❌ 오류 발생",
+            description="매매 실행 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
+            color=0xFF0000,
+        )
         try:
-            symbol_value = self.symbol.value.upper().strip()
-            amount_value = int(self.amount.value.replace(",", ""))
-            count_value = int(self.total_count.value)
-            interval_value = int(self.interval_hours.value)
-            multiplier_value = Decimal(self.add_buy_multiplier.value)
-
-            if not symbol_value:
-                raise ValueError("코인 심볼을 입력해주세요.")
-            if amount_value <= 0:
-                raise ValueError("매수 금액은 0보다 커야 합니다.")
-            if count_value <= 0:
-                raise ValueError("총 횟수는 0보다 커야 합니다.")
-            if interval_value <= 0:
-                raise ValueError("매수 간격은 0보다 커야 합니다.")
-            if multiplier_value <= 0:
-                raise ValueError("추가 매수 배수는 0보다 커야 합니다.")
-        except Exception as e:
-            embed = discord.Embed(
-                title="❌ 입력 오류",
-                description=f"입력값을 확인해주세요:\n{str(e)}",
-                color=0xFF0000,
-            )
-            try:
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-            except discord.errors.NotFound:
-                pass
-            return
-
-        # advanced 옵션은 커맨드 파라미터 or 기본값 사용
-        advanced_raw = self.advanced_options or {
-            "target_profit_rate": 0.1,
-            "price_drop_threshold": -0.025,
-            "force_stop_loss_rate": -0.25,
-        }
-        advanced = {
-            "target_profit_rate": Decimal(str(advanced_raw["target_profit_rate"])),
-            "price_drop_threshold": Decimal(str(advanced_raw["price_drop_threshold"])),
-            "force_stop_loss_rate": Decimal(str(advanced_raw["force_stop_loss_rate"])),
-        }
-        user_id = str(interaction.user.id)
-        try:
-            trade_data = await self.ui_usecase.execute_trade(
-                user_id=user_id,
-                symbol=symbol_value,
-                amount=amount_value,
-                total_count=count_value,
-                interval_hours=interval_value,
-                add_buy_multiplier=multiplier_value,
-                target_profit_rate=advanced["target_profit_rate"],
-                price_drop_threshold=advanced["price_drop_threshold"],
-                force_stop_loss_rate=advanced["force_stop_loss_rate"],
-            )
-            embed = await self.ui_usecase.create_trade_complete_embed(trade_data)
-            view = TradeCompleteView(self.ui_usecase)
-            await interaction.response.send_message(
-                embed=embed, view=view, ephemeral=True
-            )
-        except Exception as e:
-            import traceback
-
-            logger = logging.getLogger(__name__)
-            logger.error(
-                f"[DCA-TRACE] TradeModal.on_submit 예외: user_id={user_id}, 예외={e}\n{traceback.format_exc()}"
-            )
-            embed = discord.Embed(
-                title="❌ 오류 발생",
-                description="매매 실행 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
-                color=0xFF0000,
-            )
-            try:
-                await interaction.response.send_message(embed=embed, ephemeral=True)
-            except discord.errors.NotFound:
-                pass
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+        except discord.errors.NotFound:
+            pass
 
 
 class ConfirmationView(discord.ui.View):

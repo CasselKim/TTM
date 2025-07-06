@@ -182,6 +182,9 @@ class DiscordUIUseCase:
                         else 0.0,
                         "total_invested": float(market_status.total_investment),
                         "recent_trades": recent_trades,
+                        "smart_dca_enabled": config.enable_smart_dca
+                        if config
+                        else False,
                     }
                 )
 
@@ -316,6 +319,10 @@ class DiscordUIUseCase:
         target_profit_rate: Decimal | None = None,
         price_drop_threshold: Decimal | None = None,
         force_stop_loss_rate: Decimal | None = None,
+        enable_smart_dca: bool = False,
+        smart_dca_rho: Decimal | None = None,
+        smart_dca_max_multiplier: Decimal | None = None,
+        smart_dca_min_multiplier: Decimal | None = None,
     ) -> dict[str, Any]:
         """매매 실행"""
         try:
@@ -324,6 +331,7 @@ class DiscordUIUseCase:
                 "initial_buy_amount": amount,
                 "max_buy_rounds": total_count,
                 "time_based_buy_interval_hours": interval_hours,
+                "enable_smart_dca": enable_smart_dca,
             }
             if add_buy_multiplier is not None:
                 start_kwargs["add_buy_multiplier"] = add_buy_multiplier
@@ -333,6 +341,12 @@ class DiscordUIUseCase:
                 start_kwargs["price_drop_threshold"] = price_drop_threshold
             if force_stop_loss_rate is not None:
                 start_kwargs["force_stop_loss_rate"] = force_stop_loss_rate
+            if smart_dca_rho is not None:
+                start_kwargs["smart_dca_rho"] = smart_dca_rho
+            if smart_dca_max_multiplier is not None:
+                start_kwargs["smart_dca_max_multiplier"] = smart_dca_max_multiplier
+            if smart_dca_min_multiplier is not None:
+                start_kwargs["smart_dca_min_multiplier"] = smart_dca_min_multiplier
 
             config = DcaConfig(**start_kwargs)
             state = DcaState(market=market_name)
@@ -357,6 +371,16 @@ class DiscordUIUseCase:
                 else None,
                 "force_stop_loss_rate": float(force_stop_loss_rate)
                 if force_stop_loss_rate is not None
+                else None,
+                "enable_smart_dca": enable_smart_dca,
+                "smart_dca_rho": float(smart_dca_rho)
+                if smart_dca_rho is not None
+                else None,
+                "smart_dca_max_multiplier": float(smart_dca_max_multiplier)
+                if smart_dca_max_multiplier is not None
+                else None,
+                "smart_dca_min_multiplier": float(smart_dca_min_multiplier)
+                if smart_dca_min_multiplier is not None
                 else None,
                 "trade_id": result.current_state.cycle_id
                 if result.current_state
@@ -424,10 +448,15 @@ class DiscordUIUseCase:
             # UI용 데이터 형태로 변환
             dca_list = []
             for summary in dca_summaries:
+                # Smart DCA 표시 추가
+                smart_dca_indicator = (
+                    "🧠 " if summary.get("smart_dca_enabled", False) else ""
+                )
+
                 dca_info = {
                     "market": summary["market"],
                     "symbol": summary["symbol"],
-                    "display_name": f"{summary['symbol']} ({summary['current_round']}/{summary['max_rounds']}회)",
+                    "display_name": f"{smart_dca_indicator}{summary['symbol']} ({summary['current_round']}/{summary['max_rounds']}회)",
                     "description": f"투자: {summary['total_investment']:,.0f}원 | 수익률: {summary['current_profit_rate']:.2f}%",
                     "current_round": summary["current_round"],
                     "max_rounds": summary["max_rounds"],
@@ -437,6 +466,7 @@ class DiscordUIUseCase:
                     "total_count": summary["max_rounds"],
                     "total_volume": summary.get("total_volume", 0),
                     "total_krw": summary["total_investment"],
+                    "smart_dca_enabled": summary.get("smart_dca_enabled", False),
                 }
                 dca_list.append(dca_info)
 

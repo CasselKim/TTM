@@ -12,7 +12,7 @@ from app.application.usecase.order_usecase import OrderUseCase
 from app.application.usecase.ticker_usecase import TickerUseCase
 from common.discord.bot import DiscordBot
 from common.discord.ui import (
-    TradeModal,
+    execute_trade_direct,
     DcaSelectionView,
     is_embed_valid,
     create_fallback_embed,
@@ -160,26 +160,62 @@ class DiscordCommandAdapter(commands.Cog):
         name="trade_start", description="새로운 자동매매를 시작합니다"
     )
     @app_commands.describe(
-        target_profit_rate="목표 수익률 (예: 0.1 = 10%, 기본값: 0.1)",
-        price_drop_threshold="추가 매수 트리거 하락률 (예: -0.025 = -2.5%, 기본값: -0.025)",
-        force_stop_loss_rate="강제 손절률 (예: -0.25 = -25%, 기본값: -0.25)",
+        symbol="코인 심볼 (예: BTC, ETH, DOGE)",
+        amount="매수 금액 (KRW, 예: 100000 = 10만원)",
+        total_count="총 매수 횟수 (예: 10)",
+        interval_hours="매수 간격 (시간, 예: 24 = 24시간마다)",
+        add_buy_multiplier="추가 매수 배수 (예: 1.5)",
+        enable_smart_dca="Smart DCA 사용 여부",
+        target_profit_rate="목표 수익률 (예: 0.1 = 10%)",
+        price_drop_threshold="추가 매수 트리거 하락률 (예: -0.025 = -2.5%)",
+        force_stop_loss_rate="강제 손절률 (예: -0.25 = -25%)",
+        smart_dca_rho="Smart DCA ρ 파라미터 (예: 1.5, Smart DCA 활성화시만)",
+        smart_dca_max_multiplier="Smart DCA 최대 투자 배수 (예: 5.0)",
+        smart_dca_min_multiplier="Smart DCA 최소 투자 배수 (예: 0.1)",
     )
     async def trade_execute_command(
         self,
         interaction: discord.Interaction,
+        symbol: str = "BTC",
+        amount: int = 100000,
+        total_count: int = 10,
+        interval_hours: int = 24,
+        add_buy_multiplier: float = 1.5,
+        enable_smart_dca: bool = False,
         target_profit_rate: float = 0.1,
         price_drop_threshold: float = -0.025,
         force_stop_loss_rate: float = -0.25,
+        smart_dca_rho: float = 1.5,
+        smart_dca_max_multiplier: float = 5.0,
+        smart_dca_min_multiplier: float = 0.1,
     ) -> None:
-        modal = TradeModal(self.ui_usecase)
-        # advanced 옵션을 모달에 전달
-        modal.advanced_options = {
+        """DCA 시작 Slash Command (직접 실행)"""
+        logger.info(
+            f"DCA 직접 실행 시작 (user_id: {interaction.user.id}, symbol: {symbol}, smart_dca: {enable_smart_dca})"
+        )
+
+        # advanced 옵션 구성
+        advanced_options = {
             "target_profit_rate": target_profit_rate,
             "price_drop_threshold": price_drop_threshold,
             "force_stop_loss_rate": force_stop_loss_rate,
+            "smart_dca_rho": smart_dca_rho,
+            "smart_dca_max_multiplier": smart_dca_max_multiplier,
+            "smart_dca_min_multiplier": smart_dca_min_multiplier,
         }
-        await interaction.response.send_modal(modal)
-        logger.info(f"매매 실행 모달 표시 완료 (user_id: {interaction.user.id})")
+
+        # 직접 실행
+        await execute_trade_direct(
+            ui_usecase=self.ui_usecase,
+            interaction=interaction,
+            symbol=symbol,
+            amount=amount,
+            total_count=total_count,
+            interval_hours=interval_hours,
+            add_buy_multiplier=add_buy_multiplier,
+            enable_smart_dca=enable_smart_dca,
+            advanced_options=advanced_options,
+        )
 
     @app_commands.command(
         name="trade_stop", description="진행 중인 자동매매를 중단합니다"

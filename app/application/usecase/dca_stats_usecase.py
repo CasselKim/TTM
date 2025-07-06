@@ -58,6 +58,7 @@ class DcaStatsUsecase:
                     "cycle_id": market_status.cycle_id
                     if hasattr(market_status, "cycle_id")
                     else "unknown",
+                    "smart_dca_enabled": config.enable_smart_dca,
                 }
             )
 

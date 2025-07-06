@@ -110,6 +110,7 @@ class DcaService:
         signal: TradingSignal,
         config: DcaConfig,
         state: DcaState,
+        market_data: MarketData,
     ) -> int:
         """
         DCA 매수 금액 계산
@@ -124,7 +125,7 @@ class DcaService:
             # 초기 매수
             buy_amount = min(config.initial_buy_amount, available_krw_int)
         else:
-            # 추가 매수: 이전 매수 금액의 배수
+            # 추가 매수: 기존 DCA vs SmartDCA
             if not state.buying_rounds:
                 # 데이터 불일치 상황: current_round > 0이지만 buying_rounds가 비어있음
                 # 이 경우 초기 매수 금액을 기준으로 계산
@@ -134,8 +135,19 @@ class DcaService:
                 )
                 buy_amount = min(config.initial_buy_amount, available_krw_int)
             else:
-                last_round = state.buying_rounds[-1]
-                buy_amount = int(last_round.buy_amount * config.add_buy_multiplier)
+                if config.enable_smart_dca:
+                    # SmartDCA: 평균 단가 기준 가격 레벨 조정
+                    reference_price = state.average_price
+                    current_price = market_data.current_price
+                    smart_multiplier = config.calculate_smart_dca_multiplier(
+                        current_price, reference_price
+                    )
+                    buy_amount = int(config.initial_buy_amount * smart_multiplier)
+                else:
+                    # 기존 DCA: 이전 매수 금액의 배수
+                    last_round = state.buying_rounds[-1]
+                    buy_amount = int(last_round.buy_amount * config.add_buy_multiplier)
+
                 buy_amount = min(buy_amount, available_krw_int)
 
         # 최소 주문 금액 확인
@@ -154,9 +166,13 @@ class DcaService:
             if Decimal(buy_amount) < TRADING_DEFAULT_MIN_ORDER_AMOUNT:
                 return 0
 
+        smart_info = ""
+        if config.enable_smart_dca and state.current_round > 0:
+            smart_info = f", SmartDCA 배수: {config.calculate_smart_dca_multiplier(market_data.current_price, state.average_price):.2f}"
+
         logger.info(
             f"DCA 매수 금액 계산: {state.current_round + 1}회차, "
-            f"매수금액 {buy_amount}원 (사용가능: {account.available_krw:,.0f}원)"
+            f"매수금액 {buy_amount}원 (사용가능: {account.available_krw:,.0f}원){smart_info}"
         )
 
         return buy_amount

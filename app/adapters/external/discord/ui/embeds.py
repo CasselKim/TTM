@@ -64,6 +64,11 @@ def create_dca_status_embed_summary(dca_list: list[dict[str, Any]]) -> discord.E
         profit_rate = data.get("profit_rate", 0)
         profit_emoji = "📈" if profit_rate >= 0 else "📉"
         profit_color = "🟢" if profit_rate >= 0 else "🔴"
+
+        # Smart DCA 상태 표시
+        smart_dca_enabled = data.get("smart_dca_enabled", False)
+        smart_dca_indicator = "🧠" if smart_dca_enabled else ""
+
         field_value = (
             f"{progress_bar} {progress_rate:.1f}%\n"
             f"평균가: ₩ {data.get('average_price', 0):,.0f}\n"
@@ -71,7 +76,9 @@ def create_dca_status_embed_summary(dca_list: list[dict[str, Any]]) -> discord.E
             f"{profit_emoji} 수익률: {profit_color} {profit_rate:+.2f}%\n"
             f"누적 투자액: ₩ {data.get('total_invested', 0):,.0f}"
         )
-        embed.add_field(name=f"🪙 {symbol}", value=field_value, inline=False)
+        embed.add_field(
+            name=f"🪙 {symbol} {smart_dca_indicator}", value=field_value, inline=False
+        )
 
     embed.set_footer(text="TTM Bot • 실시간 데이터")
     return embed
@@ -123,6 +130,20 @@ def create_dca_status_embed_detail(
             f"- 최대 사이클 기간: {config.get('max_cycle_days', '-')}일",
             f"- 시간 기반 매수 간격: {config.get('time_based_buy_interval_hours', '-')}시간",
         ]
+
+        # Smart DCA 설정 추가
+        smart_dca_enabled = config.get("enable_smart_dca", False)
+        if smart_dca_enabled:
+            config_lines.extend(
+                [
+                    "- 🧠 Smart DCA: 활성화",
+                    f"- Smart DCA ρ: {float(config.get('smart_dca_rho', 1.5)):.1f}",
+                    f"- Smart DCA 최대 배수: {float(config.get('smart_dca_max_multiplier', 5.0)):.1f}x",
+                    f"- Smart DCA 최소 배수: {float(config.get('smart_dca_min_multiplier', 0.1)):.1f}x",
+                ]
+            )
+        else:
+            config_lines.append("- 🧠 Smart DCA: 비활성화")
         # state 필드
         raw_state_lines = [
             f"- 마켓: {state.get('market', '-')} (ID: {state.get('cycle_id', '-')})",
@@ -219,9 +240,19 @@ def create_profit_embed(profit_data: dict[str, Any]) -> discord.Embed:
 
 def create_trade_complete_embed(trade_data: dict[str, Any]) -> discord.Embed:
     """매매 완료 Embed 생성"""
+    enable_smart_dca = trade_data.get("enable_smart_dca", False)
+
+    # Smart DCA 활성화 여부에 따라 제목과 설명 조정
+    if enable_smart_dca:
+        title = "✅ Smart DCA 실행 완료"
+        description = "🧠 Smart DCA 자동매매가 성공적으로 시작되었습니다!"
+    else:
+        title = "✅ 매매 실행 완료"
+        description = "자동매매가 성공적으로 시작되었습니다!"
+
     embed = discord.Embed(
-        title="✅ 매매 실행 완료",
-        description="자동매매가 성공적으로 시작되었습니다!",
+        title=title,
+        description=description,
         color=0x00FF00,
         timestamp=now_kst(),
     )
@@ -233,6 +264,37 @@ def create_trade_complete_embed(trade_data: dict[str, Any]) -> discord.Embed:
     embed.add_field(name="💰 매수 금액", value=f"₩ {amount:,.0f}", inline=True)
     embed.add_field(name="🔢 총 횟수", value=f"{total_count}회", inline=True)
     embed.add_field(name="⏰ 매수 간격", value=f"{interval_hours}시간", inline=True)
+
+    # Smart DCA 정보 표시
+    if enable_smart_dca:
+        smart_dca_rho = trade_data.get("smart_dca_rho")
+        smart_dca_max_multiplier = trade_data.get("smart_dca_max_multiplier")
+        smart_dca_min_multiplier = trade_data.get("smart_dca_min_multiplier")
+
+        if smart_dca_rho is not None:
+            embed.add_field(
+                name="🧠 Smart DCA ρ", value=f"{smart_dca_rho:.1f}", inline=True
+            )
+        if smart_dca_max_multiplier is not None:
+            embed.add_field(
+                name="📈 최대 투자 배수",
+                value=f"{smart_dca_max_multiplier:.1f}x",
+                inline=True,
+            )
+        if smart_dca_min_multiplier is not None:
+            embed.add_field(
+                name="📉 최소 투자 배수",
+                value=f"{smart_dca_min_multiplier:.1f}x",
+                inline=True,
+            )
+
+    # 추가 매수 배수 정보 표시 (Smart DCA와 일반 DCA 모두 해당)
+    add_buy_multiplier = trade_data.get("add_buy_multiplier")
+    if add_buy_multiplier is not None:
+        embed.add_field(
+            name="🔢 추가 매수 배수", value=f"{add_buy_multiplier:.1f}x", inline=True
+        )
+
     embed.set_footer(text="TTM Bot • DCA 상태 버튼으로 진행 상황을 확인하세요")
     return embed
 

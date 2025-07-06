@@ -60,12 +60,21 @@ class DcaConfig(BaseModel):
     time_based_buy_interval_hours: int = 72  # 시간 기반 매수 간격 (시간)
     enable_time_based_buying: bool = True  # 시간 기반 매수 활성화
 
+    # SmartDCA 설정
+    enable_smart_dca: bool = False  # SmartDCA 활성화 여부
+    smart_dca_rho: Decimal = Decimal("1.5")  # SmartDCA ρ 파라미터 (1.0 = 기본 DCA)
+    smart_dca_max_multiplier: Decimal = Decimal("5.0")  # SmartDCA 최대 투자 배수
+    smart_dca_min_multiplier: Decimal = Decimal("0.1")  # SmartDCA 최소 투자 배수
+
     @field_validator(
         "add_buy_multiplier",
         "target_profit_rate",
         "price_drop_threshold",
         "force_stop_loss_rate",
         "max_investment_ratio",
+        "smart_dca_rho",
+        "smart_dca_max_multiplier",
+        "smart_dca_min_multiplier",
         mode="before",
     )
     @classmethod
@@ -83,6 +92,9 @@ class DcaConfig(BaseModel):
         "force_stop_loss_rate",
         "max_investment_ratio",
         "add_buy_multiplier",
+        "smart_dca_rho",
+        "smart_dca_max_multiplier",
+        "smart_dca_min_multiplier",
     )
     def serialize_decimal(self, value: Decimal) -> float:
         """Decimal을 float로 직렬화"""
@@ -115,6 +127,23 @@ class DcaConfig(BaseModel):
         if current_round == 0:
             return self.initial_buy_amount
         return int(self.initial_buy_amount * (self.add_buy_multiplier**current_round))
+
+    def calculate_smart_dca_multiplier(
+        self, current_price: Decimal, reference_price: Decimal
+    ) -> Decimal:
+        """SmartDCA 매수 배수 계산"""
+        if not self.enable_smart_dca or reference_price == 0:
+            return Decimal("1.0")
+
+        # SmartDCA 공식: (reference_price / current_price) ^ ρ
+        price_ratio = reference_price / current_price
+        multiplier = price_ratio**self.smart_dca_rho
+
+        # 최대/최소 배수 제한
+        multiplier = max(self.smart_dca_min_multiplier, multiplier)
+        multiplier = min(self.smart_dca_max_multiplier, multiplier)
+
+        return multiplier
 
 
 class BuyingRound(BaseModel):

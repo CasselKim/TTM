@@ -222,6 +222,7 @@ class DcaUsecase:
                 signal=signal,
                 config=config,
                 state=state,
+                market_data=market_data,
             )
             if buy_amount <= 0:
                 return DcaResult(

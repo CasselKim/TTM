@@ -1,13 +1,9 @@
 import logging
 from decimal import Decimal
+from datetime import datetime
 
 from app.domain.enums import TradingAction
-from app.domain.models.dca import BuyType
-from app.domain.models.dca import (
-    DcaResult,
-    DcaState,
-)
-
+from app.domain.models.dca import BuyType, DcaResult, DcaState, DcaConfig
 from app.domain.models.trading import MarketData
 from app.domain.repositories.account_repository import AccountRepository
 from app.domain.repositories.dca_repository import DcaRepository
@@ -18,7 +14,7 @@ from app.domain.services.dca_service import DcaService
 from app.domain.enums import ActionTaken
 from app.domain.models.status import MarketName
 from app.domain.models.order import OrderRequest
-from app.domain.models.dca import DcaConfig
+from app.domain.constants import TRADING_DEFAULT_MIN_ORDER_AMOUNT
 
 logger = logging.getLogger(__name__)
 
@@ -144,10 +140,25 @@ class DcaUsecase:
                 )
 
             # 4. 매도 실행 및 결과 계산
-            sell_result = await self.dca_service.execute_sell(
+            profit_amount = self.dca_service.execute_sell(
                 market_data=market_data,
                 sell_volume=sell_volume,
                 state=state,
+            )
+            current_profit_rate = state.calculate_current_profit_rate(
+                market_data.current_price
+            )
+
+            sell_result = DcaResult(
+                success=True,
+                action_taken=ActionTaken.SELL,
+                message=f"DCA 강제 매도: 수익률 {current_profit_rate:.2%}",
+                trade_price=market_data.current_price,
+                trade_amount=int(sell_volume * market_data.current_price),
+                trade_volume=sell_volume,
+                current_state=state,
+                profit_rate=current_profit_rate,
+                profit_loss_amount_krw=int(profit_amount),
             )
 
             # 5. 알림 전송 (매도 완료)
@@ -248,7 +259,7 @@ class DcaUsecase:
         )
 
         # 3. 신호 분석
-        signal = await self.dca_service.analyze_signal(
+        signal = self.dca_service.analyze_signal(
             account=account,
             market_data=market_data,
             config=config,
@@ -257,23 +268,38 @@ class DcaUsecase:
 
         # 4. 매매 실행
         if signal.action == TradingAction.BUY:
-            # 4-1. 매수 금액 계산
-            buy_amount = await self.dca_service.calculate_buy_amount(
+            # 4-1. 추가 매수 가능 여부 확인
+            can_buy, reason = self.dca_service.can_buy_more(
+                config=config,
+                state=state,
+                current_time=datetime.now(),
+            )
+            if not can_buy:
+                return DcaResult(
+                    success=False,
+                    action_taken=ActionTaken.HOLD,
+                    message=reason,
+                    current_state=state,
+                )
+
+            # 4-2. 매수 금액 계산
+            buy_amount = self.dca_service.calculate_buy_amount(
                 account=account,
-                signal=signal,
                 config=config,
                 state=state,
                 market_data=market_data,
             )
-            if buy_amount <= 0:
+
+            # 4-3. 최소 주문 금액 확인
+            if Decimal(buy_amount) < TRADING_DEFAULT_MIN_ORDER_AMOUNT:
                 return DcaResult(
                     success=False,
                     action_taken=ActionTaken.HOLD,
-                    message="매수 조건 미충족 (자금 부족 또는 기타 제약)",
+                    message=f"최소 주문 금액 미만: {buy_amount}원 < {TRADING_DEFAULT_MIN_ORDER_AMOUNT}원",
                     current_state=state,
                 )
 
-            # 4-2. 매수 주문 생성
+            # 4-4. 매수 주문 생성
             order_request = OrderRequest.create_market_buy(market, Decimal(buy_amount))
             order_result = await self.order_repository.place_order(order_request)
             if not order_result.success:
@@ -284,8 +310,8 @@ class DcaUsecase:
                     current_state=state,
                 )
 
-            # 4-3. 매수 실행
-            result = await self.dca_service.execute_buy(
+            # 4-5. 매수 실행
+            new_round = self.dca_service.execute_buy(
                 market_data=market_data,
                 buy_amount=buy_amount,
                 config=config,
@@ -293,12 +319,25 @@ class DcaUsecase:
                 buy_type=BuyType.PRICE_DROP,
                 reason=getattr(signal, "reason", None),
             )
+
+            # 4-6. 결과 생성
+            result = DcaResult(
+                success=True,
+                action_taken=ActionTaken.BUY,
+                message=f"DCA 매수 실행: {new_round.round_number}회차",
+                trade_price=new_round.buy_price,
+                trade_amount=new_round.buy_amount,
+                trade_volume=new_round.buy_volume,
+                current_state=state,
+                profit_rate=state.calculate_current_profit_rate(
+                    market_data.current_price
+                ),
+            )
         elif signal.action == TradingAction.SELL:
             # 4-1. 매도 수량 계산
-            sell_volume = await self.dca_service.calculate_sell_amount(
+            sell_volume = self.dca_service.calculate_sell_amount(
                 account=account,
                 market_data=market_data,
-                signal=signal,
                 state=state,
             )
             if sell_volume <= 0:
@@ -321,10 +360,26 @@ class DcaUsecase:
                 )
 
             # 4-3. 매도 실행
-            result = await self.dca_service.execute_sell(
+            profit_amount = self.dca_service.execute_sell(
                 market_data=market_data,
                 sell_volume=sell_volume,
                 state=state,
+            )
+
+            # 4-4. 결과 생성
+            current_profit_rate = state.calculate_current_profit_rate(
+                market_data.current_price
+            )
+            result = DcaResult(
+                success=True,
+                action_taken=ActionTaken.SELL,
+                message=f"DCA 매도 실행: 수익률 {current_profit_rate:.2%}",
+                trade_price=market_data.current_price,
+                trade_amount=int(sell_volume * market_data.current_price),
+                trade_volume=sell_volume,
+                current_state=state,
+                profit_rate=current_profit_rate,
+                profit_loss_amount_krw=int(profit_amount),
             )
         else:
             result = DcaResult(
@@ -334,7 +389,7 @@ class DcaUsecase:
                 current_state=state,
             )
 
-        # 6. 상태 저장
+        # 5. 상태 저장
         await self.dca_repository.save_state(market, state)
 
         # 7. 결과 반환

@@ -122,12 +122,6 @@ class DcaConfig(BaseModel):
         """캐시 저장용 JSON 문자열 반환"""
         return self.model_dump_json(exclude_none=True)
 
-    def calculate_next_buy_amount(self, current_round: int) -> int:
-        """다음 매수 금액 계산"""
-        if current_round == 0:
-            return self.initial_buy_amount
-        return int(self.initial_buy_amount * (self.add_buy_multiplier**current_round))
-
     def calculate_smart_dca_multiplier(
         self, current_price: Decimal, reference_price: Decimal
     ) -> Decimal:
@@ -188,22 +182,6 @@ class BuyingRound(BaseModel):
     def serialize_datetime(self, dt: datetime) -> str:
         """datetime을 ISO 형식으로 직렬화"""
         return dt.isoformat()
-
-    @property
-    def unit_cost(self) -> Decimal:
-        """단위당 비용 (수수료 포함)"""
-        if self.buy_volume == 0:
-            return Decimal("0")
-        return Decimal(str(self.buy_amount)) / self.buy_volume
-
-    @classmethod
-    def from_cache_json(cls, json_str: str) -> "BuyingRound":
-        """캐시 JSON에서 모델 생성"""
-        return cls.model_validate_json(json_str)
-
-    def to_cache_json(self) -> str:
-        """캐시 저장용 JSON 문자열 반환"""
-        return self.model_dump_json()
 
 
 class DcaState(BaseModel):
@@ -292,15 +270,6 @@ class DcaState(BaseModel):
             return Decimal("0")
         return (current_price - self.average_price) / self.average_price
 
-    @property
-    def max_loss_rate(self) -> Decimal:
-        """최대 손실률 계산 (첫 매수 대비)"""
-        if not self.buying_rounds:
-            return Decimal("0")
-        first_buy_price = self.buying_rounds[0].buy_price
-        lowest_price = min(round.buy_price for round in self.buying_rounds)
-        return (lowest_price - first_buy_price) / first_buy_price
-
     def add_buying_round(self, buy_round: BuyingRound, config: DcaConfig) -> None:
         """매수 회차 추가 및 상태 업데이트"""
         self.buying_rounds.append(buy_round)
@@ -327,40 +296,25 @@ class DcaState(BaseModel):
         if buy_round.buy_type == BuyType.TIME_BASED:
             self.last_time_based_buy_time = buy_round.timestamp
 
-    def can_buy_more(
-        self, config: DcaConfig, current_time: datetime
-    ) -> tuple[bool, str]:
-        """추가 매수 가능 여부 확인"""
-        if self.current_round >= config.max_buy_rounds:
-            return False, f"최대 매수 회차({config.max_buy_rounds})에 도달했습니다."
-
-        # 최근 매수 간격 확인
-        if self.last_buy_time:
-            time_diff = (current_time - self.last_buy_time).total_seconds() / 60
-            if time_diff < config.min_buy_interval_minutes:
-                remaining_minutes = config.min_buy_interval_minutes - int(time_diff)
-                return False, f"최소 매수 간격까지 {remaining_minutes}분 남았습니다."
-
-        return True, "추가 매수 가능합니다."
-
-    def should_force_sell(self, current_price: Decimal, config: DcaConfig) -> bool:
-        """강제 손절 여부 판단"""
-        if self.average_price == 0:
-            return False
-        current_loss_rate = (current_price - self.average_price) / self.average_price
-        return current_loss_rate <= config.force_stop_loss_rate
-
-    def should_take_profit(self, current_price: Decimal) -> bool:
-        """익절 여부 판단"""
-        if self.target_sell_price == 0:
-            return False
-        return current_price >= self.target_sell_price
-
-    def reset_cycle(self, market: str) -> None:
-        """사이클 초기화"""
+    def start_new_cycle(self, market: str) -> None:
+        """새 사이클 시작"""
         self.market = market
-        self.phase = DcaPhase.INACTIVE
+        self.phase = DcaPhase.INITIAL_BUY
         self.cycle_id = str(uuid.uuid4())[:8]
+        self.cycle_start_time = datetime.now()
+        self.current_round = 0
+        self.total_investment = 0
+        self.total_volume = Decimal("0")
+        self.average_price = Decimal("0")
+        self.last_buy_price = Decimal("0")
+        self.last_buy_time = None
+        self.last_time_based_buy_time = None
+        self.target_sell_price = Decimal("0")
+        self.buying_rounds = []
+
+    def complete_cycle(self) -> None:
+        """사이클 완료"""
+        self.phase = DcaPhase.INACTIVE
         self.current_round = 0
         self.total_investment = 0
         self.total_volume = Decimal("0")
@@ -371,16 +325,6 @@ class DcaState(BaseModel):
         self.cycle_start_time = None
         self.target_sell_price = Decimal("0")
         self.buying_rounds = []
-
-    def complete_cycle(self, sell_price: Decimal, sell_volume: Decimal) -> Decimal:
-        """사이클 완료 및 수익 계산"""
-        sell_amount = sell_price * sell_volume
-        profit_amount = sell_amount - Decimal(str(self.total_investment))
-
-        # 상태 초기화
-        self.reset_cycle(self.market)
-
-        return profit_amount
 
     @classmethod
     def from_cache_json(cls, json_str: str) -> "DcaState":
@@ -433,12 +377,3 @@ class DcaResult(BaseModel):
     def serialize_decimal(self, value: Decimal | None) -> float | None:
         """Decimal을 float로 직렬화"""
         return float(value) if value is not None else None
-
-    @classmethod
-    def from_cache_json(cls, json_str: str) -> "DcaResult":
-        """캐시 JSON에서 모델 생성"""
-        return cls.model_validate_json(json_str)
-
-    def to_cache_json(self) -> str:
-        """캐시 저장용 JSON 문자열 반환"""
-        return self.model_dump_json(exclude_none=True)

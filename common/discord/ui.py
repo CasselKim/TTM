@@ -65,7 +65,7 @@ class TradeCompleteView(discord.ui.View):
     async def view_dca_status(
         self, interaction: discord.Interaction, button: discord.ui.Button[Any]
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
         try:
             user_id = str(interaction.user.id)
             embed = await self.ui_usecase.create_dca_status_embed(user_id)
@@ -76,7 +76,7 @@ class TradeCompleteView(discord.ui.View):
                 )
                 embed = create_fallback_embed("DCA 상태")
 
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
         except Exception as e:
             logger.exception(
                 f"DCA 상태 조회 중 오류 발생 (user_id: {interaction.user.id}): {e}"
@@ -86,7 +86,7 @@ class TradeCompleteView(discord.ui.View):
                 description="DCA 상태 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
 
 async def execute_trade_direct(
@@ -148,7 +148,7 @@ async def execute_trade_direct(
         )
         embed = await ui_usecase.create_trade_complete_embed(trade_data)
         view = TradeCompleteView(ui_usecase)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=view)
     except Exception as e:
         import traceback
 
@@ -161,7 +161,7 @@ async def execute_trade_direct(
             color=0xFF0000,
         )
         try:
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed)
         except discord.errors.NotFound:
             pass
 
@@ -247,7 +247,7 @@ class DcaSelectionView(discord.ui.View):
                 description="중단할 DCA를 먼저 선택해주세요.",
                 color=0xFFA500,
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed)
             return
 
         # 선택된 DCA 정보 찾기
@@ -263,7 +263,7 @@ class DcaSelectionView(discord.ui.View):
                 description="선택된 DCA 정보를 찾을 수 없습니다.",
                 color=0xFF0000,
             )
-            await interaction.response.send_message(embed=embed, ephemeral=True)
+            await interaction.response.send_message(embed=embed)
             return
 
         # DCA 중단 옵션 화면으로 이동
@@ -280,7 +280,7 @@ class DcaSelectionView(discord.ui.View):
         )
 
         view = DcaStopOptionsView(self.ui_usecase, self.selected_market, selected_dca)
-        await interaction.response.send_message(embed=embed, view=view, ephemeral=True)
+        await interaction.response.send_message(embed=embed, view=view)
 
     @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel_button(
@@ -291,7 +291,7 @@ class DcaSelectionView(discord.ui.View):
             description="DCA 중단이 취소되었습니다.",
             color=0x808080,
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed)
 
 
 class DcaSelectDropdown(discord.ui.Select[DcaSelectionView]):
@@ -318,7 +318,7 @@ class DcaSelectDropdown(discord.ui.Select[DcaSelectionView]):
     async def callback(self, interaction: discord.Interaction) -> None:
         if self.view:
             self.view.selected_market = self.values[0]
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
 
 
 class DcaStopOptionsView(discord.ui.View):
@@ -338,7 +338,7 @@ class DcaStopOptionsView(discord.ui.View):
     async def stop_only(
         self, interaction: discord.Interaction, button: discord.ui.Button[Any]
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
         try:
             user_id = str(interaction.user.id)
             result = await self.ui_usecase.stop_selected_dca(
@@ -353,7 +353,7 @@ class DcaStopOptionsView(discord.ui.View):
             )
 
             view = DcaStopResultView(result)
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(embed=embed, view=view)
         except Exception as e:
             logger.exception(f"DCA 중단 처리 중 오류: {e}")
             embed = discord.Embed(
@@ -361,13 +361,13 @@ class DcaStopOptionsView(discord.ui.View):
                 description="DCA 중단 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
     @discord.ui.button(label="강제매도", style=discord.ButtonStyle.danger, emoji="💸")
     async def force_sell(
         self, interaction: discord.Interaction, button: discord.ui.Button[Any]
     ) -> None:
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
         try:
             user_id = str(interaction.user.id)
             result = await self.ui_usecase.stop_selected_dca(
@@ -381,7 +381,7 @@ class DcaStopOptionsView(discord.ui.View):
             )
 
             view = DcaStopResultView(result)
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(embed=embed, view=view)
         except Exception as e:
             logger.exception(f"DCA 중단 및 매도 처리 중 오류: {e}")
             embed = discord.Embed(
@@ -389,7 +389,7 @@ class DcaStopOptionsView(discord.ui.View):
                 description="DCA 중단 및 매도 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
     @discord.ui.button(label="취소", style=discord.ButtonStyle.secondary, emoji="❌")
     async def cancel_button(
@@ -400,7 +400,7 @@ class DcaStopOptionsView(discord.ui.View):
             description="DCA 중단이 취소되었습니다.",
             color=0x808080,
         )
-        await interaction.response.send_message(embed=embed, ephemeral=True)
+        await interaction.response.send_message(embed=embed)
 
 
 class DcaStopResultView(discord.ui.View):

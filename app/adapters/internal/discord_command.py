@@ -46,7 +46,7 @@ class DiscordCommandAdapter(commands.Cog):
     )
     async def balance_command(self, interaction: discord.Interaction) -> None:
         """잔고 조회 Slash Command"""
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
         try:
             user_id = str(interaction.user.id)
             logger.info(f"잔고 조회 시작 (user_id: {user_id})")
@@ -58,7 +58,7 @@ class DiscordCommandAdapter(commands.Cog):
                 logger.warning(f"유효하지 않은 잔고 embed 생성됨 (user_id: {user_id})")
                 embed = create_fallback_embed("잔고")
 
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
             logger.info(f"잔고 조회 응답 완료 (user_id: {user_id})")
         except Exception as e:
             logger.exception(
@@ -69,7 +69,7 @@ class DiscordCommandAdapter(commands.Cog):
                 description="잔고 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
     @app_commands.command(
         name="dca_status", description="자동매매 진행 상황을 확인합니다"
@@ -87,7 +87,7 @@ class DiscordCommandAdapter(commands.Cog):
         mode: Optional[app_commands.Choice[str]] = None,
     ) -> None:
         """DCA 상태 조회 Slash Command (요약/상세 선택)"""
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
         try:
             user_id = str(interaction.user.id)
             logger.info(
@@ -106,7 +106,9 @@ class DiscordCommandAdapter(commands.Cog):
                 )
                 embed = create_fallback_embed("DCA 상태")
 
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(
+                embed=embed,
+            )
             logger.info(f"DCA 상태 조회 응답 완료 (user_id: {user_id})")
         except Exception as e:
             logger.exception(
@@ -117,12 +119,12 @@ class DiscordCommandAdapter(commands.Cog):
                 description="DCA 상태 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
     @app_commands.command(name="profit", description="투자 수익률을 분석합니다")
     async def profit_command(self, interaction: discord.Interaction) -> None:
         """수익률 조회 Slash Command"""
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
         try:
             user_id = str(interaction.user.id)
             logger.info(f"수익률 조회 시작 (user_id: {user_id})")
@@ -143,7 +145,7 @@ class DiscordCommandAdapter(commands.Cog):
                 )
                 embed = create_fallback_embed("수익률")
 
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
             logger.info(f"수익률 조회 응답 완료 (user_id: {user_id})")
         except Exception as e:
             logger.exception(
@@ -154,7 +156,7 @@ class DiscordCommandAdapter(commands.Cog):
                 description="수익률 조회 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
     @app_commands.command(
         name="trade_start", description="새로운 자동매매를 시작합니다"
@@ -222,7 +224,7 @@ class DiscordCommandAdapter(commands.Cog):
     )
     async def trade_stop_command(self, interaction: discord.Interaction) -> None:
         """매매 중단 Slash Command"""
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
 
         try:
             user_id = str(interaction.user.id)
@@ -235,7 +237,7 @@ class DiscordCommandAdapter(commands.Cog):
                     "새로운 DCA를 시작하려면 `/trade_start` 커맨드를 사용하세요.",
                     color=0x808080,
                 )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed)
                 return
 
             embed = discord.Embed(
@@ -248,7 +250,7 @@ class DiscordCommandAdapter(commands.Cog):
             )
 
             view = DcaSelectionView(self.ui_usecase, dca_list)
-            await interaction.followup.send(embed=embed, view=view, ephemeral=True)
+            await interaction.followup.send(embed=embed, view=view)
             logger.info(
                 f"DCA 중단 화면 표시 완료 (user_id: {user_id}, DCA 개수: {len(dca_list)})"
             )
@@ -262,7 +264,7 @@ class DiscordCommandAdapter(commands.Cog):
                 description="DCA 목록을 불러오는 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
 
     @app_commands.command(
         name="update_dca_config", description="진행 중인 DCA의 설정을 변경합니다"
@@ -298,7 +300,7 @@ class DiscordCommandAdapter(commands.Cog):
         max_rounds: int | None = None,
     ) -> None:
         """DCA 설정 변경 Slash Command"""
-        await interaction.response.defer(ephemeral=True)
+        await interaction.response.defer()
 
         try:
             user_id = str(interaction.user.id)
@@ -314,7 +316,7 @@ class DiscordCommandAdapter(commands.Cog):
                     "새로운 DCA를 시작하려면 `/trade_start` 커맨드를 사용하세요.",
                     color=0x808080,
                 )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed)
                 return
 
             # 2. 선택된 ticker에 해당하는 DCA 찾기
@@ -331,7 +333,7 @@ class DiscordCommandAdapter(commands.Cog):
                     "진행중인 DCA 목록을 확인하려면 `/dca_status` 커맨드를 사용하세요.",
                     color=0xFF0000,
                 )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed)
                 return
 
             market = selected_dca["market"]
@@ -383,7 +385,7 @@ class DiscordCommandAdapter(commands.Cog):
                     "• `max_rounds`: 최대 매수 회차",
                     color=0xFFA500,
                 )
-                await interaction.followup.send(embed=embed, ephemeral=True)
+                await interaction.followup.send(embed=embed)
                 return
 
             # 5. 설정 변경 실행
@@ -461,7 +463,7 @@ class DiscordCommandAdapter(commands.Cog):
                     color=0xFF0000,
                 )
 
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)
             logger.info(f"DCA 설정 변경 응답 완료 (user_id: {user_id})")
 
         except Exception as e:
@@ -473,4 +475,4 @@ class DiscordCommandAdapter(commands.Cog):
                 description="DCA 설정 변경 중 오류가 발생했습니다.\n잠시 후 다시 시도해주세요.",
                 color=0xFF0000,
             )
-            await interaction.followup.send(embed=embed, ephemeral=True)
+            await interaction.followup.send(embed=embed)

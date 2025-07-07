@@ -74,7 +74,7 @@ class TestDiscordUIUseCaseDcaConfig:
 
         # 검증
         assert result["success"] is True
-        assert result["symbol"] == "BTC"
+        assert result["ticker"] == "BTC"
         assert result["market"] == market
         assert result["message"] == f"{market} DCA 설정이 변경되었습니다."
 
@@ -107,7 +107,7 @@ class TestDiscordUIUseCaseDcaConfig:
 
         # 검증
         assert result["success"] is False
-        assert result["symbol"] == "BTC"
+        assert result["ticker"] == "BTC"
         assert result["market"] == market
         assert f"{market} DCA가 실행 중이 아닙니다." in result["message"]
 
@@ -307,7 +307,7 @@ class TestDiscordUIUseCaseDcaConfig:
 
         # 검증
         assert result["success"] is False
-        assert result["symbol"] == "BTC"
+        assert result["ticker"] == "BTC"
         assert result["market"] == market
         assert "설정 변경 실패: 유효하지 않은 값" in result["message"]
 
@@ -330,7 +330,7 @@ class TestDiscordUIUseCaseDcaConfig:
 
         # 검증
         assert result["success"] is False
-        assert result["symbol"] == "BTC"
+        assert result["ticker"] == "BTC"
         assert result["market"] == market
         assert "Database connection error" in result["message"]
 

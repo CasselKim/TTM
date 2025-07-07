@@ -89,7 +89,7 @@ class DiscordUIUseCase:
 
                     holdings.append(
                         {
-                            "symbol": balance.currency,
+                            "ticker": balance.currency,
                             "quantity": balance_value,
                             "value": current_value,
                             "profit_loss": profit_loss,
@@ -134,7 +134,7 @@ class DiscordUIUseCase:
                 config = await self.dca_usecase.dca_repository.get_config(market_name)
 
                 max_buy_rounds = config.max_buy_rounds if config else 10
-                symbol = (
+                ticker = (
                     market_name.split("-")[1] if "-" in market_name else market_name
                 )
 
@@ -169,7 +169,7 @@ class DiscordUIUseCase:
 
                 dca_list.append(
                     {
-                        "symbol": symbol,
+                        "ticker": ticker,
                         "current_count": market_status.current_round,
                         "total_count": max_buy_rounds,
                         "next_buy_time": next_buy_time,
@@ -207,7 +207,7 @@ class DiscordUIUseCase:
                 )
                 state = await self.dca_usecase.dca_repository.get_state(market_name)
                 config = await self.dca_usecase.dca_repository.get_config(market_name)
-                symbol = (
+                ticker = (
                     market_name.split("-")[1] if "-" in market_name else market_name
                 )
                 recent_trades = []
@@ -223,7 +223,7 @@ class DiscordUIUseCase:
                     )
                 dca_detail_list.append(
                     {
-                        "symbol": symbol,
+                        "ticker": ticker,
                         "config": config.model_dump() if config else {},
                         "state": state.model_dump() if state else {},
                         "market_status": market_status.model_dump()
@@ -264,12 +264,12 @@ class DiscordUIUseCase:
                 holdings, key=lambda x: x.get("profit_rate", 0), reverse=True
             )
             top_gainers = [
-                {"symbol": h["symbol"], "rate": h["profit_rate"]}
+                {"ticker": h["ticker"], "rate": h["profit_rate"]}
                 for h in sorted_holdings[:3]
                 if h["profit_rate"] > 0
             ]
             top_losers = [
-                {"symbol": h["symbol"], "rate": h["profit_rate"]}
+                {"ticker": h["ticker"], "rate": h["profit_rate"]}
                 for h in sorted_holdings[-3:]
                 if h["profit_rate"] < 0
             ]
@@ -310,7 +310,7 @@ class DiscordUIUseCase:
     async def execute_trade(
         self,
         user_id: str,
-        symbol: str,
+        ticker: str,
         amount: int,
         total_count: int,
         interval_hours: int,
@@ -326,7 +326,7 @@ class DiscordUIUseCase:
     ) -> dict[str, Any]:
         """매매 실행"""
         try:
-            market_name = f"KRW-{symbol}"
+            market_name = f"KRW-{ticker}"
             start_kwargs: dict[str, Any] = {
                 "initial_buy_amount": amount,
                 "max_buy_rounds": total_count,
@@ -356,7 +356,7 @@ class DiscordUIUseCase:
                 raise Exception(f"DCA 시작 실패: {result.message}")
 
             return {
-                "symbol": symbol,
+                "ticker": ticker,
                 "amount": amount,
                 "total_count": total_count,
                 "interval_hours": interval_hours,
@@ -389,7 +389,7 @@ class DiscordUIUseCase:
 
         except Exception as e:
             logger.exception(
-                f"매매 실행 중 오류 (user_id: {user_id}, symbol: {symbol}): {e}"
+                f"매매 실행 중 오류 (user_id: {user_id}, ticker: {ticker}): {e}"
             )
             raise
 
@@ -455,8 +455,8 @@ class DiscordUIUseCase:
 
                 dca_info = {
                     "market": summary["market"],
-                    "symbol": summary["symbol"],
-                    "display_name": f"{smart_dca_indicator}{summary['symbol']} ({summary['current_round']}/{summary['max_rounds']}회)",
+                    "ticker": summary["ticker"],
+                    "display_name": f"{smart_dca_indicator}{summary['ticker']} ({summary['current_round']}/{summary['max_rounds']}회)",
                     "description": f"투자: {summary['total_investment']:,.0f}원 | 수익률: {summary['current_profit_rate']:.2f}%",
                     "current_round": summary["current_round"],
                     "max_rounds": summary["max_rounds"],
@@ -489,7 +489,7 @@ class DiscordUIUseCase:
                 raise Exception(f"{market} DCA를 찾을 수 없습니다.")
 
             # 심볼 추출
-            symbol = market.split("-")[1] if "-" in market else market
+            ticker = market.split("-")[1] if "-" in market else market
 
             # 실제 DCA 중단
             result = await self.dca_usecase.stop(
@@ -506,7 +506,7 @@ class DiscordUIUseCase:
             )
 
             return {
-                "symbol": symbol,
+                "ticker": ticker,
                 "market": market,
                 "action_type": action_type,
                 "completed_count": market_status.current_round,
@@ -525,7 +525,7 @@ class DiscordUIUseCase:
                 f"DCA {action_type} 중 오류 (user_id: {user_id}, market: {market}): {e}"
             )
             return {
-                "symbol": market.split("-")[1] if "-" in market else market,
+                "ticker": market.split("-")[1] if "-" in market else market,
                 "market": market,
                 "action_type": action_type,
                 "success": False,
@@ -623,11 +623,11 @@ class DiscordUIUseCase:
             if not result.success:
                 raise Exception(f"설정 변경 실패: {result.message}")
 
-            symbol = market.split("-")[1] if "-" in market else market
+            ticker = market.split("-")[1] if "-" in market else market
             logger.info(f"DCA 설정 변경 완료 (user_id: {user_id}, market: {market})")
 
             return {
-                "symbol": symbol,
+                "ticker": ticker,
                 "market": market,
                 "success": True,
                 "message": result.message,
@@ -659,7 +659,7 @@ class DiscordUIUseCase:
                 f"DCA 설정 변경 중 오류 (user_id: {user_id}, market: {market}): {e}"
             )
             return {
-                "symbol": market.split("-")[1] if "-" in market else market,
+                "ticker": market.split("-")[1] if "-" in market else market,
                 "market": market,
                 "success": False,
                 "message": str(e),

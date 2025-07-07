@@ -160,7 +160,7 @@ class DiscordCommandAdapter(commands.Cog):
         name="trade_start", description="새로운 자동매매를 시작합니다"
     )
     @app_commands.describe(
-        symbol="코인 심볼 (예: BTC, ETH, DOGE)",
+        ticker="코인 티커 (예: BTC, ETH, DOGE)",
         amount="매수 금액 (KRW, 예: 100000 = 10만원)",
         total_count="총 매수 횟수 (예: 10)",
         interval_hours="매수 간격 (시간, 예: 24 = 24시간마다)",
@@ -176,7 +176,7 @@ class DiscordCommandAdapter(commands.Cog):
     async def trade_execute_command(
         self,
         interaction: discord.Interaction,
-        symbol: str = "BTC",
+        ticker: str = "BTC",
         amount: int = 100000,
         total_count: int = 10,
         interval_hours: int = 24,
@@ -191,7 +191,7 @@ class DiscordCommandAdapter(commands.Cog):
     ) -> None:
         """DCA 시작 Slash Command (직접 실행)"""
         logger.info(
-            f"DCA 직접 실행 시작 (user_id: {interaction.user.id}, symbol: {symbol}, smart_dca: {enable_smart_dca})"
+            f"DCA 직접 실행 시작 (user_id: {interaction.user.id}, ticker: {ticker}, smart_dca: {enable_smart_dca})"
         )
 
         # advanced 옵션 구성
@@ -208,7 +208,7 @@ class DiscordCommandAdapter(commands.Cog):
         await execute_trade_direct(
             ui_usecase=self.ui_usecase,
             interaction=interaction,
-            symbol=symbol,
+            ticker=ticker,
             amount=amount,
             total_count=total_count,
             interval_hours=interval_hours,
@@ -268,6 +268,7 @@ class DiscordCommandAdapter(commands.Cog):
         name="update_dca_config", description="진행 중인 DCA의 설정을 변경합니다"
     )
     @app_commands.describe(
+        ticker="코인 티커 (예: BTC, ETH, DOGE)",
         target_profit_rate="목표 수익률 (예: 0.1 = 10%)",
         price_drop_threshold="추가 매수 트리거 하락률 (예: -0.025 = -2.5%)",
         force_stop_loss_rate="강제 손절률 (예: -0.25 = -25%)",
@@ -283,6 +284,7 @@ class DiscordCommandAdapter(commands.Cog):
     async def update_dca_config_command(
         self,
         interaction: discord.Interaction,
+        ticker: str,
         target_profit_rate: float | None = None,
         price_drop_threshold: float | None = None,
         force_stop_loss_rate: float | None = None,
@@ -315,9 +317,24 @@ class DiscordCommandAdapter(commands.Cog):
                 await interaction.followup.send(embed=embed, ephemeral=True)
                 return
 
-            # 2. 첫 번째 DCA의 설정 변경 (단일 사용자 가정)
-            first_dca = dca_list[0]
-            market = first_dca["market"]
+            # 2. 선택된 ticker에 해당하는 DCA 찾기
+            selected_dca = None
+            for dca in dca_list:
+                if dca["ticker"] == ticker:
+                    selected_dca = dca
+                    break
+
+            if not selected_dca:
+                embed = discord.Embed(
+                    title="❌ DCA 찾을 수 없음",
+                    description=f"**{ticker}** 티커에 해당하는 진행중인 DCA가 없습니다.\n\n"
+                    "진행중인 DCA 목록을 확인하려면 `/dca_status` 커맨드를 사용하세요.",
+                    color=0xFF0000,
+                )
+                await interaction.followup.send(embed=embed, ephemeral=True)
+                return
+
+            market = selected_dca["market"]
 
             # 3. Decimal 변환
             from decimal import Decimal
@@ -381,7 +398,7 @@ class DiscordCommandAdapter(commands.Cog):
                 config = result["updated_config"]
                 embed = discord.Embed(
                     title="✅ DCA 설정 변경 완료",
-                    description=f"**{result['symbol']}** DCA의 설정이 변경되었습니다.",
+                    description=f"**{ticker}** DCA의 설정이 변경되었습니다.",
                     color=0x00FF00,
                 )
 

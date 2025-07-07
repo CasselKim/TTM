@@ -34,12 +34,12 @@ class DcaStatsUsecase:
             if not market_status or not config:
                 continue
 
-            symbol = market.split("-")[1] if "-" in market else market
+            ticker = market.split("-")[1] if "-" in market else market
 
             dca_summaries.append(
                 {
                     "market": market,
-                    "symbol": symbol,
+                    "ticker": ticker,
                     "current_round": market_status.current_round,
                     "max_rounds": config.max_buy_rounds,
                     "total_investment": float(market_status.total_investment),

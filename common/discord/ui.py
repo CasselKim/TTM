@@ -92,7 +92,7 @@ class TradeCompleteView(discord.ui.View):
 async def execute_trade_direct(
     ui_usecase: "DiscordUIUseCase",
     interaction: discord.Interaction,
-    symbol: str = "BTC",
+    ticker: str = "BTC",
     amount: int = 100000,
     total_count: int = 10,
     interval_hours: int = 24,
@@ -129,7 +129,7 @@ async def execute_trade_direct(
     try:
         trade_data = await ui_usecase.execute_trade(
             user_id=user_id,
-            symbol=symbol.upper().strip(),
+            ticker=ticker.upper().strip(),
             amount=amount,
             total_count=total_count,
             interval_hours=interval_hours,

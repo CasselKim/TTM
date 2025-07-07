@@ -20,14 +20,14 @@ def create_balance_embed(balance_data: dict[str, Any]) -> discord.Embed:
     if holdings:
         holdings_text = ""
         for holding in holdings[:10]:
-            symbol = holding.get("symbol", "")
+            ticker = holding.get("ticker", "")
             quantity = holding.get("quantity", 0)
             value = holding.get("value", 0)
             profit_loss = holding.get("profit_loss", 0)
             profit_rate = holding.get("profit_rate", 0)
             profit_emoji = "📈" if profit_loss >= 0 else "📉"
             holdings_text += (
-                f"{profit_emoji} **{symbol}**\n"
+                f"{profit_emoji} **{ticker}**\n"
                 f"수량: {quantity:,.8f}\n"
                 f"평가액: ₩ {value:,.0f}\n"
                 f"손익: {profit_loss:+,.0f} ({profit_rate:+.2f}%)\n\n"
@@ -60,7 +60,7 @@ def create_dca_status_embed_summary(dca_list: list[dict[str, Any]]) -> discord.E
         progress_bar = "█" * int(progress_rate / 10) + "░" * (
             10 - int(progress_rate / 10)
         )
-        symbol = data.get("symbol", "")
+        ticker = data.get("ticker", "")
         profit_rate = data.get("profit_rate", 0)
         profit_emoji = "📈" if profit_rate >= 0 else "📉"
         profit_color = "🟢" if profit_rate >= 0 else "🔴"
@@ -77,7 +77,7 @@ def create_dca_status_embed_summary(dca_list: list[dict[str, Any]]) -> discord.E
             f"누적 투자액: ₩ {data.get('total_invested', 0):,.0f}"
         )
         embed.add_field(
-            name=f"🪙 {symbol} {smart_dca_indicator}", value=field_value, inline=False
+            name=f"🪙 {ticker} {smart_dca_indicator}", value=field_value, inline=False
         )
 
     embed.set_footer(text="TTM Bot • 실시간 데이터")
@@ -112,7 +112,7 @@ def create_dca_status_embed_detail(
         return embed
 
     for data in dca_detail_list:
-        symbol = data.get("symbol", "")
+        ticker = data.get("ticker", "")
         config = data.get("config", {})
         state = data.get("state", {})
         market_status = data.get("market_status", {})
@@ -184,7 +184,7 @@ def create_dca_status_embed_detail(
             + "\n\n__최근 매수 내역__\n"
             + "\n".join(trade_lines)
         )
-        embed.add_field(name=f"🪙 {symbol} 상세", value=field_value, inline=False)
+        embed.add_field(name=f"🪙 {ticker} 상세", value=field_value, inline=False)
 
     embed.set_footer(text="TTM Bot • 실시간 데이터")
     return embed
@@ -218,9 +218,9 @@ def create_profit_embed(profit_data: dict[str, Any]) -> discord.Embed:
     if top_gainers:
         gainers_text = ""
         for gainer in top_gainers[:3]:
-            symbol = gainer.get("symbol", "")
+            ticker = gainer.get("ticker", "")
             rate = gainer.get("rate", 0)
-            gainers_text += f"📈 {symbol}: +{rate:.2f}%\n"
+            gainers_text += f"📈 {ticker}: +{rate:.2f}%\n"
         embed.add_field(
             name="🏆 Top Gainers", value=gainers_text or "데이터 없음", inline=True
         )
@@ -228,9 +228,9 @@ def create_profit_embed(profit_data: dict[str, Any]) -> discord.Embed:
     if top_losers:
         losers_text = ""
         for loser in top_losers[:3]:
-            symbol = loser.get("symbol", "")
+            ticker = loser.get("ticker", "")
             rate = loser.get("rate", 0)
-            losers_text += f"📉 {symbol}: {rate:.2f}%\n"
+            losers_text += f"📉 {ticker}: {rate:.2f}%\n"
         embed.add_field(
             name="📉 Top Losers", value=losers_text or "데이터 없음", inline=True
         )
@@ -256,11 +256,11 @@ def create_trade_complete_embed(trade_data: dict[str, Any]) -> discord.Embed:
         color=0x00FF00,
         timestamp=now_kst(),
     )
-    symbol = trade_data.get("symbol", "")
+    ticker = trade_data.get("ticker", "")
     amount = trade_data.get("amount", 0)
     total_count = trade_data.get("total_count", 0)
     interval_hours = trade_data.get("interval_hours", 0)
-    embed.add_field(name="🪙 코인", value=symbol, inline=True)
+    embed.add_field(name="🪙 코인", value=ticker, inline=True)
     embed.add_field(name="💰 매수 금액", value=f"₩ {amount:,.0f}", inline=True)
     embed.add_field(name="🔢 총 횟수", value=f"{total_count}회", inline=True)
     embed.add_field(name="⏰ 매수 간격", value=f"{interval_hours}시간", inline=True)

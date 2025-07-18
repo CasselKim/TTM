@@ -323,6 +323,12 @@ class DiscordUIUseCase:
         smart_dca_rho: Decimal | None = None,
         smart_dca_max_multiplier: Decimal | None = None,
         smart_dca_min_multiplier: Decimal | None = None,
+        enable_dynamic_thresholds: bool = False,
+        max_investment_ratio: Decimal | None = None,
+        va_monthly_growth_rate: Decimal | None = None,
+        atr_period: int | None = None,
+        rsi_period: int | None = None,
+        bollinger_period: int | None = None,
     ) -> dict[str, Any]:
         """매매 실행"""
         try:
@@ -347,6 +353,18 @@ class DiscordUIUseCase:
                 start_kwargs["smart_dca_max_multiplier"] = smart_dca_max_multiplier
             if smart_dca_min_multiplier is not None:
                 start_kwargs["smart_dca_min_multiplier"] = smart_dca_min_multiplier
+            if enable_dynamic_thresholds:
+                start_kwargs["enable_dynamic_thresholds"] = enable_dynamic_thresholds
+            if max_investment_ratio is not None:
+                start_kwargs["max_investment_ratio"] = max_investment_ratio
+            if va_monthly_growth_rate is not None:
+                start_kwargs["va_monthly_growth_rate"] = va_monthly_growth_rate
+            if atr_period is not None:
+                start_kwargs["atr_period"] = atr_period
+            if rsi_period is not None:
+                start_kwargs["rsi_period"] = rsi_period
+            if bollinger_period is not None:
+                start_kwargs["bollinger_period"] = bollinger_period
 
             config = DcaConfig(**start_kwargs)
             state = DcaState(market=market_name)
@@ -578,6 +596,12 @@ class DiscordUIUseCase:
         time_based_buy_interval_hours: int | None = None,
         enable_time_based_buying: bool | None = None,
         max_buy_rounds: int | None = None,
+        enable_dynamic_thresholds: bool | None = None,
+        max_investment_ratio: Decimal | None = None,
+        va_monthly_growth_rate: Decimal | None = None,
+        atr_period: int | None = None,
+        rsi_period: int | None = None,
+        bollinger_period: int | None = None,
     ) -> dict[str, Any]:
         """DCA 설정 변경"""
         try:
@@ -613,6 +637,18 @@ class DiscordUIUseCase:
                 config_data["enable_time_based_buying"] = enable_time_based_buying
             if max_buy_rounds is not None:
                 config_data["max_buy_rounds"] = max_buy_rounds
+            if enable_dynamic_thresholds is not None:
+                config_data["enable_dynamic_thresholds"] = enable_dynamic_thresholds
+            if max_investment_ratio is not None:
+                config_data["max_investment_ratio"] = max_investment_ratio
+            if va_monthly_growth_rate is not None:
+                config_data["va_monthly_growth_rate"] = va_monthly_growth_rate
+            if atr_period is not None:
+                config_data["atr_period"] = atr_period
+            if rsi_period is not None:
+                config_data["rsi_period"] = rsi_period
+            if bollinger_period is not None:
+                config_data["bollinger_period"] = bollinger_period
 
             # 3. 새로운 설정 객체 생성
             new_config = DcaConfig(**config_data)

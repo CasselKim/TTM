@@ -111,19 +111,52 @@ async def execute_trade_direct(
         "smart_dca_rho": 1.5,
         "smart_dca_max_multiplier": 5.0,
         "smart_dca_min_multiplier": 0.1,
+        "enable_dynamic_thresholds": False,
+        "max_investment_ratio": 1.0,
+        "va_monthly_growth_rate": 0.01,
+        "atr_period": 14,
+        "rsi_period": 14,
+        "bollinger_period": 20,
     }
-    advanced = {
-        "target_profit_rate": Decimal(str(advanced_raw["target_profit_rate"])),
-        "price_drop_threshold": Decimal(str(advanced_raw["price_drop_threshold"])),
-        "force_stop_loss_rate": Decimal(str(advanced_raw["force_stop_loss_rate"])),
-        "smart_dca_rho": Decimal(str(advanced_raw["smart_dca_rho"])),
-        "smart_dca_max_multiplier": Decimal(
-            str(advanced_raw["smart_dca_max_multiplier"])
-        ),
-        "smart_dca_min_multiplier": Decimal(
-            str(advanced_raw["smart_dca_min_multiplier"])
-        ),
-    }
+    # Type annotations for advanced parameters
+    target_profit_rate: Decimal = Decimal(str(advanced_raw["target_profit_rate"]))
+    price_drop_threshold: Decimal = Decimal(str(advanced_raw["price_drop_threshold"]))
+    force_stop_loss_rate: Decimal = Decimal(str(advanced_raw["force_stop_loss_rate"]))
+    smart_dca_rho: Decimal = Decimal(str(advanced_raw["smart_dca_rho"]))
+    smart_dca_max_multiplier: Decimal = Decimal(
+        str(advanced_raw["smart_dca_max_multiplier"])
+    )
+    smart_dca_min_multiplier: Decimal = Decimal(
+        str(advanced_raw["smart_dca_min_multiplier"])
+    )
+    enable_dynamic_thresholds: bool = bool(
+        advanced_raw.get("enable_dynamic_thresholds", False)
+    )
+    max_investment_ratio: Decimal | None = (
+        Decimal(str(advanced_raw["max_investment_ratio"]))
+        if advanced_raw.get("max_investment_ratio") is not None
+        else None
+    )
+    va_monthly_growth_rate: Decimal | None = (
+        Decimal(str(advanced_raw["va_monthly_growth_rate"]))
+        if advanced_raw.get("va_monthly_growth_rate") is not None
+        else None
+    )
+    atr_period: int | None = (
+        int(advanced_raw["atr_period"])
+        if advanced_raw.get("atr_period") is not None
+        else None
+    )
+    rsi_period: int | None = (
+        int(advanced_raw["rsi_period"])
+        if advanced_raw.get("rsi_period") is not None
+        else None
+    )
+    bollinger_period: int | None = (
+        int(advanced_raw["bollinger_period"])
+        if advanced_raw.get("bollinger_period") is not None
+        else None
+    )
 
     user_id = str(interaction.user.id)
     try:
@@ -134,17 +167,23 @@ async def execute_trade_direct(
             total_count=total_count,
             interval_hours=interval_hours,
             add_buy_multiplier=Decimal(str(add_buy_multiplier)),
-            target_profit_rate=advanced["target_profit_rate"],
-            price_drop_threshold=advanced["price_drop_threshold"],
-            force_stop_loss_rate=advanced["force_stop_loss_rate"],
+            target_profit_rate=target_profit_rate,
+            price_drop_threshold=price_drop_threshold,
+            force_stop_loss_rate=force_stop_loss_rate,
             enable_smart_dca=enable_smart_dca,
-            smart_dca_rho=advanced["smart_dca_rho"] if enable_smart_dca else None,
-            smart_dca_max_multiplier=advanced["smart_dca_max_multiplier"]
+            smart_dca_rho=smart_dca_rho if enable_smart_dca else None,
+            smart_dca_max_multiplier=smart_dca_max_multiplier
             if enable_smart_dca
             else None,
-            smart_dca_min_multiplier=advanced["smart_dca_min_multiplier"]
+            smart_dca_min_multiplier=smart_dca_min_multiplier
             if enable_smart_dca
             else None,
+            enable_dynamic_thresholds=enable_dynamic_thresholds,
+            max_investment_ratio=max_investment_ratio,
+            va_monthly_growth_rate=va_monthly_growth_rate,
+            atr_period=atr_period,
+            rsi_period=rsi_period,
+            bollinger_period=bollinger_period,
         )
         embed = await ui_usecase.create_trade_complete_embed(trade_data)
         view = TradeCompleteView(ui_usecase)

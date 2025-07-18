@@ -174,6 +174,12 @@ class DiscordCommandAdapter(commands.Cog):
         smart_dca_rho="Smart DCA ρ 파라미터 (예: 1.5, Smart DCA 활성화시만)",
         smart_dca_max_multiplier="Smart DCA 최대 투자 배수 (예: 5.0)",
         smart_dca_min_multiplier="Smart DCA 최소 투자 배수 (예: 0.1)",
+        enable_dynamic_thresholds="고급 DCA: 동적 임계값 사용 여부 (변동성 기반 조정)",
+        max_investment_ratio="고급 DCA: 최대 투자 비율 (전체 자산 대비, 예: 0.3 = 30%)",
+        va_monthly_growth_rate="고급 DCA: 가치 평균 월 목표 성장률 (예: 0.01 = 1%)",
+        atr_period="고급 DCA: ATR 계산 기간 (예: 14)",
+        rsi_period="고급 DCA: RSI 계산 기간 (예: 14)",
+        bollinger_period="고급 DCA: 볼린저 밴드 계산 기간 (예: 20)",
     )
     async def trade_execute_command(
         self,
@@ -190,6 +196,12 @@ class DiscordCommandAdapter(commands.Cog):
         smart_dca_rho: float = 1.5,
         smart_dca_max_multiplier: float = 5.0,
         smart_dca_min_multiplier: float = 0.1,
+        enable_dynamic_thresholds: bool = False,
+        max_investment_ratio: float = 1.0,
+        va_monthly_growth_rate: float = 0.01,
+        atr_period: int = 14,
+        rsi_period: int = 14,
+        bollinger_period: int = 20,
     ) -> None:
         """DCA 시작 Slash Command (직접 실행)"""
         logger.info(
@@ -204,6 +216,12 @@ class DiscordCommandAdapter(commands.Cog):
             "smart_dca_rho": smart_dca_rho,
             "smart_dca_max_multiplier": smart_dca_max_multiplier,
             "smart_dca_min_multiplier": smart_dca_min_multiplier,
+            "enable_dynamic_thresholds": enable_dynamic_thresholds,
+            "max_investment_ratio": max_investment_ratio,
+            "va_monthly_growth_rate": va_monthly_growth_rate,
+            "atr_period": atr_period,
+            "rsi_period": rsi_period,
+            "bollinger_period": bollinger_period,
         }
 
         # 직접 실행
@@ -282,6 +300,12 @@ class DiscordCommandAdapter(commands.Cog):
         time_interval_hours="시간 기반 매수 간격 (시간, 예: 24)",
         enable_time_based="시간 기반 매수 활성화 여부",
         max_rounds="최대 매수 회차 (예: 10)",
+        enable_dynamic_thresholds="고급 DCA: 동적 임계값 사용 여부 (변동성 기반 조정)",
+        max_investment_ratio="고급 DCA: 최대 투자 비율 (전체 자산 대비, 예: 0.3 = 30%)",
+        va_monthly_growth_rate="고급 DCA: 가치 평균 월 목표 성장률 (예: 0.01 = 1%)",
+        atr_period="고급 DCA: ATR 계산 기간 (예: 14)",
+        rsi_period="고급 DCA: RSI 계산 기간 (예: 14)",
+        bollinger_period="고급 DCA: 볼린저 밴드 계산 기간 (예: 20)",
     )
     async def update_dca_config_command(
         self,
@@ -298,6 +322,12 @@ class DiscordCommandAdapter(commands.Cog):
         time_interval_hours: int | None = None,
         enable_time_based: bool | None = None,
         max_rounds: int | None = None,
+        enable_dynamic_thresholds: bool | None = None,
+        max_investment_ratio: float | None = None,
+        va_monthly_growth_rate: float | None = None,
+        atr_period: int | None = None,
+        rsi_period: int | None = None,
+        bollinger_period: int | None = None,
     ) -> None:
         """DCA 설정 변경 Slash Command"""
         await interaction.response.defer()
@@ -369,6 +399,18 @@ class DiscordCommandAdapter(commands.Cog):
                 kwargs["enable_time_based_buying"] = enable_time_based
             if max_rounds is not None:
                 kwargs["max_buy_rounds"] = max_rounds
+            if enable_dynamic_thresholds is not None:
+                kwargs["enable_dynamic_thresholds"] = enable_dynamic_thresholds
+            if max_investment_ratio is not None:
+                kwargs["max_investment_ratio"] = Decimal(str(max_investment_ratio))
+            if va_monthly_growth_rate is not None:
+                kwargs["va_monthly_growth_rate"] = Decimal(str(va_monthly_growth_rate))
+            if atr_period is not None:
+                kwargs["atr_period"] = atr_period
+            if rsi_period is not None:
+                kwargs["rsi_period"] = rsi_period
+            if bollinger_period is not None:
+                kwargs["bollinger_period"] = bollinger_period
 
             # 4. 설정 변경할 값이 있는지 확인
             if not kwargs:
@@ -382,7 +424,10 @@ class DiscordCommandAdapter(commands.Cog):
                     "• `add_buy_multiplier`: 추가 매수 배수\n"
                     "• `enable_smart_dca`: Smart DCA 활성화\n"
                     "• `smart_dca_rho`: Smart DCA ρ 파라미터\n"
-                    "• `max_rounds`: 최대 매수 회차",
+                    "• `max_rounds`: 최대 매수 회차\n"
+                    "• `enable_dynamic_thresholds`: 고급 DCA 동적 임계값\n"
+                    "• `max_investment_ratio`: 고급 DCA 최대 투자 비율\n"
+                    "• `va_monthly_growth_rate`: 고급 DCA 가치 평균 성장률",
                     color=0xFFA500,
                 )
                 await interaction.followup.send(embed=embed)

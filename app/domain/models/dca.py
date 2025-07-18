@@ -66,6 +66,17 @@ class DcaConfig(BaseModel):
     smart_dca_max_multiplier: Decimal = Decimal("5.0")  # SmartDCA 최대 투자 배수
     smart_dca_min_multiplier: Decimal = Decimal("0.1")  # SmartDCA 최소 투자 배수
 
+    # Advanced SmartDCA 설정 (동적 임계값 조정)
+    enable_dynamic_thresholds: bool = False  # 동적 임계값 활성화 여부
+    va_monthly_growth_rate: Decimal = Decimal(
+        "0.01"
+    )  # Value Averaging 목표 월간 성장률 (1%)
+    price_history_periods: int = 50  # 가격 히스토리 분석 기간
+    atr_period: int = 14  # ATR 계산 기간
+    rsi_period: int = 14  # RSI 계산 기간
+    bollinger_period: int = 20  # 볼린저 밴드 계산 기간
+    bollinger_std_dev: Decimal = Decimal("2.0")  # 볼린저 밴드 표준편차 배수
+
     @field_validator(
         "add_buy_multiplier",
         "target_profit_rate",
@@ -75,6 +86,8 @@ class DcaConfig(BaseModel):
         "smart_dca_rho",
         "smart_dca_max_multiplier",
         "smart_dca_min_multiplier",
+        "va_monthly_growth_rate",
+        "bollinger_std_dev",
         mode="before",
     )
     @classmethod
@@ -95,6 +108,8 @@ class DcaConfig(BaseModel):
         "smart_dca_rho",
         "smart_dca_max_multiplier",
         "smart_dca_min_multiplier",
+        "va_monthly_growth_rate",
+        "bollinger_std_dev",
     )
     def serialize_decimal(self, value: Decimal) -> float:
         """Decimal을 float로 직렬화"""
@@ -121,23 +136,6 @@ class DcaConfig(BaseModel):
     def to_cache_json(self) -> str:
         """캐시 저장용 JSON 문자열 반환"""
         return self.model_dump_json(exclude_none=True)
-
-    def calculate_smart_dca_multiplier(
-        self, current_price: Decimal, reference_price: Decimal
-    ) -> Decimal:
-        """SmartDCA 매수 배수 계산"""
-        if not self.enable_smart_dca or reference_price == 0:
-            return Decimal("1.0")
-
-        # SmartDCA 공식: (reference_price / current_price) ^ ρ
-        price_ratio = reference_price / current_price
-        multiplier = price_ratio**self.smart_dca_rho
-
-        # 최대/최소 배수 제한
-        multiplier = max(self.smart_dca_min_multiplier, multiplier)
-        multiplier = min(self.smart_dca_max_multiplier, multiplier)
-
-        return multiplier
 
 
 class BuyingRound(BaseModel):

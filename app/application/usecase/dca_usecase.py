@@ -4,7 +4,7 @@ from datetime import datetime
 
 from app.domain.enums import TradingAction
 from app.domain.models.dca import BuyType, DcaResult, DcaState, DcaConfig
-from app.domain.models.trading import MarketData
+from app.domain.models.trading import MarketData, PriceDataPoint
 from app.domain.repositories.account_repository import AccountRepository
 from app.domain.repositories.dca_repository import DcaRepository
 from app.domain.repositories.notification_repository import NotificationRepository
@@ -258,17 +258,42 @@ class DcaUsecase:
             change_rate_24h=ticker.signed_change_rate,
         )
 
-        # 3. 신호 분석
+        # 3. 가격 히스토리 관리 (동적 임계값 사용시)
+        price_history = None
+        if config.enable_dynamic_thresholds:
+            # 현재 가격 데이터 포인트 생성
+            current_price_data = PriceDataPoint(
+                timestamp=datetime.now(),
+                high=ticker.high_price,
+                low=ticker.low_price,
+                close=ticker.trade_price,
+            )
+
+            # 가격 데이터 포인트 저장
+            await self.dca_repository.save_price_data_point(market, current_price_data)
+
+            # 오래된 데이터 정리
+            await self.dca_repository.cleanup_old_price_data(
+                market, config.price_history_periods
+            )
+
+            # 가격 히스토리 조회 (분석용)
+            price_history = await self.dca_repository.get_price_history(
+                market, config.price_history_periods
+            )
+
+        # 4. 신호 분석
         signal = self.dca_service.analyze_signal(
             account=account,
             market_data=market_data,
             config=config,
             state=state,
+            price_history=price_history,
         )
 
-        # 4. 매매 실행
+        # 5. 매매 실행
         if signal.action == TradingAction.BUY:
-            # 4-1. 추가 매수 가능 여부 확인
+            # 5-1. 추가 매수 가능 여부 확인
             can_buy, reason = self.dca_service.can_buy_more(
                 config=config,
                 state=state,
@@ -282,15 +307,16 @@ class DcaUsecase:
                     current_state=state,
                 )
 
-            # 4-2. 매수 금액 계산
+            # 5-2. 매수 금액 계산
             buy_amount = self.dca_service.calculate_buy_amount(
                 account=account,
                 config=config,
                 state=state,
                 market_data=market_data,
+                price_history=price_history,
             )
 
-            # 4-3. 최소 주문 금액 확인
+            # 5-3. 최소 주문 금액 확인
             if Decimal(buy_amount) < TRADING_DEFAULT_MIN_ORDER_AMOUNT:
                 return DcaResult(
                     success=False,
@@ -299,7 +325,7 @@ class DcaUsecase:
                     current_state=state,
                 )
 
-            # 4-4. 매수 주문 생성
+            # 5-4. 매수 주문 생성
             order_request = OrderRequest.create_market_buy(market, Decimal(buy_amount))
             order_result = await self.order_repository.place_order(order_request)
             if not order_result.success:
@@ -310,7 +336,7 @@ class DcaUsecase:
                     current_state=state,
                 )
 
-            # 4-5. 매수 실행
+            # 5-5. 매수 실행
             new_round = self.dca_service.execute_buy(
                 market_data=market_data,
                 buy_amount=buy_amount,
@@ -320,7 +346,7 @@ class DcaUsecase:
                 reason=getattr(signal, "reason", None),
             )
 
-            # 4-6. 결과 생성
+            # 5-6. 결과 생성
             result = DcaResult(
                 success=True,
                 action_taken=ActionTaken.BUY,
@@ -334,7 +360,7 @@ class DcaUsecase:
                 ),
             )
         elif signal.action == TradingAction.SELL:
-            # 4-1. 매도 수량 계산
+            # 5-1. 매도 수량 계산
             sell_volume = self.dca_service.calculate_sell_amount(
                 account=account,
                 market_data=market_data,
@@ -348,7 +374,7 @@ class DcaUsecase:
                     current_state=state,
                 )
 
-            # 4-2. 매도 주문 생성
+            # 5-2. 매도 주문 생성
             order_request = OrderRequest.create_market_sell(market, sell_volume)
             order_result = await self.order_repository.place_order(order_request)
             if not order_result.success:
@@ -359,14 +385,14 @@ class DcaUsecase:
                     current_state=state,
                 )
 
-            # 4-3. 매도 실행
+            # 5-3. 매도 실행
             profit_amount = self.dca_service.execute_sell(
                 market_data=market_data,
                 sell_volume=sell_volume,
                 state=state,
             )
 
-            # 4-4. 결과 생성
+            # 5-4. 결과 생성
             current_profit_rate = state.calculate_current_profit_rate(
                 market_data.current_price
             )
@@ -389,7 +415,7 @@ class DcaUsecase:
                 current_state=state,
             )
 
-        # 5. 상태 저장
+        # 6. 상태 저장
         await self.dca_repository.save_state(market, state)
 
         # 7. 결과 반환

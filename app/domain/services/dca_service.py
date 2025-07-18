@@ -9,9 +9,10 @@ from app.domain.models.dca import (
     DcaConfig,
     DcaState,
 )
-from app.domain.models.trading import MarketData, TradingSignal
+from app.domain.models.trading import MarketData, TradingSignal, PriceHistory
 from app.domain.enums import DcaPhase
 from app.domain.constants import ALGORITHM_MAX_CONFIDENCE
+from app.domain.services.smart_dca_service import SmartDcaService
 
 
 class DcaService:
@@ -20,12 +21,16 @@ class DcaService:
     도메인 엔티티들 간의 복잡한 비즈니스 로직을 담당
     """
 
+    def __init__(self) -> None:
+        self.smart_dca_service = SmartDcaService()
+
     def analyze_signal(
         self,
         account: Account,
         market_data: MarketData,
         config: DcaConfig,
         state: DcaState,
+        price_history: PriceHistory | None = None,
     ) -> TradingSignal:
         """
         DCA 신호 분석
@@ -53,7 +58,9 @@ class DcaService:
         )
 
         # 강제 손절 확인
-        if self.should_force_sell(current_profit_rate, config, state):
+        if self.should_force_sell(
+            current_profit_rate, config, state, market_data.current_price, price_history
+        ):
             return TradingSignal(
                 action=TradingAction.SELL,
                 confidence=ALGORITHM_MAX_CONFIDENCE,
@@ -74,6 +81,7 @@ class DcaService:
             market_data=market_data,
             config=config,
             state=state,
+            price_history=price_history,
         )
 
         # 추가 매수 신호 생성
@@ -100,6 +108,7 @@ class DcaService:
         config: DcaConfig,
         state: DcaState,
         market_data: MarketData,
+        price_history: PriceHistory | None = None,
     ) -> int:
         """
         DCA 매수 금액 계산
@@ -122,10 +131,65 @@ class DcaService:
                     # SmartDCA: 평균 단가 기준 가격 레벨 조정
                     reference_price = state.average_price
                     current_price = market_data.current_price
-                    smart_multiplier = config.calculate_smart_dca_multiplier(
-                        current_price, reference_price
+                    smart_multiplier = (
+                        self.smart_dca_service.calculate_smart_dca_multiplier(
+                            current_price, reference_price, config
+                        )
                     )
                     buy_amount = int(config.initial_buy_amount * smart_multiplier)
+
+                    # 추가로 동적 임계값이 활성화되었다면 스마트 멀티플라이어 적용
+                    if config.enable_dynamic_thresholds and price_history:
+                        # 변동성 조건 계산
+                        from app.domain.services.technical_indicators import (
+                            TechnicalIndicators,
+                        )
+
+                        indicators = TechnicalIndicators()
+
+                        atr = indicators.calculate_atr(
+                            price_history.high_prices,
+                            price_history.low_prices,
+                            price_history.close_prices,
+                        )
+
+                        if atr and len(price_history.close_prices) >= 20:
+                            # 변동성 조건 결정
+                            atr_history = []
+                            for i in range(
+                                max(1, len(price_history.close_prices) - 20),
+                                len(price_history.close_prices),
+                            ):
+                                if i >= 14:
+                                    window_atr = indicators.calculate_atr(
+                                        price_history.high_prices[i - 14 : i + 1],
+                                        price_history.low_prices[i - 14 : i + 1],
+                                        price_history.close_prices[i - 14 : i + 1],
+                                    )
+                                    if window_atr:
+                                        atr_history.append(window_atr)
+
+                            volatility_condition = (
+                                indicators.calculate_volatility_condition(
+                                    atr, atr_history
+                                )
+                            )
+
+                            # 하락률 계산
+                            drop_rate = (
+                                state.average_price - current_price
+                            ) / state.average_price
+
+                            # 스마트 멀티플라이어 적용
+                            additional_multiplier = (
+                                self.smart_dca_service.calculate_smart_buy_multiplier(
+                                    volatility_condition,
+                                    drop_rate,
+                                    config.add_buy_multiplier,
+                                )
+                            )
+
+                            buy_amount = int(buy_amount * additional_multiplier)
                 else:
                     # 기존 DCA: 이전 매수 금액의 배수
                     last_round = state.buying_rounds[-1]
@@ -216,7 +280,12 @@ class DcaService:
         return profit_amount
 
     def should_force_sell(
-        self, current_profit_rate: Decimal, config: DcaConfig, state: DcaState
+        self,
+        current_profit_rate: Decimal,
+        config: DcaConfig,
+        state: DcaState,
+        current_price: Decimal,
+        price_history: PriceHistory | None = None,
     ) -> bool:
         """
         강제 손절 조건 확인
@@ -225,11 +294,25 @@ class DcaService:
         if state.current_round >= config.max_buy_rounds:
             return True
 
-        # 최대 손실률 초과
-        if current_profit_rate <= config.force_stop_loss_rate:
-            return True
+        # 동적 임계값 사용 여부 확인
+        if config.enable_dynamic_thresholds and price_history:
+            # 스마트 DCA 로직 사용
+            dynamic_stop_loss = (
+                self.smart_dca_service.calculate_dynamic_force_stop_loss_rate(
+                    config,
+                    price_history.close_prices,
+                    price_history.high_prices,
+                    price_history.low_prices,
+                    current_price,
+                    state,
+                    config.va_monthly_growth_rate,
+                )
+            )
 
-        return False
+            return current_profit_rate <= dynamic_stop_loss
+        else:
+            # 기존 로직 사용
+            return current_profit_rate <= config.force_stop_loss_rate
 
     def should_take_profit(
         self, current_profit_rate: Decimal, config: DcaConfig
@@ -243,6 +326,7 @@ class DcaService:
         market_data: MarketData,
         config: DcaConfig,
         state: DcaState,
+        price_history: PriceHistory | None = None,
     ) -> tuple[bool, str]:
         """
         추가 매수 조건 확인
@@ -262,7 +346,7 @@ class DcaService:
             return True, "시간 기반 추가 매수"
 
         # 가격 하락 기반 매수 조건
-        if self.should_price_drop_buy(market_data, config, state):
+        if self.should_price_drop_buy(market_data, config, state, price_history):
             drop_rate = (state.average_price - current_price) / state.average_price
             return True, f"가격 하락 기반 추가 매수 (하락률: {drop_rate:.2%})"
 
@@ -285,7 +369,11 @@ class DcaService:
         return time_diff >= timedelta(hours=interval_hours)
 
     def should_price_drop_buy(
-        self, market_data: MarketData, config: DcaConfig, state: DcaState
+        self,
+        market_data: MarketData,
+        config: DcaConfig,
+        state: DcaState,
+        price_history: PriceHistory | None = None,
     ) -> bool:
         """
         가격 하락 기반 추가 매수 조건 확인
@@ -302,7 +390,35 @@ class DcaService:
         # 평균 단가 대비 하락률 계산
         drop_rate = (state.average_price - current_price) / state.average_price
 
-        return drop_rate >= abs(config.price_drop_threshold)
+        # 동적 임계값 사용 여부 확인
+        if config.enable_dynamic_thresholds and price_history:
+            # 스마트 DCA 로직 사용
+            dynamic_threshold = (
+                self.smart_dca_service.calculate_dynamic_price_drop_threshold(
+                    config,
+                    price_history.close_prices,
+                    price_history.high_prices,
+                    price_history.low_prices,
+                    current_price,
+                    state,
+                    config.va_monthly_growth_rate,
+                )
+            )
+
+            # 스마트 매수 조건 확인
+            should_buy, reason = self.smart_dca_service.should_trigger_smart_buy(
+                price_history.close_prices,
+                price_history.high_prices,
+                price_history.low_prices,
+                current_price,
+                state,
+                dynamic_threshold,
+            )
+
+            return should_buy
+        else:
+            # 기존 로직 사용
+            return drop_rate >= abs(config.price_drop_threshold)
 
     def can_buy_more(
         self, config: DcaConfig, state: DcaState, current_time: datetime

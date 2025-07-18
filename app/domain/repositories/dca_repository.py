@@ -9,6 +9,7 @@ from app.domain.models.dca import (
     DcaConfig,
     DcaState,
 )
+from app.domain.models.trading import PriceHistory, PriceDataPoint
 
 
 class DcaRepository(ABC):
@@ -52,6 +53,25 @@ class DcaRepository(ABC):
     @abstractmethod
     async def get_active_markets(self) -> list[str]:
         """현재 활성화된 DCA 마켓 목록을 반환합니다."""
+        pass
+
+    @abstractmethod
+    async def save_price_data_point(
+        self, market: str, price_data: PriceDataPoint
+    ) -> bool:
+        """가격 데이터 포인트를 저장합니다."""
+        pass
+
+    @abstractmethod
+    async def get_price_history(
+        self, market: str, max_periods: int = 50
+    ) -> PriceHistory | None:
+        """가격 히스토리를 조회합니다."""
+        pass
+
+    @abstractmethod
+    async def cleanup_old_price_data(self, market: str, max_periods: int = 50) -> bool:
+        """오래된 가격 데이터를 정리합니다."""
         pass
 
     @abstractmethod

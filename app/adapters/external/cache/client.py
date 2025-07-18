@@ -117,11 +117,11 @@ class CacheClient:
             logger.exception(f"해시 전체 조회 실패 - key: {key}, error: {e}")
             return {}
 
-    async def hdel(self, key: str, field: str) -> bool:
+    async def hdel(self, key: str, *fields: str) -> bool:
         """해시에서 필드를 삭제합니다."""
         try:
             client = await self._get_client()
-            await client.hdel(key, [field])
+            await client.hdel(key, list(fields))
         except (
             GlideTimeoutError,
             RequestError,
@@ -129,11 +129,26 @@ class CacheClient:
             ClosingError,
         ) as e:
             logger.exception(
-                f"해시 필드 삭제 실패 - key: {key}, field: {field}, error: {e}"
+                f"해시 필드 삭제 실패 - key: {key}, fields: {fields}, error: {e}"
             )
             return False
         else:
             return True
+
+    async def delete(self, key: str) -> bool:
+        """키를 삭제합니다."""
+        try:
+            client = await self._get_client()
+            result = await client.delete([key])
+            return result > 0
+        except (
+            GlideTimeoutError,
+            RequestError,
+            GlideConnectionError,
+            ClosingError,
+        ) as e:
+            logger.exception(f"키 삭제 실패 - key: {key}, error: {e}")
+            return False
 
     async def close(self) -> None:
         """캐시 클라이언트 연결을 종료합니다."""

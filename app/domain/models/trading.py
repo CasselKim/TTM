@@ -5,7 +5,6 @@
 """
 
 from decimal import Decimal
-from typing import List
 from datetime import datetime
 
 from pydantic import BaseModel
@@ -50,9 +49,9 @@ class PriceHistory(BaseModel):
     """가격 히스토리 (Value Object)"""
 
     market: str  # "KRW-BTC"
-    high_prices: List[Decimal]  # 고가 리스트
-    low_prices: List[Decimal]  # 저가 리스트
-    close_prices: List[Decimal]  # 종가 리스트
+    high_prices: list[Decimal]  # 고가 리스트
+    low_prices: list[Decimal]  # 저가 리스트
+    close_prices: list[Decimal]  # 종가 리스트
     periods: int  # 기간 수
 
     def add_price_data(
@@ -80,7 +79,7 @@ class PriceHistory(BaseModel):
 
     @classmethod
     def from_price_data_points(
-        cls, market: str, data_points: List[PriceDataPoint]
+        cls, market: str, data_points: list[PriceDataPoint]
     ) -> "PriceHistory":
         """PriceDataPoint 리스트에서 PriceHistory 생성"""
         # 타임스탬프 순으로 정렬

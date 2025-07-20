@@ -6,7 +6,6 @@ Used to dynamically adjust DCA parameters based on market conditions.
 """
 
 from decimal import Decimal
-from typing import List, Optional, Tuple
 import math
 
 
@@ -23,11 +22,11 @@ class TechnicalIndicators:
 
     @staticmethod
     def calculate_atr(
-        high_prices: List[Decimal],
-        low_prices: List[Decimal],
-        close_prices: List[Decimal],
+        high_prices: list[Decimal],
+        low_prices: list[Decimal],
+        close_prices: list[Decimal],
         period: int = 14,
-    ) -> Optional[Decimal]:
+    ) -> Decimal | None:
         """
         Calculate Average True Range (ATR)
 
@@ -63,7 +62,7 @@ class TechnicalIndicators:
         return atr
 
     @staticmethod
-    def calculate_rsi(prices: List[Decimal], period: int = 14) -> Optional[Decimal]:
+    def calculate_rsi(prices: list[Decimal], period: int = 14) -> Decimal | None:
         """
         Calculate Relative Strength Index (RSI)
 
@@ -104,8 +103,8 @@ class TechnicalIndicators:
 
     @staticmethod
     def calculate_bollinger_bands(
-        prices: List[Decimal], period: int = 20, std_dev: float = 2.0
-    ) -> Optional[Tuple[Decimal, Decimal, Decimal]]:
+        prices: list[Decimal], period: int = 20, std_dev: float = 2.0
+    ) -> tuple[Decimal, Decimal, Decimal] | None:
         """
         Calculate Bollinger Bands
 
@@ -138,7 +137,7 @@ class TechnicalIndicators:
 
     @staticmethod
     def calculate_volatility_condition(
-        atr: Decimal, atr_history: List[Decimal], period: int = 20
+        atr: Decimal, atr_history: list[Decimal], period: int = 20
     ) -> str:
         """
         Determine volatility condition based on ATR

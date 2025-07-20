@@ -1,5 +1,4 @@
 import logging
-from typing import Optional
 
 import discord
 from discord import app_commands
@@ -84,7 +83,7 @@ class DiscordCommandAdapter(commands.Cog):
     async def dca_status_command(
         self,
         interaction: discord.Interaction,
-        mode: Optional[app_commands.Choice[str]] = None,
+        mode: app_commands.Choice[str] | None = None,
     ) -> None:
         """DCA 상태 조회 Slash Command (요약/상세 선택)"""
         await interaction.response.defer()

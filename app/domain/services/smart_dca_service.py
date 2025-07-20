@@ -7,7 +7,6 @@ based on market volatility and momentum indicators.
 """
 
 from decimal import Decimal
-from typing import List, Optional, Tuple
 from datetime import datetime, timedelta
 
 from app.domain.services.technical_indicators import TechnicalIndicators
@@ -28,9 +27,9 @@ class SmartDcaService:
     def calculate_dynamic_price_drop_threshold(
         self,
         base_config: DcaConfig,
-        price_history: List[Decimal],
-        high_prices: List[Decimal],
-        low_prices: List[Decimal],
+        price_history: list[Decimal],
+        high_prices: list[Decimal],
+        low_prices: list[Decimal],
         current_price: Decimal,
         state: DcaState,
         va_monthly_growth_rate: Decimal = Decimal("0.01"),
@@ -135,9 +134,9 @@ class SmartDcaService:
     def calculate_dynamic_force_stop_loss_rate(
         self,
         base_config: DcaConfig,
-        price_history: List[Decimal],
-        high_prices: List[Decimal],
-        low_prices: List[Decimal],
+        price_history: list[Decimal],
+        high_prices: list[Decimal],
+        low_prices: list[Decimal],
         current_price: Decimal,
         state: DcaState,
         va_monthly_growth_rate: Decimal = Decimal("0.01"),
@@ -232,13 +231,13 @@ class SmartDcaService:
 
     def should_trigger_smart_buy(
         self,
-        price_history: List[Decimal],
-        high_prices: List[Decimal],
-        low_prices: List[Decimal],
+        price_history: list[Decimal],
+        high_prices: list[Decimal],
+        low_prices: list[Decimal],
         current_price: Decimal,
         state: DcaState,
         dynamic_threshold: Decimal,
-    ) -> Tuple[bool, str]:
+    ) -> tuple[bool, str]:
         """
         Determine if smart buy should trigger based on enhanced conditions.
 
@@ -296,7 +295,7 @@ class SmartDcaService:
 
     def _calculate_va_target(
         self, state: DcaState, monthly_growth_rate: Decimal
-    ) -> Optional[Decimal]:
+    ) -> Decimal | None:
         """Calculate Value Averaging target based on time elapsed."""
         if not state.cycle_start_time or state.total_investment == 0:
             return None
